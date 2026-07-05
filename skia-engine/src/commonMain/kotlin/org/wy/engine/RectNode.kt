@@ -27,7 +27,7 @@ abstract class RectNode(
         layout(Direction.x).createLayout(object : LayoutInsideObject<LayoutNode> {
             override val children: List<LayoutNode>
                 get() = layoutChildren
-            override val innerSizeForLayout: Float
+            override val innerSize: Float
                 get() = innerSize(Direction.x)
         })
     }
@@ -36,7 +36,7 @@ abstract class RectNode(
         layout(Direction.y).createLayout(object : LayoutInsideObject<LayoutNode> {
             override val children: List<LayoutNode>
                 get() = layoutChildren
-            override val innerSizeForLayout: Float
+            override val innerSize: Float
                 get() = innerSize(Direction.y)
         })
     }

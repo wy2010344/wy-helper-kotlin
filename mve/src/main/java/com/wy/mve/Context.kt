@@ -1,5 +1,6 @@
 package com.wy.mve
 
-data class Context<T>(
+//注意，不能用data-class
+class Context<T>(
     val value:T
 )

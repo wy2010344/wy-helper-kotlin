@@ -16,7 +16,7 @@ interface Align {
 
 interface StackChildConvert<T> {
     fun align(n: T): Align?
-    fun outerSizeFoorParentLayout(n: T): Float
+    fun outerSize(n: T): Float
 }
 
 interface StackObject<T> : LayoutFun<T>, StackChildConvert<T> {
@@ -39,7 +39,7 @@ class StackLayout<T>(
         var getInsideSize = true
 
         try {
-            insideSize = inside.innerSizeForLayout
+            insideSize = inside.innerSize
         } catch (err: Throwable) {
             getInsideSize = false
         }
@@ -50,7 +50,7 @@ class StackLayout<T>(
         var width = 0f
         inside.children.forEach {
             if (convert.align(it) == null) {
-                width = max(width, convert.outerSizeFoorParentLayout(it))
+                width = max(width, convert.outerSize(it))
             }
         }
         return@memo width
@@ -65,7 +65,7 @@ class StackLayout<T>(
                 return align.size(size())
             }
             return align.position(size()) {
-                convert.outerSizeFoorParentLayout(child)
+                convert.outerSize(child)
             }
         }
         val alignItem = arg.alignItem
@@ -82,10 +82,10 @@ class StackLayout<T>(
             return 0f
         }
         if (alignItem == AlignItem.center) {
-            return (size() - convert.outerSizeFoorParentLayout(child)) / 2
+            return (size() - convert.outerSize(child)) / 2
         }
         if (alignItem == AlignItem.end) {
-            return size() - convert.outerSizeFoorParentLayout(child)
+            return size() - convert.outerSize(child)
         }
         throw Error("绝不应该抵达这里")
     }

@@ -22,7 +22,7 @@ internal open class TargetStateHolder<Node>(
     }
 
     override fun buildChildren() {
-        provide(parentContext, node)
+        provide<Node>(parentContext as Context<Node>, node)
         callback()
     }
 

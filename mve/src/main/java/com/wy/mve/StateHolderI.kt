@@ -64,13 +64,16 @@ internal open class StateHolderI<Node> : StateHolder<Node> {
         creater: Creater<Node, T, K, O>,
         duplicateInfo: DuplicateInfo
     ): Memo<*> {
-        if(endBuild){
+        if (endBuild) {
             throw Error("已经初始化过了")
         }
         val contextIndex = contexts.size
         val forEachSignal = object : Memo<ForEachModal<Node, T, K, O>>() {
-            override fun get(old: ForEachModal<Node, T, K, O>?, inited: Boolean): ForEachModal<Node, T, K, O> {
-                val cacheMap=old?.newMap?:mutableMapOf()
+            override fun get(
+                old: ForEachModal<Node, T, K, O>?,
+                inited: Boolean
+            ): ForEachModal<Node, T, K, O> {
+                val cacheMap = old?.newMap ?: mutableMapOf()
                 val newMap = mutableMapOf<K, MutableList<EachValue<Node, T, O>>>()
                 val thisTimeAdd = mutableListOf<EachValue<Node, T, O>>()
                 val thisChildren = mutableListOf<EachValue<Node, T, O>>()
@@ -107,7 +110,7 @@ internal open class StateHolderI<Node> : StateHolder<Node> {
                     ev::invoke
                 }
 
-                return ForEachModal(cacheMap,newMap,thisTimeAdd,thisChildren)
+                return ForEachModal(cacheMap, newMap, thisTimeAdd, thisChildren)
             }
         }
         forEachSignal.afters.add { mit ->
@@ -118,7 +121,7 @@ internal open class StateHolderI<Node> : StateHolder<Node> {
         }
         nodes.add(object : GetList<Node>() {
             override fun getList(): List<ValueOrGetList<Node>> {
-               val out= forEachSignal()
+                val out = forEachSignal()
                 return out.thisChildren.flatMap(::getNodes)
             }
         })

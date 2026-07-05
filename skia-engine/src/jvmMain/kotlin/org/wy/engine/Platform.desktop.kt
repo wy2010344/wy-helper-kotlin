@@ -50,16 +50,65 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
         }
         val font = loadSystemFont(
             fontFamily ?: chineseFontName, FontStyle(
-                fontWeight, FontWidth.NORMAL,
+                fontWeight,
+                FontWidth.NORMAL,
                 FontSlant.ITALIC
             )
         )
-        skCanvas.drawString(text, x, y, Font(font, fontSize), paint)
+        skCanvas.drawString(
+            text, x, y, getFont(
+                fontFamily,
+                fontWeight,
+                fontSize
+            ), paint
+        )
     }
 
-    actual fun measureText(text: String, fontSize: Float): Float {
-        val font = Font(null, fontSize)
-        return font.measureTextWidth(text)
+    actual companion object {
+        val fontStyles=mutableMapOf<Int, FontStyle>()
+        fun getFont(
+            fontFamily: String?,
+            fontWeight: Int,
+            fontSize: Float
+        ): Font {
+            val family=fontFamily ?: chineseFontName
+            val font = Font(
+                loadSystemFont(
+                    family,
+                    fontStyles.getOrPut(fontWeight){
+                        FontStyle(
+                            fontWeight,
+                            FontWidth.NORMAL,
+                            FontSlant.ITALIC
+                        )
+                    }
+                ),
+                fontSize
+            )
+            return font
+        }
+
+        actual fun measureText(
+            text: String,
+            fontFamily: String?,
+            fontWeight: Int,
+            fontSize: Float,
+        ): Float {
+            val font = Font(
+                loadSystemFont(
+                    fontFamily ?: chineseFontName, FontStyle(
+                        fontWeight,
+                        FontWidth.NORMAL,
+                        FontSlant.ITALIC
+                    )
+                ), fontSize
+            )
+            return getFont(
+                fontFamily,
+                fontWeight,
+                fontSize
+            ).measureTextWidth(text)
+        }
     }
 
 

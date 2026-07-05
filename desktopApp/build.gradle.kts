@@ -22,8 +22,8 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "org.wy.engine.DemoKt"
-
+//        mainClass = "org.wy.helper.MainKt"
+        mainClass = "org.wy.engine.DemoMainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "org.wy.helper"

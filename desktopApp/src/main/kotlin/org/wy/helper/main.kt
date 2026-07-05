@@ -8,6 +8,7 @@ fun main() = application {
         onCloseRequest = ::exitApplication,
         title = "wy-helper",
     ) {
-        App()
+        ImageTextDemo()
+//        CopyDemo()
     }
 }

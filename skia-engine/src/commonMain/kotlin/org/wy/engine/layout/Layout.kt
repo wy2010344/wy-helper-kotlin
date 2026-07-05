@@ -17,7 +17,7 @@ abstract class Flex : FlexObject<LayoutNode> {
         return n.grow
     }
 
-    override fun outerSizeForParentLayout(n: LayoutNode): Float {
+    override fun outerSize(n: LayoutNode): Float {
         return n.outerSize(direction)
     }
 
@@ -36,7 +36,7 @@ abstract class Flex : FlexObject<LayoutNode> {
             return n.align
         }
 
-        override fun outerSizeFoorParentLayout(n: LayoutNode): Float {
+        override fun outerSize(n: LayoutNode): Float {
             return n.outerSize(direction.opposite)
         }
     }

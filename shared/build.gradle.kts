@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -9,7 +10,16 @@ plugins {
 
 kotlin {
     jvm()
-    
+
+    js {
+        browser()
+    }
+
+    @OptIn(ExperimentalWasmDsl::class)
+    wasmJs {
+        browser()
+    }
+
     androidLibrary {
        namespace = "org.wy.helper.shared"
        compileSdk = libs.versions.android.compileSdk.get().toInt()

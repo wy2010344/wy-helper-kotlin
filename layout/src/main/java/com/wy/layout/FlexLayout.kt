@@ -15,7 +15,7 @@ enum class DirectionFixBetweenWhenOne {
 interface FlexChildConvert<T> {
     fun index(n: T): Int
     fun grow(n: T): Float
-    fun outerSizeForParentLayout(n: T): Float
+    fun outerSize(n: T): Float
 }
 
 private data class FlexInfo(
@@ -62,7 +62,7 @@ class FlexLayout<T>(
         var insideSize = 0f
         var getInsideSize = true
         try {
-            insideSize = inside.innerSizeForLayout
+            insideSize = inside.innerSize
         } catch (err: Throwable) {
             getInsideSize = false
         }
@@ -77,7 +77,7 @@ class FlexLayout<T>(
                     growAll += grow
                     growIndex[convert.index(it)] = grow
                 } else {
-                    totalLength += convert.outerSizeForParentLayout(it)
+                    totalLength += convert.outerSize(it)
                 }
             }
 
@@ -88,7 +88,7 @@ class FlexLayout<T>(
                     val grow = growIndex[index] ?: 0f
                     val childLength = if (grow > 0) {
                         if (remaing > 0) remaing * grow / growAll else 0f
-                    } else convert.outerSizeForParentLayout(it)
+                    } else convert.outerSize(it)
 
                     childLengths[index] = childLength
                     length += childLength + gap
@@ -127,7 +127,7 @@ class FlexLayout<T>(
                 }
 
                 forEach {
-                    val childrenLength = convert.outerSizeForParentLayout(it)
+                    val childrenLength = convert.outerSize(it)
                     childLengths[convert.index(it)] = childrenLength
                     length += childrenLength + tGap
                     list.add(length)
@@ -135,9 +135,9 @@ class FlexLayout<T>(
             }
         } else {
             forEach {
-                val childLength = convert.outerSizeForParentLayout(it)
+                val childLength = convert.outerSize(it)
                 childLengths[convert.index(it)] = childLength
-                length += childLength + gap //@todo 待确认，是gap不是tGap?
+                length += childLength + gap
                 list.add(length)
             }
             if (length > 0) {

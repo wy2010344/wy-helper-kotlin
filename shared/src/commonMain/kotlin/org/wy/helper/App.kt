@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 fun App() {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize().safeContentPadding()) {
+            CopyDemo()
         }
     }
 }

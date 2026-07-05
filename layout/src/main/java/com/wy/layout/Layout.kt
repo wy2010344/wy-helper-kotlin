@@ -12,7 +12,7 @@ interface Layout {
 interface LayoutInsideObject<T> {
     val children: List<T>
 
-    val innerSizeForLayout: Float
+    val innerSize: Float
 }
 
 interface LayoutFun<T> {

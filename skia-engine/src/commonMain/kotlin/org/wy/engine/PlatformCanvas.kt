@@ -27,5 +27,13 @@ expect class PlatformCanvas {
         color: ColorInt=rgba(0,0,0)
     )
 
-    fun measureText(text: String,fontSize: Float=16f): Float
+
+    companion object {
+        fun measureText(
+            text: String,
+            fontFamily: String?=null,
+            fontWeight:Int=400,
+            fontSize: Float=16f,
+            ): Float
+    }
 }

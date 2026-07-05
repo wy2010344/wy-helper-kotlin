@@ -16,6 +16,7 @@ import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.awt.event.MouseMotionAdapter
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.awt.image.BufferedImage
@@ -31,23 +32,24 @@ import javax.swing.WindowConstants
  * No Compose Canvas layer involved.
  */
 
-open class SkiaApp(width: Int = 800, height: Int = 600) : Renderer(){
+open class SkiaApp(width: Int = 800, height: Int = 600) : Renderer() {
     open var title = "Skia Engine"
     private val w = createSignal(width)
     private val h = createSignal(height)
-   final override val width: Float
+    final override val width: Float
         get() = w.value.toFloat()
 
-   final override val height: Float
+    final override val height: Float
         get() = h.value.toFloat()
 
-    private val skiaLayer=SkiaLayer()
+    private val skiaLayer = SkiaLayer()
 
     override fun frameCallback() {
         SwingUtilities.invokeLater {
             skiaLayer.needRender(true)
         }
     }
+
     init {
         SwingUtilities.invokeLater {
             val window = JFrame(title).apply {
@@ -72,10 +74,30 @@ open class SkiaApp(width: Int = 800, height: Int = 600) : Renderer(){
             })
             skiaLayer.addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent?) {
-                    if (e == null) {
-                        return
-                    }
+                    if (e == null) return
                     this@SkiaApp.mouseClick(e.x.toFloat(), e.y.toFloat())
+                }
+
+                override fun mousePressed(e: MouseEvent?) {
+                    if (e == null) return
+                    this@SkiaApp.mouseDown(e.x.toFloat(), e.y.toFloat())
+                }
+                override fun mouseReleased(e: MouseEvent?) {
+                    if (e == null) return
+                    this@SkiaApp.mouseUp(e.x.toFloat(), e.y.toFloat())
+                }
+            })
+            skiaLayer.addMouseMotionListener(object : MouseMotionAdapter(){
+                override fun mouseMoved(e: MouseEvent?) {
+                    if(e==null)return
+
+                    this@SkiaApp.mouseMove(e.x.toFloat(), e.y.toFloat())
+                }
+
+                override fun mouseDragged(e: MouseEvent?) {
+                    //拖拽是这里生效,这里是鼠标按下
+                    if(e==null) return
+                    this@SkiaApp.mouseMove(e.x.toFloat(), e.y.toFloat())
                 }
             })
             skiaLayer.renderDelegate = SkikoRenderDelegate { canvas, _, _, _ ->

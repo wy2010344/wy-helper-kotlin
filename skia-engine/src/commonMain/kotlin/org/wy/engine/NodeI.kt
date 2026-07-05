@@ -8,13 +8,13 @@ abstract class NodeI(
 
     final override val parent: Node = context.getParent() ?: throw Error("需要找到父节点才行")
 
-    private val target=context.renderNode(this,::collectIndex){
+    private val target = context.renderNode(this, ::collectIndex) {
         buildChildren()
     }
 
     var index: Int = 0
         internal set
-        get(){
+        get() {
             parent.children
             return field
         }
