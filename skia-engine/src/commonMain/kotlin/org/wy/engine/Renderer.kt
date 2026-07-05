@@ -56,6 +56,7 @@ abstract class Renderer : Node, LayoutNode {
 
     private val moveList = mutableSetOf<MouseCallback>()
     private val upList = mutableSetOf<MouseCallback>()
+    private val wheelList = mutableSetOf<WheelCallback>()
 
     private val state = renderRoot<Node>(this@Renderer, ::collectIndex) {
         provide(engineGlobalContext, object : EngineGlobal {
@@ -72,6 +73,13 @@ abstract class Renderer : Node, LayoutNode {
                     upList.remove(callback)
                 }
             }
+
+            override fun registerMouseWheel(callback: WheelCallback): EmptyFun {
+                wheelList.add(callback)
+                return {
+                    wheelList.remove(callback)
+                }
+            }
         })
         buildChildren()
     }
@@ -79,6 +87,7 @@ abstract class Renderer : Node, LayoutNode {
     fun destroy() {
         moveList.clear()
         upList.clear()
+        wheelList.clear()
         state.destroy()
     }
 
@@ -156,6 +165,10 @@ abstract class Renderer : Node, LayoutNode {
 
     fun mouseMove(x: Float, y: Float) {
         moveList.forEach { it(x, y) }
+    }
+
+    fun mouseWheel(x: Float, y: Float, deltaX: Float, deltaY: Float) {
+        wheelList.forEach { it(x, y, deltaX, deltaY) }
     }
 }
 

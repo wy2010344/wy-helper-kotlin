@@ -15,12 +15,9 @@ interface RootReturn<Node> {
 internal open class TargetStateHolder<Node>(
     private val node: Node,
     after: SetValue<List<Node>>?,
-    private val callback: StateHolder<Node>.() -> Unit
-) : StateHolderI<Node>(), RootReturn<Node> {
-    init {
-        create()
-    }
-
+    private val callback: StateHolder<Node>.() -> Unit,
+    parent: StateHolderI<Node>?=null
+) : StateHolderI<Node>(parent), RootReturn<Node> {
     override fun buildChildren() {
         provide<Node>(parentContext as Context<Node>, node)
         callback()
@@ -41,6 +38,10 @@ internal open class TargetStateHolder<Node>(
             afters.add(after)
         }
     }
+
+    override fun toString(): String {
+        return "root-render"
+    }
 }
 
 
@@ -52,5 +53,7 @@ fun <Node> renderRoot(
     after: SetValue<List<Node>>? = null,
     callback: StateHolder<Node>.() -> Unit
 ): RootReturn<Node> {
-    return TargetStateHolder(node, after, callback)
+    val node= TargetStateHolder(node, after, callback)
+    node.create()
+    return  node
 }

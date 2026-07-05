@@ -20,8 +20,9 @@ fun main() {
         override fun layout(direction: Direction) = flex.layout(direction)
 
         override fun StateHolder<Node>.buildChildren() {
-            demoWordBreak(this)
-            demoForcedBreak(this)
+//            demoWordBreak(this)
+//            demoForcedBreak(this)
+            demoScroll(this)
         }
     }
 }

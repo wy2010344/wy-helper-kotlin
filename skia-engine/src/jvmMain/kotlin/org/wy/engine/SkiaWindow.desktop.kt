@@ -17,6 +17,8 @@ import java.awt.event.ComponentEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.awt.event.MouseMotionAdapter
+import java.awt.event.MouseWheelEvent
+import java.awt.event.MouseWheelListener
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.awt.image.BufferedImage
@@ -98,6 +100,15 @@ open class SkiaApp(width: Int = 800, height: Int = 600) : Renderer() {
                     //拖拽是这里生效,这里是鼠标按下
                     if(e==null) return
                     this@SkiaApp.mouseMove(e.x.toFloat(), e.y.toFloat())
+                }
+            })
+            skiaLayer.addMouseWheelListener(object : MouseWheelListener {
+                override fun mouseWheelMoved(e: MouseWheelEvent?) {
+                    if (e == null) return
+                    this@SkiaApp.mouseWheel(
+                        e.x.toFloat(), e.y.toFloat(),
+                        0f, e.preciseWheelRotation.toFloat() * 40f
+                    )
                 }
             })
             skiaLayer.renderDelegate = SkikoRenderDelegate { canvas, _, _, _ ->

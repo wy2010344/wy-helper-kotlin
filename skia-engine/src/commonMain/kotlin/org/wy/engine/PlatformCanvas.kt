@@ -9,6 +9,8 @@ expect class PlatformCanvas {
 
     fun translate(dx: Float,dy: Float)
 
+    fun clipRect(x: Float, y: Float, w: Float, h: Float)
+
     fun drawRect(
         x: Float=0f,
         y: Float=0f,

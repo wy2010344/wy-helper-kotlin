@@ -197,15 +197,15 @@ open class WrappedTextNode(
         e.stopPropagation()
     }
 
-    init {
-        val engineGlobal = context.consume(engineGlobalContext)!!
+    override fun StateHolder<Node>.beforeBuildChildren() {
+        val engineGlobal = consume(engineGlobalContext)!!
         val d1 = engineGlobal.registerMouseUp { _, _ -> onMouseDown = false }
         val ax = memo { absolutePosition(Direction.x) }
         val ay = memo { absolutePosition(Direction.y) }
         val d2 = engineGlobal.registerMouseMove { x, y ->
             if (onMouseDown) focusIndex = charAt(x - ax(), y - ay())
         }
-        context.addDestroy { d1(); d2() }
+        addDestroy { d1(); d2() }
     }
 
     override fun drawSelf(canvas: PlatformCanvas) {

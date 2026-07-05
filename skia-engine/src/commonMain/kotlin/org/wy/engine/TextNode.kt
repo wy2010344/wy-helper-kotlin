@@ -74,18 +74,18 @@ open class TextNode(
         e.stopPropagation()
     }
 
-    init {
-        val engineGlobal = context.consume(engineGlobalContext)!!
+    override fun StateHolder<Node>.beforeBuildChildren() {
+        val engineGlobal = consume(engineGlobalContext)!!
         val d1 = engineGlobal.registerMouseUp { x, y ->
             onMouseDown = false
         }
-        val absoluteX=memo { absolutePosition(Direction.x) }
+        val absoluteX = memo { absolutePosition(Direction.x) }
         val d2 = engineGlobal.registerMouseMove { x, y ->
             if (onMouseDown) {
-                focusIndex = charAt(x-absoluteX())
+                focusIndex = charAt(x - absoluteX())
             }
         }
-        context.addDestroy {
+        addDestroy {
             d1()
             d2()
         }

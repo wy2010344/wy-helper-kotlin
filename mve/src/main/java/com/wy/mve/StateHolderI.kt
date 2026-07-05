@@ -6,10 +6,13 @@ import org.wy.lib.SetValue
 import org.wy.signal.Memo
 
 
-internal open class StateHolderI<Node> : StateHolder<Node> {
-    open val parent: StateHolderI<Node>? = null
-
-    open val parentContextIndex: Int = parent?.contexts?.size ?: 0
+/**
+ * 固定不变的如parent/parentContextIndex，必须从参数传入，如果使用重载，可能还没有初始化而出问题。
+ */
+internal open class StateHolderI<Node>(
+    val parent: StateHolderI<Node>? = null,
+    val parentContextIndex: Int = parent?.contexts?.size ?: 0
+) : StateHolder<Node> {
     internal val nodes: MutableList<ValueOrGetList<Node>> = mutableListOf()
 
     init {
@@ -83,9 +86,8 @@ internal open class StateHolderI<Node> : StateHolder<Node> {
                     val holders = cacheMap[key]
                     val ev: EachValue<Node, T, O>
                     if (holders.isNullOrEmpty()) {
-                        ev = object : EachValue<Node, T, O>(getSignal) {
-                            override val parent: StateHolderI<Node> = this@StateHolderI
-                            override val parentContextIndex: Int = contextIndex
+                        ev = object :
+                            EachValue<Node, T, O>(getSignal, this@StateHolderI, contextIndex) {
                             override fun buildChildren() {
                                 creater(key, this)
                             }
@@ -178,9 +180,13 @@ internal open class StateHolderI<Node> : StateHolder<Node> {
         callback: StateHolder<Node>.() -> Unit
     ): GetValue<List<Node>> {
         addNode(node)
-        return object : TargetStateHolder<Node>(node, after, callback) {
-            override val parent = this@StateHolderI
-        }.target
+        val a = object : TargetStateHolder<Node>(node, after, callback,this@StateHolderI) {
+            override fun toString(): String {
+                return "render-node-target"
+            }
+        }
+        a.create()
+        return a.target
     }
 
     override fun getParent(): Node? {

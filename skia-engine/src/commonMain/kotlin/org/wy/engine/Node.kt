@@ -31,7 +31,6 @@ interface Node {
     }
 
     val children: List<Node>
-
     fun StateHolder<Node>.buildChildren() {}
 
 

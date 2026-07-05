@@ -22,6 +22,10 @@ actual fun platformTranslate(canvas: PlatformCanvas, dx: Float, dy: Float) {
     canvas.androidCanvas.translate(dx, dy)
 }
 
+actual fun PlatformCanvas.clipRect(x: Float, y: Float, w: Float, h: Float) {
+    androidCanvas.clipRect(x, y, x + w, y + h)
+}
+
 actual fun PlatformCanvas.drawRect(x: Float, y: Float, w: Float, h: Float, color: ColorInt) {
     val paint = Paint().apply { this.color = color; isAntiAlias = true }
     androidCanvas.drawRect(x, y, x + w, y + h, paint)

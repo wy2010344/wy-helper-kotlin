@@ -27,6 +27,10 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
         skCanvas.translate(dx, dy)
     }
 
+    actual fun clipRect(x: Float, y: Float, w: Float, h: Float) {
+        skCanvas.clipRect(Rect(x, y, x + w, y + h))
+    }
+
     actual fun drawRect(x: Float, y: Float, w: Float, h: Float, color: Int) {
         val paint = Paint().apply {
             this.color = color

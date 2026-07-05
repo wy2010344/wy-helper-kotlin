@@ -5,7 +5,12 @@ import org.wy.lib.GetValue
 
 internal open class EachValue<Node, T, O>(
     val getSignal: GetValue<*>,
-) : StateHolderI<Node>(), EachTime<T> {
+    parent: StateHolderI<Node>,
+    parentContextIndex: Int
+) : StateHolderI<Node>(
+    parent,
+    parentContextIndex
+), EachTime<T> {
     private var out: O = null as O
     operator fun invoke(): O {
         return out
