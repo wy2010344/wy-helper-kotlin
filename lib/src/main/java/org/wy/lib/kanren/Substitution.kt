@@ -36,15 +36,15 @@ infix fun Substitution.query(v: Term): Term {
 fun extend(v: Var, value: Term, parent: Substitution): Substitution = v join value join  parent
 
 
-fun unify(a: Term, b: Term, sub: Substitution): Pair<Substitution, Boolean> {
+fun unify(a: Term, b: Term, sub: Substitution): Substitution {
     val u = a walk sub
     val v = b walk sub
-    if (u == v) return sub to true
-    if (u is Var) return extend(u, v, sub) to true
-    if (v is Var) return extend(v, u, sub) to true
+    if (u == v) return sub
+    if (u is Var) return extend(u, v, sub)
+    if (v is Var) return extend(v, u, sub)
     if (u is Cons && v is Cons) {
-        val (sub1, ok) = unify(u.car, v.car, sub)
-        return if (ok) unify(u.cdr, v.cdr, sub1) else sub to false
+        val sub1 = unify(u.car, v.car, sub)
+        return unify(u.cdr, v.cdr, sub1)
     }
     if (u is Custom) {
         return u.unify(v, sub)
@@ -52,5 +52,7 @@ fun unify(a: Term, b: Term, sub: Substitution): Pair<Substitution, Boolean> {
     if (v is Custom) {
         return v.unify(u, sub)
     }
-    return sub to false
+    throw UnifyError("can't unify ${u} to ${v}")
 }
+
+class UnifyError(message: String?=null): Error(message)

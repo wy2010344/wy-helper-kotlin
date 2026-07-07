@@ -19,8 +19,11 @@ infix fun Goal.or(other: Goal): Goal = { sub ->
 
 infix fun Term.eq(b: Term): Goal= {sub ->
     sequence {
-        val (sub1, ok) = unify(this@eq, b, sub)
-        if (ok) yield(sub1)
+        try{
+            yield(unify(this@eq,b,sub))
+        }catch (e: UnifyError){
+
+        }
     }
 }
 

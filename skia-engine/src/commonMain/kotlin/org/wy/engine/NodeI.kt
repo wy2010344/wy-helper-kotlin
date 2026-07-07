@@ -7,10 +7,7 @@ abstract class NodeI(
 ) : Node {
 
     final override val parent: Node = context.getParent() ?: throw Error("需要找到父节点才行")
-
-    open fun StateHolder<Node>.beforeBuildChildren(){}
     private val target = context.renderNode(this, ::collectIndex) {
-        beforeBuildChildren()
         buildChildren()
     }
 

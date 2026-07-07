@@ -36,5 +36,5 @@ class Var : Term() {
 }
 
 abstract class Custom : Term() {
-    abstract fun unify(other: Any?,substitution: Substitution):Pair<Substitution, Boolean>
+    abstract fun unify(other: Any?,substitution: Substitution):Substitution
 }

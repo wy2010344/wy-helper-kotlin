@@ -8,16 +8,6 @@ import org.wy.signal.memo
 import org.wy.signal.setValue
 import kotlin.math.max
 
-/**
- * 可滚动的视口容器。
- *
- * 用法：在 buildChildren 中创建子节点，子节点超出 viewportWidth/viewportHeight 的部分
- * 会被裁剪，通过鼠标滚轮滚动。
- *
- * 子节点通过父级布局系统定位（Flex / absoluteLayout 等）。
- * 如果使用默认的 absoluteLayout（所有子节点叠在左上角），
- * 可以在 buildChildren 内嵌入一个 Flex 来排列子节点。
- */
 open class ScrollNode(
     context: StateHolder<Node>
 ) : RectNode(context) {
@@ -32,9 +22,17 @@ open class ScrollNode(
     private var scrollX by createSignal(0f)
     private var scrollY by createSignal(0f)
 
+    private var scrollbarDragging = false
+    private var draggingVertical = true
+    private var dragStartX = 0f
+    private var dragStartY = 0f
+    private var dragStartScrollX = 0f
+    private var dragStartScrollY = 0f
+
     private val contentWidth = memo {
+        val pane = children.firstOrNull() as? RectNode ?: return@memo 0f
         var w = 0f
-        for (c in children) {
+        for (c in pane.children) {
             val r = c as? RectNode ?: continue
             w = max(w, r.position(Direction.x) + r.outerSize(Direction.x))
         }
@@ -42,8 +40,9 @@ open class ScrollNode(
     }
 
     private val contentHeight = memo {
+        val pane = children.firstOrNull() as? RectNode ?: return@memo 0f
         var h = 0f
-        for (c in children) {
+        for (c in pane.children) {
             val r = c as? RectNode ?: continue
             h = max(h, r.position(Direction.y) + r.outerSize(Direction.y))
         }
@@ -59,9 +58,6 @@ open class ScrollNode(
     }
 
     override fun draw(canvas: PlatformCanvas) {
-        canvas.save()
-        canvas.clipRect(0f, 0f, viewportWidth, viewportHeight)
-        canvas.translate(-scrollX, -scrollY)
         drawSelf(canvas)
         children.forEach {
             canvas.save()
@@ -69,8 +65,6 @@ open class ScrollNode(
             it.draw(canvas)
             canvas.restore()
         }
-        canvas.restore()
-
         if (showScrollbar) drawScrollbar(canvas)
     }
 
@@ -99,11 +93,105 @@ open class ScrollNode(
         }
     }
 
-    override fun StateHolder<Node>.beforeBuildChildren() {
-        val engineGlobal = consume(engineGlobalContext)!!
-        val d = engineGlobal.registerMouseWheel { _, _, _, deltaY ->
+    private val absX = memo { absolutePosition(Direction.x) }
+    private val absY = memo { absolutePosition(Direction.y) }
+
+    override fun mouseDownCapture(e: MouseEvent) {
+        if (!showScrollbar) return
+        val vw = viewportWidth
+        val vh = viewportHeight
+        val sx = e.x
+        val sy = e.y
+
+        val cy = contentHeight()
+        if (cy > vh) {
+            val thumbH = max(20f, vh * vh / cy)
+            val maxOff = cy - vh
+            val thumbY = if (maxOff > 0f) (vh - thumbH) * scrollY / maxOff else 0f
+            if (sx >= vw - scrollbarWidth && sx <= vw && sy >= thumbY && sy <= thumbY + thumbH) {
+                scrollbarDragging = true
+                draggingVertical = true
+                dragStartY = sy
+                dragStartScrollY = scrollY
+                e.stopPropagation()
+            }
+        }
+
+        val cx = contentWidth()
+        if (cx > vw && !scrollbarDragging) {
+            val thumbW = max(20f, vw * vw / cx)
+            val maxOff = cx - vw
+            val thumbX = if (maxOff > 0f) (vw - thumbW) * scrollX / maxOff else 0f
+            if (sx >= thumbX && sx <= thumbX + thumbW && sy >= vh - scrollbarWidth && sy <= vh) {
+                scrollbarDragging = true
+                draggingVertical = false
+                dragStartX = sx
+                dragStartScrollX = scrollX
+                e.stopPropagation()
+            }
+        }
+    }
+
+    init {
+        val engineGlobal = context.consume(engineGlobalContext)!!
+        val d0 = engineGlobal.registerMouseWheel { _, _, _, deltaY ->
             scrollY = (scrollY - deltaY).coerceIn(0f, maxScrollY())
         }
-        addDestroy { d() }
+        val d1 = engineGlobal.registerMouseMove { x, y ->
+            if (scrollbarDragging) {
+                val localY = y - absY()
+                val localX = x - absX()
+                if (draggingVertical) {
+                    val vh = viewportHeight
+                    val ch = contentHeight()
+                    val maxOff = ch - vh
+                    if (maxOff > 0f) {
+                        val thumbH = max(20f, vh * vh / ch)
+                        scrollY = (dragStartScrollY + (localY - dragStartY) * maxOff / (vh - thumbH))
+                            .coerceIn(0f, maxScrollY())
+                    }
+                } else {
+                    val vw = viewportWidth
+                    val cw = contentWidth()
+                    val maxOff = cw - vw
+                    if (maxOff > 0f) {
+                        val thumbW = max(20f, vw * vw / cw)
+                        scrollX = (dragStartScrollX + (localX - dragStartX) * maxOff / (vw - thumbW))
+                            .coerceIn(0f, maxScrollX())
+                    }
+                }
+            }
+        }
+        val d2 = engineGlobal.registerMouseUp { _, _ ->
+            scrollbarDragging = false
+        }
+        context.addDestroy { d0(); d1(); d2() }
+    }
+
+    protected open fun buildContent(holder: StateHolder<Node>) {}
+
+    final override fun StateHolder<Node>.buildChildren() {
+        object : RectNode(this) {
+            override fun position(d: Direction): Float = when (d) {
+                Direction.x -> -this@ScrollNode.scrollX
+                Direction.y -> -this@ScrollNode.scrollY
+            }
+
+            override fun size(direction: Direction) = when (direction) {
+                Direction.x -> LayoutSize(this@ScrollNode.viewportWidth, false)
+                Direction.y -> LayoutSize(this@ScrollNode.viewportHeight, false)
+            }
+
+            override fun draw(canvas: PlatformCanvas) {
+                val sx = this@ScrollNode.scrollX
+                val sy = this@ScrollNode.scrollY
+                canvas.clipRect(sx, sy, this@ScrollNode.viewportWidth, this@ScrollNode.viewportHeight)
+                super.draw(canvas)
+            }
+
+            override fun StateHolder<Node>.buildChildren() {
+                this@ScrollNode.buildContent(this)
+            }
+        }
     }
 }

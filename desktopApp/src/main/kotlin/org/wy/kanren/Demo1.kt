@@ -63,8 +63,8 @@ fun demoAppendSplit() {
 
 class EqStr(val s: String) : Custom() {
     override fun unify(other: Any?, substitution: Substitution) =
-        if (other is EqStr && other.s == s) substitution to true
-        else substitution to false
+        if (other is EqStr && other.s == s) substitution
+        else throw UnifyError("错误")
 }
 
 fun demoCustomUnify() {
@@ -77,16 +77,22 @@ fun demoCustomUnify() {
 }
 
 class Near(val n: Number, val tolerance: Number) : Custom() {
-    override fun unify(other: Any?, substitution: Substitution): Pair<Substitution, Boolean> {
+    override fun unify(other: Any?, substitution: Substitution): Substitution {
         if (other is Num) {
             val diff = abs(n.toDouble() - other.value.toDouble())
-            return substitution to (diff <= tolerance.toDouble())
+            if(diff<=tolerance.toDouble()){
+                return substitution
+            }
+            throw UnifyError()
         }
         if (other is Near) {
             val total = tolerance.toDouble() + other.tolerance.toDouble()
-            return substitution to (abs(n.toDouble() - other.n.toDouble()) <= total)
+            if((abs(n.toDouble() - other.n.toDouble()) <= total)){
+                return substitution
+            }
+            throw UnifyError()
         }
-        return substitution to false
+        throw UnifyError()
     }
 }
 
