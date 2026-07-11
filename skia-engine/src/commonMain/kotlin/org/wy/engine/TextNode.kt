@@ -101,7 +101,7 @@ open class TextNode(
             val end = max(anchorIndex, focusIndex)
             val leftX = if (start == 0) 0f else positions[start - 1]
             val rightX = positions[end - 1]
-            canvas.drawRect(x = leftX, y = 0f, w = rightX - leftX, h = h, color = selectionColor)
+            canvas.fillRect(x = leftX, y = 0f, w = rightX - leftX, h = h, color = selectionColor)
         }
         canvas.drawText(
             text,

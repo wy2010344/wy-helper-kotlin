@@ -167,8 +167,8 @@ abstract class Renderer : Node, LayoutNode {
         moveList.forEach { it(x, y) }
     }
 
-    fun mouseWheel(x: Float, y: Float, deltaX: Float, deltaY: Float) {
-        wheelList.forEach { it(x, y, deltaX, deltaY) }
+    fun mouseWheel(x: Float, y: Float, delta: Float) {
+        wheelList.forEach { it(x, y,  delta) }
     }
 }
 

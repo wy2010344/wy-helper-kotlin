@@ -223,7 +223,7 @@ open class WrappedTextNode(
                     val leftX = if (ls == line.start) 0f
                     else measureWidth(text, line.start, ls, fontFamily, fontWeight, fontSize)
                     val rightX = measureWidth(text, line.start, le, fontFamily, fontWeight, fontSize)
-                    canvas.drawRect(x = leftX, y = li * h, w = rightX - leftX, h = h, color = selectionColor)
+                    canvas.fillRect(x = leftX, y = li * h, w = rightX - leftX, h = h, color = selectionColor)
                 }
             }
         }

@@ -5,7 +5,7 @@ import org.wy.lib.EmptyFun
 
 
 typealias MouseCallback=(x: Float, y: Float)-> Unit
-typealias WheelCallback=(x: Float, y: Float, deltaX: Float, deltaY: Float)-> Unit
+typealias WheelCallback=(x: Float, y: Float,deltaY: Float)-> Unit
 
 interface EngineGlobal {
     fun registerMouseMove(callback:MouseCallback): EmptyFun

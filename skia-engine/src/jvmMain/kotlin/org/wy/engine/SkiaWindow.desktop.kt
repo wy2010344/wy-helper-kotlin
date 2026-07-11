@@ -106,8 +106,7 @@ open class SkiaApp(width: Int = 800, height: Int = 600) : Renderer() {
                 override fun mouseWheelMoved(e: MouseWheelEvent?) {
                     if (e == null) return
                     this@SkiaApp.mouseWheel(
-                        e.x.toFloat(), e.y.toFloat(),
-                        0f, e.preciseWheelRotation.toFloat() * 40f
+                        e.x.toFloat(), e.y.toFloat(),e.preciseWheelRotation.toFloat() * 40f
                     )
                 }
             })

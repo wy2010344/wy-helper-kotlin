@@ -46,6 +46,9 @@ interface LayoutNode {
         return 0f
     }
 
+     fun innerStart(direction: Direction): Float{
+        return padding(direction, StartEnd.start)
+    }
     val layoutChildren: List<LayoutNode>
 
     /**

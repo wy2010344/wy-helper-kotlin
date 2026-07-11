@@ -11,12 +11,22 @@ expect class PlatformCanvas {
 
     fun clipRect(x: Float, y: Float, w: Float, h: Float)
 
-    fun drawRect(
+    fun fillRect(
         x: Float=0f,
         y: Float=0f,
         w: Float,
         h: Float,
         color:Int=rgba(0,0,0)
+    )
+
+
+    fun strokeRect(
+        x: Float=0f,
+        y: Float=0f,
+        w: Float,
+        h: Float,
+        color:Int=rgba(0,0,0),
+        strokeWidth: Float=1f,
     )
 
     fun drawText(

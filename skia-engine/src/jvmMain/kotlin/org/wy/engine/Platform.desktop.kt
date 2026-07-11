@@ -31,7 +31,7 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
         skCanvas.clipRect(Rect(x, y, x + w, y + h))
     }
 
-    actual fun drawRect(x: Float, y: Float, w: Float, h: Float, color: Int) {
+    actual fun fillRect(x: Float, y: Float, w: Float, h: Float, color: Int) {
         val paint = Paint().apply {
             this.color = color
             isAntiAlias = true
@@ -39,6 +39,16 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
         skCanvas.drawRect(x, y, x + w, y + h, paint)
     }
 
+
+    actual fun strokeRect(x: Float, y: Float, w: Float, h: Float, color: Int,strokeWidth: Float, ) {
+        val paint = Paint().apply {
+            this.color = color
+            this.strokeWidth=strokeWidth
+            this.setStroke(true)
+            isAntiAlias = true
+        }
+        skCanvas.drawRect(x, y, x + w, y + h, paint)
+    }
     actual fun drawText(
         text: String,
         x: Float,
@@ -114,6 +124,7 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
             ).measureTextWidth(text)
         }
     }
+
 
 
 }

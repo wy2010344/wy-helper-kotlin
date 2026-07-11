@@ -163,6 +163,9 @@ internal open class StateHolderI<Node>(
     private val contexts = mutableListOf<Pair<Context<*>, *>>()
 
     override fun <T> provide(context: Context<T>, value: T) {
+        if(endBuild){
+            throw Error("已经初始化后不希望再provide")
+        }
         contexts.add(Pair(context, value))
     }
 

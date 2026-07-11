@@ -9,15 +9,15 @@ import org.wy.engine.opposite
 
 abstract class Flex : FlexObject<LayoutNode> {
     open val direction: Direction = Direction.x
-    override fun index(n: LayoutNode): Int {
+    final override fun index(n: LayoutNode): Int {
         return n.layoutIndex
     }
 
-    override fun grow(n: LayoutNode): Float {
+    final override fun grow(n: LayoutNode): Float {
         return n.grow
     }
 
-    override fun outerSize(n: LayoutNode): Float {
+   final  override fun outerSize(n: LayoutNode): Float {
         return n.outerSize(direction)
     }
 
