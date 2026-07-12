@@ -3,14 +3,14 @@ package com.wy.layout
 
 private val absoluteLayoutObject = object : Layout{
     override val sizeFromChildren: Float
-        get() = throw Error("没有默认值")
+        get() = throw LayoutError("没有默认值")
 
     override fun childPosition(index: Int): Float {
         return 0f
     }
 
     override fun childSize(index: Int): Float {
-        throw Error("没有子节点的尺寸")
+        throw LayoutError("没有子节点的尺寸")
     }
 }
 

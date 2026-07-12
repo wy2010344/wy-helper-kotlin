@@ -17,7 +17,7 @@ abstract class Flex : FlexObject<LayoutNode> {
         return n.grow
     }
 
-   final  override fun outerSize(n: LayoutNode): Float {
+    final override fun outerSize(n: LayoutNode): Float {
         return n.outerSize(direction)
     }
 

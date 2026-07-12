@@ -4,7 +4,7 @@ package org.wy.signal
 import kotlin.collections.iterator
 import org.wy.lib.*
 
-private val stackMemos=mutableListOf<Memo<*>>()
+private val stackMemos = mutableListOf<Memo<*>>()
 
 //有一种可能，重入循环
 abstract class Memo<T> : GetValue<T> {
@@ -17,15 +17,16 @@ abstract class Memo<T> : GetValue<T> {
     private var listenerVersion: Any? = null
 
 
-    private fun checkEnter(){
-        if(stackMemos.contains(this)){
+    private fun checkEnter() {
+        if (stackMemos.contains(this)) {
             throw Error("重复进入...${this}")
         }
-        stackMemos.add(0,this)
+        stackMemos.add(0, this)
     }
-    private fun checkLeave(){
-        val last=stackMemos.removeAt(0)
-        if(last!=this){
+
+    private fun checkLeave() {
+        val last = stackMemos.removeAt(0)
+        if (last != this) {
             throw Error("出入并不匹配")
         }
     }
@@ -82,8 +83,14 @@ abstract class Memo<T> : GetValue<T> {
     ): T {
         relays.clear()
         G.currentRelay = relays
-        val v = get(lastValue, inited)
-        G.currentRelay = null
+        val v = try {
+            get(lastValue, inited)
+        } catch (e: Throwable) {
+            println("出错了。。。${e}")
+            throw e
+        } finally {
+            G.currentRelay = null
+        }
         return v
     }
 }

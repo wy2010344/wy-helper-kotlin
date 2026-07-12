@@ -4,45 +4,70 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
 
-actual class PlatformCanvas(val androidCanvas: Canvas)
-
-actual fun platformClear(canvas: PlatformCanvas, width: Float, height: Float) {
-    canvas.androidCanvas.drawColor(android.graphics.Color.rgb(0xF5, 0xF5, 0xF5))
-}
-
-actual fun platformSave(canvas: PlatformCanvas) {
-    canvas.androidCanvas.save()
-}
-
-actual fun platformRestore(canvas: PlatformCanvas) {
-    canvas.androidCanvas.restore()
-}
-
-actual fun platformTranslate(canvas: PlatformCanvas, dx: Float, dy: Float) {
-    canvas.androidCanvas.translate(dx, dy)
-}
-
-actual fun PlatformCanvas.clipRect(x: Float, y: Float, w: Float, h: Float) {
-    androidCanvas.clipRect(x, y, x + w, y + h)
-}
-
-actual fun PlatformCanvas.drawRect(x: Float, y: Float, w: Float, h: Float, color: ColorInt) {
-    val paint = Paint().apply { this.color = color; isAntiAlias = true }
-    androidCanvas.drawRect(x, y, x + w, y + h, paint)
-}
-
-actual fun PlatformCanvas.drawText(text: String, x: Float, y: Float, fontSize: Float, color: ColorInt): Float {
-    val paint = Paint().apply {
-        this.color = color
-        this.textSize = fontSize
-        isAntiAlias = true
-        typeface = Typeface.DEFAULT
+actual class PlatformCanvas(val canvas: Canvas) {
+    actual fun clear(int: Int) {
+        canvas.drawColor(int)
     }
-    androidCanvas.drawText(text, x, y, paint)
-    return paint.measureText(text)
+
+    actual fun save() {
+        canvas.save()
+    }
+
+    actual fun restore() {
+        canvas.restore()
+    }
+
+    actual fun translate(dx: Float, dy: Float) {
+        canvas.translate(dx, dy)
+    }
+
+    actual fun clipRect(x: Float, y: Float, w: Float, h: Float) {
+        canvas.clipRect(x, y, x + w, y + h)
+    }
+
+    actual fun fillRect(x: Float, y: Float, w: Float, h: Float, color: Int) {
+        val paint = Paint().apply { this.color = color; isAntiAlias = true }
+        canvas.drawRect(x, y, x + w, y + h, paint)
+    }
+
+    actual fun strokeRect(x: Float, y: Float, w: Float, h: Float, color: Int, strokeWidth: Float) {
+        val paint = Paint().apply {
+            this.color = color;
+            this.strokeWidth = strokeWidth
+            isAntiAlias = true
+        }
+        canvas.drawRect(x, y, x + w, y + h, paint)
+
+    }
+
+    actual fun drawText(
+        text: String,
+        x: Float,
+        y: Float,
+        fontFamily: String?,
+        fontWeight: Int,
+        fontSize: Float,
+        color: ColorInt
+    ) {
+
+        val paint = Paint().apply {
+            this.color = color
+            this.textSize = fontSize
+            isAntiAlias = true
+            typeface = Typeface.DEFAULT
+        }
+        canvas.drawText(text, x, y, paint)
+    }
+
 }
 
-actual fun PlatformCanvas.measureText(text: String, fontSize: Float): Float {
+
+actual fun measureText(
+    text: String,
+    fontFamily: String?,
+    fontWeight: Int,
+    fontSize: Float
+): Float {
     val paint = Paint().apply { textSize = fontSize }
     return paint.measureText(text)
 }

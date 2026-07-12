@@ -19,7 +19,6 @@ fun demoWordBreak(context: StateHolder<Node>) {
     object : WrappedTextNode(context) {
         override val text: String get() = "[BREAK_WORD]  " + text.value
         override val fontSize: Float get() = 14f
-        override val wrappingWidth: Float get() = 400f
         override val wordBreak: WordBreak get() = WordBreak.BREAK_WORD
         override fun mouseUp(e: MouseEvent) {
             val sel = selectionText
@@ -31,7 +30,6 @@ fun demoWordBreak(context: StateHolder<Node>) {
     object : WrappedTextNode(context) {
         override val text: String get() = "[PHRASE]  " + text.value
         override val fontSize: Float get() = 14f
-        override val wrappingWidth: Float get() = 400f
         override val wordBreak: WordBreak get() = WordBreak.PHRASE
         override fun mouseUp(e: MouseEvent) {
             val sel = selectionText
@@ -43,7 +41,6 @@ fun demoWordBreak(context: StateHolder<Node>) {
     object : WrappedTextNode(context) {
         override val text: String get() = "[ANY_CHAR]  " + text.value
         override val fontSize: Float get() = 14f
-        override val wrappingWidth: Float get() = 400f
         override val wordBreak: WordBreak get() = WordBreak.ANY_CHAR
         override fun mouseUp(e: MouseEvent) {
             val sel = selectionText
@@ -56,6 +53,5 @@ fun demoWordBreak(context: StateHolder<Node>) {
         override val text: String get() = feedback.value
         override val fontSize: Float get() = 13f
         override val color: ColorInt get() = rgba(0, 128, 0)
-        override val wrappingWidth: Float get() = 400f
     }
 }

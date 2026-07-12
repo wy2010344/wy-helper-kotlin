@@ -1,6 +1,7 @@
 package org.wy.engine
 
 import com.wy.layout.Layout
+import com.wy.layout.LayoutError
 import com.wy.layout.LayoutInsideObject
 import com.wy.mve.StateHolder
 import org.wy.engine.layout.LayoutNode
@@ -27,15 +28,21 @@ abstract class RectNode(
         layout(Direction.x).createLayout(object : LayoutInsideObject<LayoutNode> {
             override val children: List<LayoutNode>
                 get() = layoutChildren
+            override val sizeFromParent: Boolean
+                get() = provideSize(Direction.x)
             override val innerSize: Float
                 get() = innerSize(Direction.x)
         })
     }
 
+
+
     override val layoutY: GetValue<Layout> = memo {
         layout(Direction.y).createLayout(object : LayoutInsideObject<LayoutNode> {
             override val children: List<LayoutNode>
                 get() = layoutChildren
+            override val sizeFromParent: Boolean
+                get() = provideSize(Direction.y)
             override val innerSize: Float
                 get() = innerSize(Direction.y)
         })
@@ -46,7 +53,7 @@ abstract class RectNode(
         if (lp != null) {
             try {
                 return lp.layoutValue(d).childPosition(layoutIndex)
-            } catch (err: Throwable) {
+            } catch (err: LayoutError) {
 
             }
         }

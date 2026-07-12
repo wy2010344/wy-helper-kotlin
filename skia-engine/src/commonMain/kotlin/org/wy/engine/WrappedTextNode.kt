@@ -33,7 +33,7 @@ open class WrappedTextNode(
     open val selectionColor: ColorInt = rgba(0, 100, 200, 60)
     open val lineHeight: Float
         get() = fontSize * 1.4f
-    open val wrappingWidth: Float = Float.MAX_VALUE
+
     open val wordBreak: WordBreak = WordBreak.BREAK_WORD
     open val locale: String? = null
 
@@ -42,10 +42,17 @@ open class WrappedTextNode(
     private fun isSpace(ch: Char) = ch == ' ' || ch == '\t'
 
     private fun measureWidth(text: String, fontFamily: String?, fontWeight: Int, fontSize: Float) =
-        PlatformCanvas.measureText(text, fontFamily, fontWeight, fontSize)
+        measureText(text, fontFamily, fontWeight, fontSize)
 
-    private fun measureWidth(text: String, start: Int, end: Int, fontFamily: String?, fontWeight: Int, fontSize: Float) =
-        if (start >= end) 0f else PlatformCanvas.measureText(
+    private fun measureWidth(
+        text: String,
+        start: Int,
+        end: Int,
+        fontFamily: String?,
+        fontWeight: Int,
+        fontSize: Float
+    ) =
+        if (start >= end) 0f else measureText(
             text.substring(start, end), fontFamily, fontWeight, fontSize
         )
 
@@ -54,7 +61,7 @@ open class WrappedTextNode(
 
     private val lines = memo {
         if (text.isEmpty()) return@memo emptyList()
-        val maxW = wrappingWidth
+        val maxW = innerSize(Direction.x)
         val result = mutableListOf<TextLine>()
         var pos = 0
         val len = text.length
@@ -83,7 +90,7 @@ open class WrappedTextNode(
         val segmentText = text.substring(segStart, segEnd)
         val breaks = lineBreakOpportunities(segmentText, locale)
             .map { it + segStart }
-            .filter { it > segStart && it < segEnd }
+            .filter { it in (segStart + 1)..<segEnd }
 
         var lineStart = segStart
         while (lineStart < segEnd) {
@@ -107,7 +114,14 @@ open class WrappedTextNode(
             }
 
             val lastFitIdx: Int? = breaks.lastOrNull { bp ->
-                bp > lineStart && measureWidth(text, lineStart, bp, fontFamily, fontWeight, fontSize) <= maxW
+                bp > lineStart && measureWidth(
+                    text,
+                    lineStart,
+                    bp,
+                    fontFamily,
+                    fontWeight,
+                    fontSize
+                ) <= maxW
             }
 
             val lineEnd: Int
@@ -164,14 +178,11 @@ open class WrappedTextNode(
         return low.coerceIn(line.start, line.end)
     }
 
-    override fun size(direction: Direction): LayoutSize {
-        val lineList = lines()
-        return when (direction) {
-            Direction.x -> if (wrappingWidth < Float.MAX_VALUE)
-                LayoutSize(wrappingWidth, false)
-            else
-                LayoutSize(lineList.firstOrNull()?.width() ?: 0f, true)
-            Direction.y -> LayoutSize(
+    override fun size(direction: Direction): LayoutSize = when (direction) {
+        Direction.x -> sizeFromParent(direction)
+        Direction.y -> {
+            val lineList = lines()
+            LayoutSize(
                 max(lineList.size * lineHeight, fontSize * 1.4f), true
             )
         }
@@ -197,15 +208,15 @@ open class WrappedTextNode(
         e.stopPropagation()
     }
 
-    init{
-        val engineGlobal =context. consume(engineGlobalContext)!!
-        val d1 = engineGlobal.registerMouseUp { _, _ -> onMouseDown = false }
+    init {
+        val engineGlobal = context.consume(engineGlobalContext)!!
+        val d1 = engineGlobal.registerMouseUp { e -> onMouseDown = false }
         val ax = memo { absolutePosition(Direction.x) }
         val ay = memo { absolutePosition(Direction.y) }
-        val d2 = engineGlobal.registerMouseMove { x, y ->
-            if (onMouseDown) focusIndex = charAt(x - ax(), y - ay())
+        val d2 = engineGlobal.registerMouseMove { e ->
+            if (onMouseDown) focusIndex = charAt(e.x - ax(), e.y - ay())
         }
-       context.addDestroy { d1(); d2() }
+        context.addDestroy { d1(); d2() }
     }
 
     override fun drawSelf(canvas: PlatformCanvas) {
@@ -222,8 +233,15 @@ open class WrappedTextNode(
                 if (ls < le) {
                     val leftX = if (ls == line.start) 0f
                     else measureWidth(text, line.start, ls, fontFamily, fontWeight, fontSize)
-                    val rightX = measureWidth(text, line.start, le, fontFamily, fontWeight, fontSize)
-                    canvas.fillRect(x = leftX, y = li * h, w = rightX - leftX, h = h, color = selectionColor)
+                    val rightX =
+                        measureWidth(text, line.start, le, fontFamily, fontWeight, fontSize)
+                    canvas.fillRect(
+                        x = leftX,
+                        y = li * h,
+                        w = rightX - leftX,
+                        h = h,
+                        color = selectionColor
+                    )
                 }
             }
         }
@@ -231,8 +249,10 @@ open class WrappedTextNode(
         for ((li, line) in lineList.withIndex()) {
             val lineText = text.substring(line.start, line.end)
             if (lineText.isNotEmpty()) {
-                canvas.drawText(lineText, 0f, li * h + fontSize, fontFamily, fontWeight,
-                    fontSize = fontSize, color = color)
+                canvas.drawText(
+                    lineText, 0f, li * h + fontSize, fontFamily, fontWeight,
+                    fontSize = fontSize, color = color
+                )
             }
         }
     }

@@ -31,7 +31,7 @@ internal object G {
 // Batch System
 // ═══════════════════════════════════════════
 
-internal val batchScope by lazy {
+val batchScope by lazy {
     val d = try {
         Dispatchers.Main
     } catch (_: IllegalStateException) {

@@ -3,12 +3,15 @@ package org.wy.engine
 import com.wy.layout.LayoutFun
 import com.wy.layout.absoluteLayout
 import com.wy.mve.StateHolder
+import kotlinx.coroutines.launch
 import org.jetbrains.skia.*
 import org.jetbrains.skiko.SkiaLayer
 import org.jetbrains.skiko.SkikoRenderDelegate
 import org.wy.engine.layout.LayoutNode
 import org.wy.lib.EmptyFun
 import org.wy.signal.TrackSignal
+import org.wy.signal.batchScope
+import org.wy.signal.batchSignalEnd
 import org.wy.signal.createSignal
 import java.awt.Dimension
 import java.awt.Graphics
@@ -24,16 +27,19 @@ import java.awt.event.WindowEvent
 import java.awt.image.BufferedImage
 import java.awt.image.DataBufferByte
 import java.util.Date
+import java.util.concurrent.locks.ReentrantLock
 import javax.swing.JComponent
 import javax.swing.JFrame
 import javax.swing.SwingUtilities
 import javax.swing.WindowConstants
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 /**
  * Desktop window that renders directly through the Skia pipeline.
  * No Compose Canvas layer involved.
  */
 
+@OptIn(ExperimentalAtomicApi::class)
 open class SkiaApp(width: Int = 800, height: Int = 600) : Renderer() {
     open var title = "Skia Engine"
     private val w = createSignal(width)
@@ -84,21 +90,22 @@ open class SkiaApp(width: Int = 800, height: Int = 600) : Renderer() {
                     if (e == null) return
                     this@SkiaApp.mouseDown(e.x.toFloat(), e.y.toFloat())
                 }
+
                 override fun mouseReleased(e: MouseEvent?) {
                     if (e == null) return
                     this@SkiaApp.mouseUp(e.x.toFloat(), e.y.toFloat())
                 }
             })
-            skiaLayer.addMouseMotionListener(object : MouseMotionAdapter(){
+            skiaLayer.addMouseMotionListener(object : MouseMotionAdapter() {
                 override fun mouseMoved(e: MouseEvent?) {
-                    if(e==null)return
+                    if (e == null) return
 
                     this@SkiaApp.mouseMove(e.x.toFloat(), e.y.toFloat())
                 }
 
                 override fun mouseDragged(e: MouseEvent?) {
                     //拖拽是这里生效,这里是鼠标按下
-                    if(e==null) return
+                    if (e == null) return
                     this@SkiaApp.mouseMove(e.x.toFloat(), e.y.toFloat())
                 }
             })
@@ -106,11 +113,15 @@ open class SkiaApp(width: Int = 800, height: Int = 600) : Renderer() {
                 override fun mouseWheelMoved(e: MouseWheelEvent?) {
                     if (e == null) return
                     this@SkiaApp.mouseWheel(
-                        e.x.toFloat(), e.y.toFloat(),e.preciseWheelRotation.toFloat() * 40f
+                        e.x.toFloat(), e.y.toFloat(), e.preciseWheelRotation.toFloat() * 40f
                     )
                 }
             })
+
             skiaLayer.renderDelegate = SkikoRenderDelegate { canvas, _, _, _ ->
+                if (this@SkiaApp.scheduled) {
+                    return@SkikoRenderDelegate
+                }
                 val scale = skiaLayer.contentScale
                 canvas.scale(scale, scale)
                 this@SkiaApp.render(PlatformCanvas(canvas))

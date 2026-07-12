@@ -23,12 +23,19 @@ open class ScrollNode(
         Direction.y -> scrollY
     }
 
+    override fun size(direction: Direction): LayoutSize {
+        return sizeFromParent(direction)
+    }
     /**
      * 内容区尺寸
      */
     fun contentSize(direction: Direction): Float {
-        val pane = children.firstOrNull() as? RectNode ?: return 0f
-        return pane.outerSize(direction)
+        children.forEach {
+            if (it is ContentClass) {
+                return it.outerSize(direction)
+            }
+        }
+        return 0f
     }
 
     /**
@@ -41,9 +48,9 @@ open class ScrollNode(
 
     override fun draw(canvas: PlatformCanvas) {
         drawSelf(canvas)
-        children.forEachIndexed { index, it ->
+        children.forEach {
             canvas.save()
-            if (index == 0) {
+            if (it is ContentClass) {
                 canvas.clipRect(
                     padding(Direction.x, StartEnd.start),
                     padding(Direction.y, StartEnd.start),
@@ -64,7 +71,7 @@ open class ScrollNode(
     fun scrollBarSize(
         direction: Direction,
         length: Float = 0f
-    ): Pair<Float, Float>? {
+    ): ScrollBarCalculate? {
         val length = if (length > 0) length else innerSize(direction)
         val v = innerSize(direction)
         val c = contentSize(direction)
@@ -73,8 +80,9 @@ open class ScrollNode(
             //
             val thumb = max(20f, length * v / c)
             //最大偏移*偏移比例
-            val move = (length - thumb) * scroll(direction) / m
-            return thumb to move
+            val maxOffset = length - thumb
+            val move = maxOffset * scroll(direction) / m
+            return ScrollBarCalculate(thumb, move, m, maxOffset)
         }
         return null
     }
@@ -86,17 +94,20 @@ open class ScrollNode(
     /**
      * 滚动一定偏移
      */
-    open fun scroll(delta: Float) {
-        scrollY = (scrollY + delta).coerceIn(0f, maxScroll(Direction.y))
+    open fun scroll(delta: Float): Float {
+        val next = (scrollY + delta).coerceIn(0f, maxScroll(Direction.y))
+        val realDelta = next - scrollY
+        scrollY = next
+        return realDelta
     }
 
     init {
         val engineGlobal = context.consume(engineGlobalContext)!!
-        val d0 = engineGlobal.registerMouseWheel { x, y, delta ->
-            if (inRange(absX() + innerStart(Direction.x), x, innerSize(Direction.x))
-                && inRange(absY() + innerStart(Direction.y), y, innerSize(Direction.y))
+        val d0 = engineGlobal.registerMouseWheel {
+            if (inRange(absX() + innerStart(Direction.x), it.x, innerSize(Direction.x))
+                && inRange(absY() + innerStart(Direction.y), it.y, innerSize(Direction.y))
             ) {
-                scroll(delta)
+                scroll(it.delta)
             }
         }
         context.addDestroy { d0(); }
@@ -106,7 +117,9 @@ open class ScrollNode(
         return absoluteLayout()
     }
 
-    open val contentSize: (LayoutNode.(direction: Direction) -> LayoutSize)? = null
+    open fun provideContentSize(direction: Direction): LayoutSize?{
+        return null
+    }
 
     open fun contentLayout(direction: Direction): LayoutFun<LayoutNode> {
         return absoluteLayout()
@@ -117,11 +130,20 @@ open class ScrollNode(
     }
 
     protected open fun StateHolder<Node>.buildContentChildren() {}
+    override fun StateHolder<Node>.buildChildren() {
+        buildScrollNode()
+    }
 
-    open fun StateHolder<Node>.buildOtherChildren() {}
-
-    final override fun StateHolder<Node>.buildChildren() {
-        object : RectNode(this) {
+    private var callTime = 0
+    fun StateHolder<Node>.buildScrollNode() {
+        if (callTime > 0) {
+            throw Error("只允许调用一次")
+        }
+        callTime = 1
+        object : ContentClass(this) {
+            override fun provideSize(direction: Direction): Boolean {
+                return false
+            }
             override fun layout(direction: Direction): LayoutFun<LayoutNode> {
                 return contentLayout(direction)
             }
@@ -136,14 +158,30 @@ open class ScrollNode(
             }
 
             override fun size(direction: Direction): LayoutSize {
-                contentSize?.let { return it.invoke(this, direction) }
-                return super.size(direction)
+                return provideContentSize(direction)?:sizeFromChildren(direction)
             }
 
             override fun StateHolder<Node>.buildChildren() {
                 this.buildContentChildren()
             }
         }
-        this.buildOtherChildren()
+    }
+
+}
+
+
+class ScrollBarCalculate(
+    val size: Float,
+    val offset: Float,
+    val maxScroll: Float,
+    val maxOffset: Float
+) {
+    fun moveToScroll(delta: Float): Float {
+        return delta * maxScroll / maxOffset
+    }
+    fun scrollToMove(delta: Float): Float{
+        return delta *maxOffset / maxScroll
     }
 }
+
+private abstract class ContentClass(context: StateHolder<Node>) : RectNode(context)

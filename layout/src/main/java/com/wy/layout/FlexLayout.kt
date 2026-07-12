@@ -21,7 +21,6 @@ interface FlexChildConvert<T> {
 private data class FlexInfo(
     val childLengths: Map<Int, Float>,
     val list: List<Float>,
-    val fixSize: Boolean,
     val length: Float
 )
 
@@ -43,6 +42,9 @@ interface FlexObject<T> : LayoutFun<T>, FlexChildConvert<T> {
     }
 }
 
+/**
+ * 使用try...catch会陷入无限死循环。。。
+ */
 class FlexLayout<T>(
     private val arg: FlexObject<T>,
     private val inside: LayoutInsideObject<T>,
@@ -59,15 +61,9 @@ class FlexLayout<T>(
         val forEach: (action: (T) -> Unit) -> Unit =
             if (reverse) children::forEachRight else children::forEach
 
-        var insideSize = 0f
-        var getInsideSize = true
-        try {
-            insideSize = inside.innerSize
-        } catch (err: Throwable) {
-            getInsideSize = false
-        }
-
-        if (getInsideSize) {
+        if (inside.sizeFromParent) {
+            val insideSize = inside.innerSize
+            //外部提供了尺寸
             val growIndex = mutableMapOf<Int, Float>()
             var growAll = 0f
             var totalLength = 0f
@@ -148,11 +144,12 @@ class FlexLayout<T>(
             list.reverse()
         }
         return@memo FlexInfo(
-            childLengths, list, getInsideSize, length
+            childLengths, list, length
         )
     }
 
     override fun childPosition(index: Int): Float {
+        //两个flex嵌套，依赖孙节点的尺寸。但父节点问子节点尺寸，子节点先问父节点自己尺寸，就会循环
         return cache().list[index]
     }
 
@@ -161,5 +158,10 @@ class FlexLayout<T>(
     }
 
     override val sizeFromChildren: Float
-        get() = if (cache().fixSize) throw Error("外部提供了尺寸") else cache().length
+        get() {
+            if(inside.sizeFromParent){
+                throw LayoutError("外部提供了尺寸")
+            }
+            return cache().length
+        }
 }

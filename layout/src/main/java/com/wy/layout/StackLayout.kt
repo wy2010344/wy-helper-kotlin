@@ -20,6 +20,7 @@ interface StackChildConvert<T> {
 }
 
 interface StackObject<T> : LayoutFun<T>, StackChildConvert<T> {
+
     val alignItem: AlignItem
         get() = AlignItem.center
 
@@ -35,17 +36,8 @@ class StackLayout<T>(
 ) : Layout {
 
     private val size = memo {
-        var insideSize = 0f
-        var getInsideSize = true
-
-        try {
-            insideSize = inside.innerSize
-        } catch (err: Throwable) {
-            getInsideSize = false
-        }
-
-        if (getInsideSize) {
-            return@memo insideSize
+        if(inside.sizeFromParent){
+            return@memo inside.innerSize
         }
         var width = 0f
         inside.children.forEach {
@@ -76,7 +68,7 @@ class StackLayout<T>(
             return 0f
         }
         if (isSize) {
-            throw Error("子节点应该有它自己的尺寸")
+            throw LayoutError("子节点应该有它自己的尺寸")
         }
         if (alignItem == AlignItem.start) {
             return 0f
@@ -87,7 +79,7 @@ class StackLayout<T>(
         if (alignItem == AlignItem.end) {
             return size() - convert.outerSize(child)
         }
-        throw Error("绝不应该抵达这里")
+        throw LayoutError("绝不应该抵达这里")
     }
 
     override val sizeFromChildren: Float

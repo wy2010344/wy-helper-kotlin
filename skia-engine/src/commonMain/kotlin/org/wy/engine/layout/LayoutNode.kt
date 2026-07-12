@@ -2,6 +2,7 @@ package org.wy.engine.layout
 
 import com.wy.layout.Align
 import com.wy.layout.Layout
+import com.wy.layout.LayoutError
 import com.wy.layout.LayoutFun
 import com.wy.layout.absoluteLayout
 import org.wy.engine.Direction
@@ -25,6 +26,7 @@ interface LayoutNode {
 
     val align: Align?
         get() = null
+
     ////
     val layoutParent: LayoutNode?
 
@@ -46,31 +48,40 @@ interface LayoutNode {
         return 0f
     }
 
-     fun innerStart(direction: Direction): Float{
+    fun innerStart(direction: Direction): Float {
         return padding(direction, StartEnd.start)
     }
+
     val layoutChildren: List<LayoutNode>
 
-    /**
-     * 尺寸，可能用户介入手动重写
-     */
-    fun size(direction: Direction): LayoutSize {
+    fun sizeFromParent(direction: Direction): LayoutSize{
         val lp = layoutParent
         if (lp != null) {
-            try {
-                return LayoutSize(
-                    lp.layoutValue(direction).childSize(layoutIndex),
-                    false
-                )
-            } catch (e: Throwable) {
-            }
+            return LayoutSize(
+                lp.layoutValue(direction).childSize(layoutIndex),
+                false
+            )
         }
+        throw Error("未找到父节点")
+    }
+    fun sizeFromChildren(direction: Direction): LayoutSize{
         return LayoutSize(
             layoutValue(direction).sizeFromChildren,
             true
         )
     }
 
+    /**
+     * 是否由外部提供尺寸，默认是外部
+     */
+    fun provideSize(direction: Direction): Boolean{
+        return true
+    }
+    /**
+     * 尺寸，可能用户介入手动重写
+     * 必须手动指定从哪里来
+     */
+    fun size(direction: Direction): LayoutSize
     fun outerSize(direction: Direction): Float {
         val s = size(direction)
         if (s.fromInside) {

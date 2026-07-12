@@ -39,7 +39,7 @@ open class TextNode(
         val positions = mutableListOf<Float>()
         for (i in text.indices) {
             positions.add(
-                PlatformCanvas.measureText(
+                measureText(
                     text.substring(0, i + 1),
                     fontFamily,
                     fontWeight,
@@ -57,11 +57,12 @@ open class TextNode(
         }
         return positions.size
     }
-
     override fun size(direction: Direction): LayoutSize {
-        val positions = charPositions()
         return when (direction) {
-            Direction.x -> LayoutSize(positions.lastOrNull() ?: 0f, true)
+            Direction.x -> {
+                val positions = charPositions()
+                return LayoutSize(positions.lastOrNull() ?: 0f, true)
+            }
             Direction.y -> LayoutSize(fontSize * 1.4f, true)
         }
     }
@@ -76,13 +77,13 @@ open class TextNode(
 
     init {
         val engineGlobal = context.consume(engineGlobalContext)!!
-        val d1 = engineGlobal.registerMouseUp { x, y ->
+        val d1 = engineGlobal.registerMouseUp {
             onMouseDown = false
         }
         val absoluteX = memo { absolutePosition(Direction.x) }
-        val d2 = engineGlobal.registerMouseMove { x, y ->
+        val d2 = engineGlobal.registerMouseMove {
             if (onMouseDown) {
-                focusIndex = charAt(x - absoluteX())
+                focusIndex = charAt(it.x - absoluteX())
             }
         }
        context.addDestroy {

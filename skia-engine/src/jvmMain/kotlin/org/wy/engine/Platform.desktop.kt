@@ -1,15 +1,13 @@
 package org.wy.engine
 
 import org.jetbrains.skia.Canvas
+import org.jetbrains.skia.ClipMode
 import org.jetbrains.skia.Color
 import org.jetbrains.skia.Font
 import org.jetbrains.skia.FontSlant
 import org.jetbrains.skia.FontStyle
 import org.jetbrains.skia.FontWidth
 import org.jetbrains.skia.Paint
-import org.jetbrains.skia.Rect
-import org.jetbrains.skia.Surface
-
 actual class PlatformCanvas(val skCanvas: Canvas) {
     actual fun clear(int: Int) {
         skCanvas.clear(int)
@@ -28,7 +26,7 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
     }
 
     actual fun clipRect(x: Float, y: Float, w: Float, h: Float) {
-        skCanvas.clipRect(Rect(x, y, x + w, y + h))
+        skCanvas.clipRect(x, y, x + w, y + h, ClipMode.INTERSECT, false)
     }
 
     actual fun fillRect(x: Float, y: Float, w: Float, h: Float, color: Int) {
@@ -40,15 +38,23 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
     }
 
 
-    actual fun strokeRect(x: Float, y: Float, w: Float, h: Float, color: Int,strokeWidth: Float, ) {
+    actual fun strokeRect(
+        x: Float,
+        y: Float,
+        w: Float,
+        h: Float,
+        color: Int,
+        strokeWidth: Float,
+    ) {
         val paint = Paint().apply {
             this.color = color
-            this.strokeWidth=strokeWidth
+            this.strokeWidth = strokeWidth
             this.setStroke(true)
             isAntiAlias = true
         }
         skCanvas.drawRect(x, y, x + w, y + h, paint)
     }
+
     actual fun drawText(
         text: String,
         x: Float,
@@ -77,54 +83,49 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
             ), paint
         )
     }
+}
 
-    actual companion object {
-        val fontStyles=mutableMapOf<Int, FontStyle>()
-        fun getFont(
-            fontFamily: String?,
-            fontWeight: Int,
-            fontSize: Float
-        ): Font {
-            val family=fontFamily ?: chineseFontName
-            val font = Font(
-                loadSystemFont(
-                    family,
-                    fontStyles.getOrPut(fontWeight){
-                        FontStyle(
-                            fontWeight,
-                            FontWidth.NORMAL,
-                            FontSlant.ITALIC
-                        )
-                    }
-                ),
-                fontSize
-            )
-            return font
-        }
+private val fontStyles = mutableMapOf<Int, FontStyle>()
+private fun getFont(
+    fontFamily: String?,
+    fontWeight: Int,
+    fontSize: Float
+): Font {
+    val family = fontFamily ?: chineseFontName
+    val font = Font(
+        loadSystemFont(
+            family,
+            fontStyles.getOrPut(fontWeight) {
+                FontStyle(
+                    fontWeight,
+                    FontWidth.NORMAL,
+                    FontSlant.ITALIC
+                )
+            }
+        ),
+        fontSize
+    )
+    return font
+}
 
-        actual fun measureText(
-            text: String,
-            fontFamily: String?,
-            fontWeight: Int,
-            fontSize: Float,
-        ): Float {
-            val font = Font(
-                loadSystemFont(
-                    fontFamily ?: chineseFontName, FontStyle(
-                        fontWeight,
-                        FontWidth.NORMAL,
-                        FontSlant.ITALIC
-                    )
-                ), fontSize
-            )
-            return getFont(
-                fontFamily,
+actual fun measureText(
+    text: String,
+    fontFamily: String?,
+    fontWeight: Int,
+    fontSize: Float,
+): Float {
+    val font = Font(
+        loadSystemFont(
+            fontFamily ?: chineseFontName, FontStyle(
                 fontWeight,
-                fontSize
-            ).measureTextWidth(text)
-        }
-    }
-
-
-
+                FontWidth.NORMAL,
+                FontSlant.ITALIC
+            )
+        ), fontSize
+    )
+    return getFont(
+        fontFamily,
+        fontWeight,
+        fontSize
+    ).measureTextWidth(text)
 }

@@ -22,7 +22,8 @@ fun main() {
         override fun StateHolder<Node>.buildChildren() {
 //            demoWordBreak(this)
 //            demoForcedBreak(this)
-            demoScroll(this)
+//            demoScroll(this)
+            demoRichText(this)
         }
     }
 }

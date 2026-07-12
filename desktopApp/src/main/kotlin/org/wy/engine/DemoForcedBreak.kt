@@ -19,14 +19,12 @@ fun demoForcedBreak(context: StateHolder<Node>) {
         override val text: String get() = "Forced line break demo:"
         override val fontSize: Float get() = 14f
         override val color: ColorInt get() = rgba(100, 100, 100)
-        override val wrappingWidth: Float get() = 400f
     }
 
     object : WrappedTextNode(context) {
         override val text: String
             get() = baseText.value + "\n--- forced ---\nLine after forced break."
         override val fontSize: Float get() = 15f
-        override val wrappingWidth: Float get() = 400f
         override fun mouseUp(e: MouseEvent) {
             val sel = selectionText
             feedback.value = if (sel != null) "Selected: \"$sel\"" else ""
@@ -37,6 +35,5 @@ fun demoForcedBreak(context: StateHolder<Node>) {
         override val text: String get() = feedback.value
         override val fontSize: Float get() = 13f
         override val color: ColorInt get() = rgba(0, 128, 0)
-        override val wrappingWidth: Float get() = 400f
     }
 }

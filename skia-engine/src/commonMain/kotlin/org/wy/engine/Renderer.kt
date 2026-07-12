@@ -9,6 +9,9 @@ import org.wy.lib.EmptyFun
 import org.wy.lib.GetValue
 import org.wy.signal.TrackSignal
 import org.wy.signal.memo
+import kotlin.collections.set
+import kotlin.concurrent.atomics.AtomicBoolean
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 abstract class Renderer : Node, LayoutNode {
 
@@ -30,8 +33,9 @@ abstract class Renderer : Node, LayoutNode {
     override val layoutX: GetValue<Layout> = memo {
         layout(Direction.x).createLayout(object : LayoutInsideObject<LayoutNode> {
             override val children: List<LayoutNode>
-                @Suppress("SuspiciousIndentation")
                 get() = layoutChildren
+            override val sizeFromParent: Boolean
+                get() = true
             override val innerSize: Float
                 get() = innerSize(Direction.x)
         })
@@ -41,6 +45,8 @@ abstract class Renderer : Node, LayoutNode {
         layout(Direction.y).createLayout(object : LayoutInsideObject<LayoutNode> {
             override val children: List<LayoutNode>
                 get() = layoutChildren
+            override val sizeFromParent: Boolean
+                get() = true
             override val innerSize: Float
                 get() = innerSize(Direction.y)
         })
@@ -54,31 +60,23 @@ abstract class Renderer : Node, LayoutNode {
         get() = _layoutChildren()
 
 
-    private val moveList = mutableSetOf<MouseCallback>()
-    private val upList = mutableSetOf<MouseCallback>()
-    private val wheelList = mutableSetOf<WheelCallback>()
+    private val moveList = mutableMapOf<MouseCallback, EmptyFun>()
+    private val upList = mutableMapOf<MouseCallback, EmptyFun>()
+    private val wheelList = mutableMapOf<WheelCallback, EmptyFun>()
 
     private val state = renderRoot<Node>(this@Renderer, ::collectIndex) {
+
         provide(engineGlobalContext, object : EngineGlobal {
             override fun registerMouseMove(callback: MouseCallback): EmptyFun {
-                moveList.add(callback)
-                return {
-                    moveList.remove(callback)
-                }
+                return register(moveList, callback)
             }
 
             override fun registerMouseUp(callback: MouseCallback): EmptyFun {
-                upList.add(callback)
-                return {
-                    upList.remove(callback)
-                }
+                return register(upList, callback)
             }
 
             override fun registerMouseWheel(callback: WheelCallback): EmptyFun {
-                wheelList.add(callback)
-                return {
-                    wheelList.remove(callback)
-                }
+                return register(wheelList, callback)
             }
         })
         buildChildren()
@@ -96,34 +94,36 @@ abstract class Renderer : Node, LayoutNode {
         get() = state.target()
 
     abstract fun frameCallback()
-    private var scheduled = false
+
+    var scheduled = false
     private val signal = object : TrackSignal<Unit>() {
         override fun get(old: Unit?, inited: Boolean) {
-            scheduled = true
             frameCallback()
         }
     }
 
     fun render(canvas: PlatformCanvas) {
-        canvas.clear(rgba(255, 255, 255))
-        signal.collect {
-            width
-            height
-            draw(canvas)
+        scheduled = true
+        try {
+            canvas.clear(rgba(255, 255, 255))
+            signal.collect {
+                width
+                height
+                draw(canvas)
+            }
+        } catch (err: Throwable) {
+            println("err--$err")
         }
         scheduled = false
     }
 
     private fun mouseEventOf(x: Float, y: Float, type: MouseEventEnum) {
-        var nodeWithPosition = hitest(x, y)
-        if (nodeWithPosition == null) {
-            return
-        }
-        var list = mutableListOf<NodeWithPosition>()
+        var nodeWithPosition: NodeWithPosition? = hitest(x, y) ?: return
+        val list = mutableListOf<NodeWithPosition>()
         //这里检查时，如果直接事件发生，造成状态改变，再向上查询时会出错。
         while (nodeWithPosition != null) {
             //捕获
-            val e = MouseEvent(nodeWithPosition.x, nodeWithPosition.y)
+            val e = MouseEvent(nodeWithPosition.x, nodeWithPosition.y, x, y)
             sendMouseEvent(nodeWithPosition.node, type, e, true)
             if (e.stoppedProgression) {
                 return
@@ -133,7 +133,7 @@ abstract class Renderer : Node, LayoutNode {
         }
         list.asReversed().forEach {
             //冒泡
-            val e = MouseEvent(it.x, it.y)
+            val e = MouseEvent(it.x, it.y, x, y)
             sendMouseEvent(it.node, type, e, false)
             it.node.mouseClick(e)
             if (e.stoppedProgression) {
@@ -160,16 +160,24 @@ abstract class Renderer : Node, LayoutNode {
 
     fun mouseUp(x: Float, y: Float) {
         mouseEventOf(x, y, MouseEventEnum.up)
-        upList.forEach { it(x, y) }
+        upList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) }
     }
 
     fun mouseMove(x: Float, y: Float) {
-        moveList.forEach { it(x, y) }
+        moveList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) }
     }
 
     fun mouseWheel(x: Float, y: Float, delta: Float) {
-        wheelList.forEach { it(x, y,  delta) }
+        wheelList.forEach { it.key(GlobalWheelEvent(x, y, delta, it.value)) }
     }
+}
+
+private fun <K> register(map: MutableMap<K, EmptyFun>, key: K): EmptyFun {
+    val destroy: EmptyFun = {
+        map.remove(key)
+    }
+    map[key] = destroy
+    return destroy
 }
 
 private enum class MouseEventEnum {
