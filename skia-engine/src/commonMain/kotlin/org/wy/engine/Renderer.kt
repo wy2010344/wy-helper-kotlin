@@ -112,33 +112,37 @@ abstract class Renderer : Node, LayoutNode {
                 draw(canvas)
             }
         } catch (err: Throwable) {
-            println("err--$err")
+            println("渲染出错--$err")
         }
         scheduled = false
     }
 
     private fun mouseEventOf(x: Float, y: Float, type: MouseEventEnum) {
-        var nodeWithPosition: NodeWithPosition? = hitest(x, y) ?: return
-        val list = mutableListOf<NodeWithPosition>()
-        //这里检查时，如果直接事件发生，造成状态改变，再向上查询时会出错。
-        while (nodeWithPosition != null) {
-            //捕获
-            val e = MouseEvent(nodeWithPosition.x, nodeWithPosition.y, x, y)
-            sendMouseEvent(nodeWithPosition.node, type, e, true)
-            if (e.stoppedProgression) {
-                return
+        try {
+            var nodeWithPosition: NodeWithPosition? = hitest(x, y) ?: return
+            val list = mutableListOf<NodeWithPosition>()
+            //这里检查时，如果直接事件发生，造成状态改变，再向上查询时会出错。
+            while (nodeWithPosition != null) {
+                //捕获
+                val e = MouseEvent(nodeWithPosition.x, nodeWithPosition.y, x, y)
+                sendMouseEvent(nodeWithPosition.node, type, e, true)
+                if (e.stoppedProgression) {
+                    return
+                }
+                list.add(nodeWithPosition)
+                nodeWithPosition = nodeWithPosition.next
             }
-            list.add(nodeWithPosition)
-            nodeWithPosition = nodeWithPosition.next
-        }
-        list.asReversed().forEach {
-            //冒泡
-            val e = MouseEvent(it.x, it.y, x, y)
-            sendMouseEvent(it.node, type, e, false)
-            it.node.mouseClick(e)
-            if (e.stoppedProgression) {
-                return
+            list.asReversed().forEach {
+                //冒泡
+                val e = MouseEvent(it.x, it.y, x, y)
+                sendMouseEvent(it.node, type, e, false)
+                it.node.mouseClick(e)
+                if (e.stoppedProgression) {
+                    return
+                }
             }
+        } catch (e: Throwable) {
+            println("事件出错--${type}-$e")
         }
     }
 
@@ -159,16 +163,28 @@ abstract class Renderer : Node, LayoutNode {
     }
 
     fun mouseUp(x: Float, y: Float) {
-        mouseEventOf(x, y, MouseEventEnum.up)
-        upList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) }
+        try {
+            mouseEventOf(x, y, MouseEventEnum.up)
+            upList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) }
+        } catch (e: Throwable) {
+            println("全局mouseup事件出错--$e")
+        }
     }
 
     fun mouseMove(x: Float, y: Float) {
-        moveList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) }
+        try {
+            moveList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) }
+        } catch (e: Throwable) {
+            println("全局mouseup事件出错--$e")
+        }
     }
 
     fun mouseWheel(x: Float, y: Float, delta: Float) {
-        wheelList.forEach { it.key(GlobalWheelEvent(x, y, delta, it.value)) }
+        try {
+            wheelList.forEach { it.key(GlobalWheelEvent(x, y, delta, it.value)) }
+        } catch (e: Throwable) {
+            println("全局mouseup事件出错--$e")
+        }
     }
 }
 

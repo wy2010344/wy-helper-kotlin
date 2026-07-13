@@ -5,6 +5,8 @@ import com.wy.mve.StateHolder
 import org.wy.engine.helper.flex
 import org.wy.engine.helper.rect
 import org.wy.engine.layout.LayoutSize
+import org.wy.lib.left
+import org.wy.lib.right
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.setValue
@@ -16,27 +18,20 @@ import org.wy.signal.setValue
  * 并支持点击拖拽选中文本。
  */
 fun demoRichText(context: StateHolder<Node>) {
+    fun RectNode.getHeignt(): LayoutSize {
+        return sizeFromChildren(Direction.y)
+    }
     context.flex(
         direction = Direction.y,
         gap = 10f,
         alignItem = AlignItem.stretch,
-        size = {
-            when (it) {
-                Direction.x -> LayoutSize(300f,false)
-                else -> sizeFromChildren(it)
-            }
-        },
-        provideSize = {
-            when(it){
-                Direction.x -> true
-                Direction.y -> false
-            }
-        }
+        width = LayoutSize(300f, false).left,
+        height = (RectNode::getHeignt to true).right,
     ) {
         rect()
         rect()
         var text by createSignal("")
-      object : WrappedTextNode(this) {
+        object : WrappedTextNode(this) {
             override val text: String get() = text
             override val fontSize: Float get() = 13f
             override val color: ColorInt get() = rgba(0, 128, 0)

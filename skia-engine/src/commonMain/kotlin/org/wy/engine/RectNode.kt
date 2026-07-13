@@ -29,7 +29,7 @@ abstract class RectNode(
             override val children: List<LayoutNode>
                 get() = layoutChildren
             override val sizeFromParent: Boolean
-                get() = provideSize(Direction.x)
+                get() = !sizeRelayChildren(Direction.x)
             override val innerSize: Float
                 get() = innerSize(Direction.x)
         })
@@ -42,7 +42,7 @@ abstract class RectNode(
             override val children: List<LayoutNode>
                 get() = layoutChildren
             override val sizeFromParent: Boolean
-                get() = provideSize(Direction.y)
+                get() = !sizeRelayChildren(Direction.y)
             override val innerSize: Float
                 get() = innerSize(Direction.y)
         })

@@ -6,6 +6,11 @@ import org.wy.lib.*
 
 private val stackMemos = mutableListOf<Memo<*>>()
 
+internal fun checkMemoStack(){
+    if(stackMemos.size>0){
+        throw Error("之前有memo没有正常退出--${stackMemos.size}")
+    }
+}
 //有一种可能，重入循环
 abstract class Memo<T> : GetValue<T> {
     abstract fun get(old: T?, inited: Boolean): T
@@ -32,7 +37,6 @@ abstract class Memo<T> : GetValue<T> {
     }
 
     override fun invoke(): T {
-
         checkEnter()
         G.callGet = true
         if (stateVersion == G.stateVersion) {
@@ -83,14 +87,8 @@ abstract class Memo<T> : GetValue<T> {
     ): T {
         relays.clear()
         G.currentRelay = relays
-        val v = try {
-            get(lastValue, inited)
-        } catch (e: Throwable) {
-            println("出错了。。。${e}")
-            throw e
-        } finally {
-            G.currentRelay = null
-        }
+        val v = get(lastValue, inited)
+        G.currentRelay = null
         return v
     }
 }

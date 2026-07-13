@@ -15,36 +15,41 @@ fun batchSignalEnd() {
     if (G.onEffectRun) return
     if (G.onWorkBatch != null) return
 
-    var safety = 0
-    while (G.beginBatch && safety < 1000) {
-        safety++
-        G.beginBatch = false
-        val currentBatch = G.currentBatch
-        G.currentBatch = G.nextBatch
-        G.nextBatch = currentBatch
+    try {
+        checkMemoStack()
+        var safety = 0
+        while (G.beginBatch && safety < 1000) {
+            safety++
+            G.beginBatch = false
+            val currentBatch = G.currentBatch
+            G.currentBatch = G.nextBatch
+            G.nextBatch = currentBatch
 
-        val deps = currentBatch.deps
-        val effects = currentBatch.effects
-        val listeners = currentBatch.listeners
+            val deps = currentBatch.deps
+            val effects = currentBatch.effects
+            val listeners = currentBatch.listeners
 
-        G.onWorkBatch = currentBatch
-        listeners.forEach { it.addFun() }
-        listeners.clear()
+            G.onWorkBatch = currentBatch
+            listeners.forEach { it.addFun() }
+            listeners.clear()
 
-        while (deps.isNotEmpty()) {
-            deps.removeFirst().addFun()
+            while (deps.isNotEmpty()) {
+                deps.removeFirst().addFun()
+            }
+            G.onWorkBatch = null
+
+            G.onEffectRun = true
+            val keys = effects.keys.sortedDescending().toMutableList()
+            G.onEffectKeys = keys
+            while (keys.isNotEmpty()) {
+                val key = keys.removeLast()
+                G.onEffectLevel = key
+                effects[key]?.forEach { it() }
+            }
+            effects.clear()
+            G.onEffectRun = false
         }
-        G.onWorkBatch = null
-
-        G.onEffectRun = true
-        val keys = effects.keys.sortedDescending().toMutableList()
-        G.onEffectKeys = keys
-        while (keys.isNotEmpty()) {
-            val key = keys.removeLast()
-            G.onEffectLevel = key
-            effects[key]?.forEach { it() }
-        }
-        effects.clear()
-        G.onEffectRun = false
+    }catch (err: Throwable){
+        println("出错了---$err")
     }
 }

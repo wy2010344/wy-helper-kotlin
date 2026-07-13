@@ -2,7 +2,6 @@ package org.wy.engine.layout
 
 import com.wy.layout.Align
 import com.wy.layout.Layout
-import com.wy.layout.LayoutError
 import com.wy.layout.LayoutFun
 import com.wy.layout.absoluteLayout
 import org.wy.engine.Direction
@@ -16,6 +15,10 @@ data class LayoutSize(
     val value: Float,
     val fromInside: Boolean
 )
+
+enum class SizeFrom{
+    inside,outside
+}
 
 interface LayoutNode {
 
@@ -72,10 +75,10 @@ interface LayoutNode {
     }
 
     /**
-     * 是否由外部提供尺寸，默认是外部
+     * 是否依赖子节点撑起尺寸，默认否
      */
-    fun provideSize(direction: Direction): Boolean{
-        return true
+    fun sizeRelayChildren(direction: Direction): Boolean{
+        return false
     }
     /**
      * 尺寸，可能用户介入手动重写
