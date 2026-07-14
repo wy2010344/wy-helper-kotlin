@@ -12,6 +12,25 @@ import org.wy.engine.layout.LayoutSize
 import org.wy.lib.Either
 import org.wy.lib.Left
 import org.wy.lib.Right
+import org.wy.lib.right
+
+typealias SizeProvide = Pair<RectNode.() -> LayoutSize, Boolean>
+
+fun fixSize(n: Float, isInside: Boolean = false): SizeProvide {
+    return Pair({ LayoutSize(n, isInside) }, false)
+}
+
+fun sizeRelayChildren(direction: Direction): SizeProvide {
+    return Pair({
+        sizeFromChildren(direction)
+    }, true)
+}
+
+fun sizeFromParent(direction: Direction): SizeProvide{
+    return Pair({
+        sizeFromParent(direction)
+    },false)
+}
 
 /**
  * 可能是内部撑开，可能不是
@@ -20,8 +39,8 @@ fun StateHolder<Node>.flex(
     direction: Direction = Direction.x,
     alignItem: AlignItem = AlignItem.center,
     gap: Float = 0f,
-    width: Either<LayoutSize, Pair<RectNode.()-> LayoutSize, Boolean>>?=null,
-    height: Either<LayoutSize, Pair<RectNode.()-> LayoutSize, Boolean>>?=null,
+    width: SizeProvide? = null,
+    height: SizeProvide? = null,
     children: StateHolder<Node>.(RectNode) -> Unit,
 ): RectNode {
     val flex = object : Flex() {
@@ -35,35 +54,29 @@ fun StateHolder<Node>.flex(
             return "Flex"
         }
 
-        private fun getSize(d:Direction,s:Either<LayoutSize, Pair<RectNode.()-> LayoutSize, Boolean>>?):LayoutSize{
-            if(s==null){
+        private fun getSize(d: Direction, s: SizeProvide?): LayoutSize {
+            if (s == null) {
                 return sizeFromParent(d)
             }
-           return when(s){
-                is Left -> s.value
-                is Right ->{
-                    val first=s.value.first
-                    return first()
-                }
-            }
-        }
-        override fun size(direction: Direction): LayoutSize = when(direction){
-            Direction.x -> getSize(direction,width)
-            Direction.y -> getSize(direction,height)
-        }
-        private fun getSizeRelay(d:Direction,s:Either<LayoutSize, Pair<RectNode.()-> LayoutSize, Boolean>>?): Boolean{
-            if(s==null){
-                return false
-            }
-            return when(s){
-                is Left -> false
-                is Right -> s.value.second
-            }
+            val first = s.first
+            return first()
         }
 
-        override fun sizeRelayChildren(direction: Direction): Boolean =when(direction){
-            Direction.x -> getSizeRelay(direction,width)
-            Direction.y -> getSizeRelay(direction,height)
+        override fun size(direction: Direction): LayoutSize = when (direction) {
+            Direction.x -> getSize(direction, width)
+            Direction.y -> getSize(direction, height)
+        }
+
+        private fun getSizeRelay(d: Direction, s: SizeProvide?): Boolean {
+            if (s == null) {
+                return false
+            }
+            return s.second
+        }
+
+        override fun sizeRelayChildren(direction: Direction): Boolean = when (direction) {
+            Direction.x -> getSizeRelay(direction, width)
+            Direction.y -> getSizeRelay(direction, height)
         }
 
         override fun layout(direction: Direction): LayoutFun<LayoutNode> {

@@ -2,8 +2,10 @@ package org.wy.engine
 
 import com.wy.layout.AlignItem
 import com.wy.mve.StateHolder
+import org.wy.engine.helper.fixSize
 import org.wy.engine.helper.flex
 import org.wy.engine.helper.rect
+import org.wy.engine.helper.sizeRelayChildren
 import org.wy.engine.layout.LayoutSize
 import org.wy.lib.left
 import org.wy.lib.right
@@ -18,15 +20,12 @@ import org.wy.signal.setValue
  * 并支持点击拖拽选中文本。
  */
 fun demoRichText(context: StateHolder<Node>) {
-    fun RectNode.getHeignt(): LayoutSize {
-        return sizeFromChildren(Direction.y)
-    }
     context.flex(
         direction = Direction.y,
         gap = 10f,
         alignItem = AlignItem.stretch,
-        width = LayoutSize(300f, false).left,
-        height = (RectNode::getHeignt to true).right,
+        width = fixSize(300f, ),
+        height = sizeRelayChildren(Direction.y)
     ) {
         rect()
         rect()
