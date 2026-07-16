@@ -72,11 +72,11 @@ abstract class Memo<T> : GetValue<T> {
         }
         G.currentRelay = oldRelay
         G.currentRelay?.let { relay -> relay[this] = lastValue }
-
+        //必须在after之前
+        checkLeave()
         if (shouldAfter) {
             afters.forEach { it(lastValue as T) }
         }
-        checkLeave()
         @Suppress("UNCHECKED_CAST")
         return lastValue as T
     }

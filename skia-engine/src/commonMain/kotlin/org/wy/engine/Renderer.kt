@@ -30,26 +30,29 @@ abstract class Renderer : Node, LayoutNode {
     )
 
 
+    override val insideObjectX: LayoutInsideObject<LayoutNode> = object : LayoutInsideObject<LayoutNode> {
+        override val children: List<LayoutNode>
+            get() = layoutChildren
+        override val sizeFromParent: Boolean
+            get() = true
+        override val innerSize: Float
+            get() = innerSize(Direction.x)
+    }
+
+    override val insideObjectY: LayoutInsideObject<LayoutNode> = object : LayoutInsideObject<LayoutNode> {
+        override val children: List<LayoutNode>
+            get() = layoutChildren
+        override val sizeFromParent: Boolean
+            get() = true
+        override val innerSize: Float
+            get() = innerSize(Direction.y)
+    }
     override val layoutX: GetValue<Layout> = memo {
-        layout(Direction.x).createLayout(object : LayoutInsideObject<LayoutNode> {
-            override val children: List<LayoutNode>
-                get() = layoutChildren
-            override val sizeFromParent: Boolean
-                get() = true
-            override val innerSize: Float
-                get() = innerSize(Direction.x)
-        })
+        layout(Direction.x).createLayout(insideObjectX)
     }
 
     override val layoutY: GetValue<Layout> = memo {
-        layout(Direction.y).createLayout(object : LayoutInsideObject<LayoutNode> {
-            override val children: List<LayoutNode>
-                get() = layoutChildren
-            override val sizeFromParent: Boolean
-                get() = true
-            override val innerSize: Float
-                get() = innerSize(Direction.y)
-        })
+        layout(Direction.y).createLayout(insideObjectY)
     }
 
 

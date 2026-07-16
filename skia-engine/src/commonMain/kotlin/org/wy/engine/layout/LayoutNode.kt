@@ -3,9 +3,11 @@ package org.wy.engine.layout
 import com.wy.layout.Align
 import com.wy.layout.Layout
 import com.wy.layout.LayoutFun
+import com.wy.layout.LayoutInsideObject
 import com.wy.layout.absoluteLayout
 import org.wy.engine.Direction
 import org.wy.lib.GetValue
+import org.wy.signal.memo
 
 enum class StartEnd {
     start, end
@@ -16,8 +18,8 @@ data class LayoutSize(
     val fromInside: Boolean
 )
 
-enum class SizeFrom{
-    inside,outside
+enum class SizeFrom {
+    inside, outside
 }
 
 interface LayoutNode {
@@ -39,13 +41,17 @@ interface LayoutNode {
         return absoluteLayout()
     }
 
+    val insideObjectX: LayoutInsideObject<LayoutNode>
+    val insideObjectY: LayoutInsideObject<LayoutNode>
+
     val layoutX: GetValue<Layout>
     val layoutY: GetValue<Layout>
 
-    fun layoutValue(direction: Direction) = when (direction) {
+    fun layoutValue(direction: Direction) = when(direction){
         Direction.x -> layoutX()
         Direction.y -> layoutY()
     }
+
 
     fun padding(direction: Direction, startEnd: StartEnd): Float {
         return 0f
@@ -57,7 +63,7 @@ interface LayoutNode {
 
     val layoutChildren: List<LayoutNode>
 
-    fun sizeFromParent(direction: Direction): LayoutSize{
+    fun sizeFromParent(direction: Direction): LayoutSize {
         val lp = layoutParent
         if (lp != null) {
             return LayoutSize(
@@ -67,7 +73,8 @@ interface LayoutNode {
         }
         throw Error("未找到父节点")
     }
-    fun sizeFromChildren(direction: Direction): LayoutSize{
+
+    fun sizeFromChildren(direction: Direction): LayoutSize {
         return LayoutSize(
             layoutValue(direction).sizeFromChildren,
             true
@@ -77,9 +84,10 @@ interface LayoutNode {
     /**
      * 是否依赖子节点撑起尺寸，默认否
      */
-    fun sizeRelayChildren(direction: Direction): Boolean{
+    fun sizeRelayChildren(direction: Direction): Boolean {
         return false
     }
+
     /**
      * 尺寸，可能用户介入手动重写
      * 必须手动指定从哪里来

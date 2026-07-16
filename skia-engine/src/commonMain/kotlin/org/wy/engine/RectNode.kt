@@ -24,29 +24,28 @@ abstract class RectNode(
         get() = _layoutChildren()
 
 
-    override val layoutX: GetValue<Layout> = memo {
-        layout(Direction.x).createLayout(object : LayoutInsideObject<LayoutNode> {
-            override val children: List<LayoutNode>
-                get() = layoutChildren
-            override val sizeFromParent: Boolean
-                get() = !sizeRelayChildren(Direction.x)
-            override val innerSize: Float
-                get() = innerSize(Direction.x)
-        })
+    final override val insideObjectX = object : LayoutInsideObject<LayoutNode> {
+        override val children: List<LayoutNode>
+            get() = layoutChildren
+        override val sizeFromParent: Boolean
+            get() = !sizeRelayChildren(Direction.x)
+        override val innerSize: Float
+            get() = innerSize(Direction.x)
     }
 
-
-
-    override val layoutY: GetValue<Layout> = memo {
-        layout(Direction.y).createLayout(object : LayoutInsideObject<LayoutNode> {
-            override val children: List<LayoutNode>
-                get() = layoutChildren
-            override val sizeFromParent: Boolean
-                get() = !sizeRelayChildren(Direction.y)
-            override val innerSize: Float
-                get() = innerSize(Direction.y)
-        })
+    final override val insideObjectY = object : LayoutInsideObject<LayoutNode> {
+        override val children: List<LayoutNode>
+            get() = layoutChildren
+        override val sizeFromParent: Boolean
+            get() = !sizeRelayChildren(Direction.y)
+        override val innerSize: Float
+            get() = innerSize(Direction.y)
     }
+
+    override val layoutX: GetValue<Layout> =
+        memo { layout(Direction.x).createLayout(insideObjectX) }
+    override val layoutY: GetValue<Layout> =
+        memo { layout(Direction.y).createLayout(insideObjectY) }
 
     override fun position(d: Direction): Float {
         val lp = layoutParent
