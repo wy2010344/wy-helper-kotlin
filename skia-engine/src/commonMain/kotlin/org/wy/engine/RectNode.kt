@@ -27,8 +27,6 @@ abstract class RectNode(
     final override val insideObjectX = object : LayoutInsideObject<LayoutNode> {
         override val children: List<LayoutNode>
             get() = layoutChildren
-        override val sizeFromParent: Boolean
-            get() = !sizeRelayChildren(Direction.x)
         override val innerSize: Float
             get() = innerSize(Direction.x)
     }
@@ -36,8 +34,6 @@ abstract class RectNode(
     final override val insideObjectY = object : LayoutInsideObject<LayoutNode> {
         override val children: List<LayoutNode>
             get() = layoutChildren
-        override val sizeFromParent: Boolean
-            get() = !sizeRelayChildren(Direction.y)
         override val innerSize: Float
             get() = innerSize(Direction.y)
     }

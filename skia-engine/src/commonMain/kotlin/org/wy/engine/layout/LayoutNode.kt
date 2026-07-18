@@ -80,14 +80,6 @@ interface LayoutNode {
             true
         )
     }
-
-    /**
-     * 是否依赖子节点撑起尺寸，默认否
-     */
-    fun sizeRelayChildren(direction: Direction): Boolean {
-        return false
-    }
-
     /**
      * 尺寸，可能用户介入手动重写
      * 必须手动指定从哪里来

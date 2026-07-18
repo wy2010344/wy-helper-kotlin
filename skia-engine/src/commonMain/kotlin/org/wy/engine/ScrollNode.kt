@@ -141,9 +141,6 @@ open class ScrollNode(
         }
         callTime = 1
         object : ContentClass(this) {
-            override fun sizeRelayChildren(direction: Direction): Boolean {
-                return true
-            }
             override fun layout(direction: Direction): LayoutFun<LayoutNode> {
                 return contentLayout(direction)
             }

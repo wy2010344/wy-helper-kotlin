@@ -1,5 +1,6 @@
 package org.wy.engine
 
+import com.wy.layout.DirectionJustify
 import com.wy.mve.StateHolder
 import org.wy.engine.layout.Flex
 
@@ -14,6 +15,10 @@ fun main() {
             get() = Direction.y
         override val gap: Float
             get() = 10f
+        override val directionJustify: DirectionJustify
+            get() = DirectionJustify.center
+        override val alignFix: Boolean
+            get() = true
     }
 
     object : SkiaApp() {

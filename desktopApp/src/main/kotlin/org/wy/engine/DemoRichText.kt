@@ -24,6 +24,7 @@ fun demoRichText(context: StateHolder<Node>) {
         direction = Direction.y,
         gap = 10f,
         alignItem = AlignItem.stretch,
+        alignFix = true,
         width = fixSize(300f, ),
         height = sizeRelayChildren(Direction.y)
     ) {

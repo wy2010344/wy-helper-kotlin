@@ -25,12 +25,15 @@ abstract class Flex : FlexObject<LayoutNode> {
         true -> this
         false -> cross
     }
-
     open val alignItem: AlignItem = AlignItem.center
 
+    open val alignFix: Boolean=false
     private val cross = object : StackObject<LayoutNode> {
         override val alignItem: AlignItem
             get() = this@Flex.alignItem
+
+        override val alignFix: Boolean
+            get() = this@Flex.alignFix
 
         override fun align(n: LayoutNode): Align? {
             return n.align

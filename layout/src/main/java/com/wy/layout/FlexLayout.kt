@@ -5,7 +5,10 @@ import org.wy.signal.memo
 
 
 enum class DirectionJustify {
-    start, end, center, between, around, evenly
+    start, end, center, between, around, evenly,
+
+    //由子节点撑起来
+    grow
 }
 
 enum class DirectionFixBetweenWhenOne {
@@ -29,7 +32,7 @@ interface FlexObject<T> : LayoutFun<T>, FlexChildConvert<T> {
         get() = 0f
 
     val directionJustify: DirectionJustify
-        get() = DirectionJustify.center
+        get() = DirectionJustify.grow
 
     val reverse: Boolean
         get() = false
@@ -61,7 +64,19 @@ class FlexLayout<T>(
         val forEach: (action: (T) -> Unit) -> Unit =
             if (reverse) children::forEachRight else children::forEach
 
-        if (inside.sizeFromParent) {
+        val directionFix = arg.directionJustify
+        if (directionFix == DirectionJustify.grow) {
+            forEach {
+                val childLength = convert.outerSize(it)
+                childLengths[convert.index(it)] = childLength
+                length += childLength + gap
+                list.add(length)
+            }
+            if (length > 0) {
+                length -= gap
+            }
+
+        } else {
             val insideSize = inside.innerSize
             //外部提供了尺寸
             val growIndex = mutableMapOf<Int, Float>()
@@ -91,7 +106,6 @@ class FlexLayout<T>(
                     list.add(length)
                 }
             } else {
-                val directionFix = arg.directionJustify
                 var tGap = gap
                 val allRemaing = insideSize - totalLength
                 val remaing = allRemaing - (gap * children.size - gap)
@@ -129,16 +143,6 @@ class FlexLayout<T>(
                     list.add(length)
                 }
             }
-        } else {
-            forEach {
-                val childLength = convert.outerSize(it)
-                childLengths[convert.index(it)] = childLength
-                length += childLength + gap
-                list.add(length)
-            }
-            if (length > 0) {
-                length -= gap
-            }
         }
         if (reverse) {
             list.reverse()
@@ -159,9 +163,9 @@ class FlexLayout<T>(
 
     override val sizeFromChildren: Float
         get() {
-            if(inside.sizeFromParent){
-                throw LayoutError("外部提供了尺寸")
+            if (arg.directionJustify== DirectionJustify.grow) {
+                return cache().length
             }
-            return cache().length
+            throw LayoutError("外部提供了尺寸")
         }
 }

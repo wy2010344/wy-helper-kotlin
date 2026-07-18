@@ -33,8 +33,6 @@ abstract class Renderer : Node, LayoutNode {
     override val insideObjectX: LayoutInsideObject<LayoutNode> = object : LayoutInsideObject<LayoutNode> {
         override val children: List<LayoutNode>
             get() = layoutChildren
-        override val sizeFromParent: Boolean
-            get() = true
         override val innerSize: Float
             get() = innerSize(Direction.x)
     }
@@ -42,8 +40,6 @@ abstract class Renderer : Node, LayoutNode {
     override val insideObjectY: LayoutInsideObject<LayoutNode> = object : LayoutInsideObject<LayoutNode> {
         override val children: List<LayoutNode>
             get() = layoutChildren
-        override val sizeFromParent: Boolean
-            get() = true
         override val innerSize: Float
             get() = innerSize(Direction.y)
     }

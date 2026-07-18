@@ -24,6 +24,10 @@ interface StackObject<T> : LayoutFun<T>, StackChildConvert<T> {
     val alignItem: AlignItem
         get() = AlignItem.center
 
+    //是否是外部提供固定尺寸
+    val alignFix: Boolean
+        get() = false
+
     override fun createLayout(o: LayoutInsideObject<T>): Layout {
         return StackLayout(this, o, this)
     }
@@ -36,7 +40,7 @@ class StackLayout<T>(
 ) : Layout {
 
     private val size = memo {
-        if(inside.sizeFromParent){
+        if(arg.alignFix){
             return@memo inside.innerSize
         }
         var width = 0f

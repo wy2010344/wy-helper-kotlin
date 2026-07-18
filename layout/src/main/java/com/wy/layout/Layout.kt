@@ -11,8 +11,6 @@ interface Layout {
 
 interface LayoutInsideObject<T> {
     val children: List<T>
-
-    val sizeFromParent: Boolean
     val innerSize: Float
 }
 
