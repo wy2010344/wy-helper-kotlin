@@ -22,6 +22,9 @@ import java.awt.event.MouseEvent
 import java.awt.event.MouseMotionAdapter
 import java.awt.event.MouseWheelEvent
 import java.awt.event.MouseWheelListener
+import java.awt.event.KeyAdapter
+import java.awt.event.KeyEvent as AwtKeyEvent
+import java.awt.event.KeyListener
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.awt.image.BufferedImage
@@ -118,6 +121,72 @@ open class SkiaApp(width: Int = 800, height: Int = 600) : Renderer() {
                 }
             })
 
+            skiaLayer.isFocusable = true
+            skiaLayer.addInputMethodListener(object : java.awt.event.InputMethodListener {
+                override fun inputMethodTextChanged(e: java.awt.event.InputMethodEvent) {
+                    val iter = e.text
+                    val composingText = if (iter != null) {
+                        val sb = StringBuilder()
+                        var idx = iter.beginIndex
+                        val end = iter.endIndex
+                        while (idx < end) {
+                            sb.append(iter.current())
+                            iter.next()
+                            idx++
+                        }
+                        sb.toString()
+                    } else {
+                        ""
+                    }
+                    val committedCount = e.committedCharacterCount
+                    if (committedCount > 0) {
+                        val committed = if (iter != null) {
+                            val sb = StringBuilder()
+                            iter.setIndex(iter.beginIndex)
+                            var remaining = committedCount
+                            while (remaining > 0 && iter.index < iter.endIndex) {
+                                sb.append(iter.current())
+                                iter.next()
+                                remaining--
+                            }
+                            sb.toString()
+                        } else ""
+                        for (ch in committed) {
+                            this@SkiaApp.keyPress(ch, KeyCode.Unknown, false, false, false)
+                        }
+                        this@SkiaApp.composingText("", 0)
+                    } else {
+                        this@SkiaApp.composingText(composingText, composingText.length)
+                    }
+                }
+                override fun caretPositionChanged(e: java.awt.event.InputMethodEvent?) {}
+            })
+            skiaLayer.addKeyListener(object : KeyListener {
+                override fun keyTyped(e: AwtKeyEvent?) {
+                    if (e == null) return
+                    if (e.isControlDown || e.isAltDown || e.isMetaDown) return
+                    val ch = e.keyChar
+                    if (ch.code < 0x20 || ch.code == 0x7F || ch == Char(0xFFFF)) return
+                    val code = KeyCode.fromAwt(e.keyCode)
+                    this@SkiaApp.keyPress(ch, code, false, false, false)
+                }
+
+                override fun keyPressed(e: AwtKeyEvent?) {
+                    if (e == null) return
+                    val code = KeyCode.fromAwt(e.keyCode)
+                    val isModifier = e.isControlDown || e.isAltDown || e.isMetaDown
+                    if (code == KeyCode.Unknown && !isModifier) return
+                    val ch = if (isModifier && e.keyCode in 65..90) {
+                        (e.keyCode + 32).toChar()
+                    } else {
+                        e.keyChar
+                    }
+                    this@SkiaApp.keyPress(ch, code, e.isControlDown, e.isShiftDown, e.isAltDown)
+                }
+
+                override fun keyReleased(e: AwtKeyEvent?) {}
+            })
+
             skiaLayer.renderDelegate = SkikoRenderDelegate { canvas, _, _, _ ->
                 if (this@SkiaApp.scheduled) {
                     return@SkikoRenderDelegate
@@ -128,6 +197,7 @@ open class SkiaApp(width: Int = 800, height: Int = 600) : Renderer() {
             }
             skiaLayer.attachTo(window.contentPane)
             skiaLayer.needRender()
+            skiaLayer.requestFocusInWindow()
             window.addComponentListener(object : ComponentAdapter() {
                 override fun componentResized(e: ComponentEvent?) {
                     this@SkiaApp.w.value = skiaLayer.width

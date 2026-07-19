@@ -28,7 +28,8 @@ fun main() {
 //            demoWordBreak(this)
 //            demoForcedBreak(this)
 //            demoScroll(this)
-            demoRichText(this)
+//            demoRichText(this)
+            demoEditableText(this)
         }
     }
 }

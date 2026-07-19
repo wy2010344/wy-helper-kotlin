@@ -29,28 +29,8 @@ abstract class Renderer : Node, LayoutNode {
         }, false
     )
 
-
-    override val insideObjectX: LayoutInsideObject<LayoutNode> = object : LayoutInsideObject<LayoutNode> {
-        override val children: List<LayoutNode>
-            get() = layoutChildren
-        override val innerSize: Float
-            get() = innerSize(Direction.x)
-    }
-
-    override val insideObjectY: LayoutInsideObject<LayoutNode> = object : LayoutInsideObject<LayoutNode> {
-        override val children: List<LayoutNode>
-            get() = layoutChildren
-        override val innerSize: Float
-            get() = innerSize(Direction.y)
-    }
-    override val layoutX: GetValue<Layout> = memo {
-        layout(Direction.x).createLayout(insideObjectX)
-    }
-
-    override val layoutY: GetValue<Layout> = memo {
-        layout(Direction.y).createLayout(insideObjectY)
-    }
-
+    override val layoutX: GetValue<Layout> = createLayout(Direction.x)
+    override val layoutY: GetValue<Layout> = createLayout(Direction.y)
 
     private val _layoutChildren = memo {
         children.filterIsInstance<LayoutNode>()
@@ -62,6 +42,8 @@ abstract class Renderer : Node, LayoutNode {
     private val moveList = mutableMapOf<MouseCallback, EmptyFun>()
     private val upList = mutableMapOf<MouseCallback, EmptyFun>()
     private val wheelList = mutableMapOf<WheelCallback, EmptyFun>()
+    private val keyPressList = mutableMapOf<KeyPressCallback, EmptyFun>()
+    private val composingList = mutableMapOf<ComposingTextCallback, EmptyFun>()
 
     private val state = renderRoot<Node>(this@Renderer, ::collectIndex) {
 
@@ -77,6 +59,14 @@ abstract class Renderer : Node, LayoutNode {
             override fun registerMouseWheel(callback: WheelCallback): EmptyFun {
                 return register(wheelList, callback)
             }
+
+            override fun registerKeyPress(callback: KeyPressCallback): EmptyFun {
+                return register(keyPressList, callback)
+            }
+
+            override fun registerComposingText(callback: ComposingTextCallback): EmptyFun {
+                return register(composingList, callback)
+            }
         })
         buildChildren()
     }
@@ -85,6 +75,8 @@ abstract class Renderer : Node, LayoutNode {
         moveList.clear()
         upList.clear()
         wheelList.clear()
+        keyPressList.clear()
+        composingList.clear()
         state.destroy()
     }
 
@@ -183,6 +175,23 @@ abstract class Renderer : Node, LayoutNode {
             wheelList.forEach { it.key(GlobalWheelEvent(x, y, delta, it.value)) }
         } catch (e: Throwable) {
             println("全局mouseup事件出错--$e")
+        }
+    }
+
+    fun keyPress(key: Char, code: KeyCode, ctrl: Boolean, shift: Boolean, alt: Boolean) {
+        try {
+            val e = KeyEvent(key, code, ctrl, shift, alt)
+            keyPressList.forEach { it.key(e) }
+        } catch (e: Throwable) {
+            println("键盘事件出错--$e")
+        }
+    }
+
+    fun composingText(text: String, cursorPosition: Int) {
+        try {
+            composingList.forEach { it.key(text, cursorPosition) }
+        } catch (e: Throwable) {
+            println("输入法事件出错--$e")
         }
     }
 }

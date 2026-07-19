@@ -41,13 +41,10 @@ interface LayoutNode {
         return absoluteLayout()
     }
 
-    val insideObjectX: LayoutInsideObject<LayoutNode>
-    val insideObjectY: LayoutInsideObject<LayoutNode>
-
     val layoutX: GetValue<Layout>
     val layoutY: GetValue<Layout>
 
-    fun layoutValue(direction: Direction) = when(direction){
+    fun layoutValue(direction: Direction) = when (direction) {
         Direction.x -> layoutX()
         Direction.y -> layoutY()
     }
@@ -80,6 +77,7 @@ interface LayoutNode {
             true
         )
     }
+
     /**
      * 尺寸，可能用户介入手动重写
      * 必须手动指定从哪里来
@@ -99,5 +97,17 @@ interface LayoutNode {
             return s.value
         }
         return s.value - padding(direction, StartEnd.start) - padding(direction, StartEnd.end)
+    }
+
+    fun createLayout(direction: Direction): GetValue<Layout> {
+        val insideObject: LayoutInsideObject<LayoutNode> = object : LayoutInsideObject<LayoutNode> {
+            override val children: List<LayoutNode>
+                get() = layoutChildren
+            override val innerSize: Float
+                get() = innerSize(direction)
+        }
+        return memo {
+            layout(direction).createLayout(insideObject)
+        }
     }
 }

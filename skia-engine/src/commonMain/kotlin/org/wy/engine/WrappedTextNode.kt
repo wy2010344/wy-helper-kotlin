@@ -59,7 +59,7 @@ open class WrappedTextNode(
     private fun TextLine.width(): Float =
         measureWidth(text, start, end, fontFamily, fontWeight, fontSize)
 
-    private val lines = memo {
+    protected val lines = memo {
         if (text.isEmpty()) return@memo emptyList()
         val maxW = innerSize(Direction.x)
         val result = mutableListOf<TextLine>()
@@ -188,8 +188,8 @@ open class WrappedTextNode(
         }
     }
 
-    private var anchorIndex by createSignal(-1)
-    private var focusIndex by createSignal(-1)
+    protected var anchorIndex by createSignal(-1)
+    protected var focusIndex by createSignal(-1)
 
     val selectionText: String?
         get() {

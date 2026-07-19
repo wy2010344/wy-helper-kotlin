@@ -23,25 +23,8 @@ abstract class RectNode(
     override val layoutChildren: List<LayoutNode>
         get() = _layoutChildren()
 
-
-    final override val insideObjectX = object : LayoutInsideObject<LayoutNode> {
-        override val children: List<LayoutNode>
-            get() = layoutChildren
-        override val innerSize: Float
-            get() = innerSize(Direction.x)
-    }
-
-    final override val insideObjectY = object : LayoutInsideObject<LayoutNode> {
-        override val children: List<LayoutNode>
-            get() = layoutChildren
-        override val innerSize: Float
-            get() = innerSize(Direction.y)
-    }
-
-    override val layoutX: GetValue<Layout> =
-        memo { layout(Direction.x).createLayout(insideObjectX) }
-    override val layoutY: GetValue<Layout> =
-        memo { layout(Direction.y).createLayout(insideObjectY) }
+    override val layoutX: GetValue<Layout> = createLayout(Direction.x)
+    override val layoutY: GetValue<Layout> = createLayout(Direction.y)
 
     override fun position(d: Direction): Float {
         val lp = layoutParent
