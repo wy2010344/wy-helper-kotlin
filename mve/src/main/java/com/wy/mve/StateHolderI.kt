@@ -64,8 +64,8 @@ internal open class StateHolderI<Node>(
     @Suppress("NewApi")
     override fun <T, K, O> renderForEach(
         forEach: (callback: (K, T) -> GetValue<O>) -> Unit,
+        duplicateInfo: DuplicateInfo,
         creater: Creater<Node, T, K, O>,
-        duplicateInfo: DuplicateInfo
     ): Memo<*> {
         if (endBuild) {
             throw Error("已经初始化过了")

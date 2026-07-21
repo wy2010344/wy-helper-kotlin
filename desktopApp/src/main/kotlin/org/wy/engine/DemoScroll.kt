@@ -1,14 +1,11 @@
 package org.wy.engine
 
 import com.wy.layout.AlignItem
-import com.wy.layout.LayoutFun
 import com.wy.mve.StateHolder
 import org.wy.engine.helper.drag
-import org.wy.engine.helper.scroll
-import org.wy.engine.layout.Flex
-import org.wy.engine.layout.LayoutNode
-import org.wy.engine.layout.LayoutSize
-import org.wy.engine.layout.StartEnd
+import org.wy.engine.layout.FlexObject
+import org.wy.engine.layout.FlexParam
+import org.wy.engine.layout.LayoutDirection
 import org.wy.signal.memo
 
 /**
@@ -18,14 +15,13 @@ import org.wy.signal.memo
  * 超出视口的部分被裁剪，可通过鼠标滚轮滚动查看。
  */
 fun demoScroll(context: StateHolder<Node>) {
-    context.scroll(
-        size = {
-            when (it) {
-                Direction.x -> LayoutSize(400f, false)
-                Direction.y -> LayoutSize(140f, false)
-            }
-        },
-        drawSelf = { canvas ->
+    object : ScrollNode(context) {
+        override val argWidth: LayoutSize
+            get() = LayoutSize(400f, false)
+        override val argHeight: LayoutSize
+            get() = LayoutSize(140f, false)
+
+        override fun draw(canvas: PlatformCanvas) {
             canvas.strokeRect(
                 0f,
                 0f,
@@ -37,12 +33,15 @@ fun demoScroll(context: StateHolder<Node>) {
                 padding(Direction.x, StartEnd.start), padding(Direction.y, StartEnd.start),
                 innerSize(Direction.x), innerSize(Direction.y), rgba(0, 0, 233)
             )
-        },
-        padding = { _, _ -> 10f },
-        buildChildren = { scroll ->
-            with(scroll) {
-                buildScrollNode()
-            }
+            super.draw(canvas)
+        }
+
+        override fun argPadding(direction: Direction, startEnd: StartEnd): Float {
+            return 10f
+        }
+
+        val scroll = this
+        override fun StateHolder<Node>.argChildren() {
             val maxScrollBar = memo { scroll.scrollBarSize(Direction.y) }
             object : RectNode(this) {
                 override fun mouseDown(e: MouseEvent) {
@@ -59,48 +58,53 @@ fun demoScroll(context: StateHolder<Node>) {
                     return "SrollBar"
                 }
 
-                override fun position(d: Direction): Float = when (d) {
-                    Direction.x -> 0f
-                    Direction.y -> maxScrollBar()?.offset ?: 0f
-                }
+                override val y: Float
+                    get() = maxScrollBar()?.offset ?: 0f
+                override val argWidth: LayoutSize
+                    get() = LayoutSize(10f, false)
+                override val argHeight: LayoutSize
+                    get() = LayoutSize(maxScrollBar()?.size ?: 0f, false)
 
-                override fun size(direction: Direction): LayoutSize = when (direction) {
-                    Direction.x -> LayoutSize(10f, false)
-                    Direction.y -> LayoutSize(maxScrollBar()?.size ?: 0f, false)
-                }
 
-                override fun drawSelf(canvas: PlatformCanvas) {
+                override fun draw(canvas: PlatformCanvas) {
                     canvas.fillRect(
-                        y = scroll.innerStart(Direction.y),
+                        y = scroll.paddingBlockStart,
                         w = outerSize(Direction.x),
                         h = outerSize(Direction.y),
                         color = rgba(0, 0, 0)
                     )
                 }
             }
-        }
-    ) {
 
-        object : WrappedTextNode(this) {
-            override val text: String
-                get() = (1..20).joinToString(" ") { "Line$it: Hello World! 中文测试。" }
-            override val fontSize: Float get() = 16f
-        }
+            object : ScrollContent(this), FlexParam{
+                    override val layout: LayoutDirection = FlexObject(this)
+                override val argWidth: LayoutSize
+                    get() = scroll.argWidth
+                override val alignItem: AlignItem
+                    get() = AlignItem.stretch
 
-        object : RectNode(this) {
-            override fun size(direction: Direction): LayoutSize {
-                if (direction == Direction.y) {
-                    return LayoutSize(200f, false)
+                override fun StateHolder<Node>.argChildren() {
+
+                    object : WrappedTextNode(this) {
+                        override val text: String
+                            get() = (1..20).joinToString(" ") { "Line$it: Hello World! 中文测试。" }
+                        override val fontSize: Float get() = 16f
+                    }
+
+                    object : RectNode(this) {
+
+                        override val argHeight: LayoutSize
+                            get() = LayoutSize(200f, false)
+
+                        override fun draw(canvas: PlatformCanvas) {
+                            canvas.fillRect(
+                                w = innerSize(Direction.x),
+                                h = innerSize(Direction.y),
+                                color = rgba(0, 255, 0)
+                            )
+                        }
+                    }
                 }
-                return sizeFromParent(direction)
-            }
-
-            override fun drawSelf(canvas: PlatformCanvas) {
-                canvas.fillRect(
-                    w = innerSize(Direction.x),
-                    h = innerSize(Direction.y),
-                    color = rgba(0, 255, 0)
-                )
             }
         }
     }

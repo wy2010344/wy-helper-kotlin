@@ -40,7 +40,7 @@ interface FlexObject<T> : LayoutFun<T>, FlexChildConvert<T> {
     val directionFixBetweenWhenOne: DirectionFixBetweenWhenOne
         get() = DirectionFixBetweenWhenOne.center
 
-    override fun createLayout(o: LayoutInsideObject<T>): Layout {
+    override fun invoke(o: LayoutInsideObject<T>): Layout {
         return FlexLayout(this, o, this)
     }
 }
@@ -163,9 +163,11 @@ class FlexLayout<T>(
 
     override val sizeFromChildren: Float
         get() {
-            if (arg.directionJustify== DirectionJustify.grow) {
+            if (arg.directionJustify == DirectionJustify.grow) {
                 return cache().length
             }
-            throw LayoutError("外部提供了尺寸")
+            return inside.innerSize
         }
+    override val allowSizeFromChildren: Boolean
+        get() = true
 }

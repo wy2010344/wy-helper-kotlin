@@ -1,6 +1,7 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
+import org.wy.lib.GetValue
 
 enum class Direction {
     x, y
@@ -20,50 +21,69 @@ data class NodeWithPosition(
 )
 
 
-interface Node {
+open class Node(
     val parent: Node?
-
-    /**
-     * 在父容器中的相对位置
-     */
-    fun position(d: Direction): Float {
-        return 0f
-    }
-
-    val children: List<Node>
-    fun StateHolder<Node>.buildChildren() {}
-
-
-    fun acceptHit(x: Float, y: Float): Boolean {
-        return false
-    }
-
-    fun mouseClick(e: MouseEvent) {}
-    fun mouseClickCapture(e: MouseEvent) {}
-    fun mouseDown(e: MouseEvent) {}
-    fun mouseDownCapture(e: MouseEvent) {}
-    fun mouseUp(e: MouseEvent) {}
-    fun mouseUpCapture(e: MouseEvent) {}
-
-    fun draw(canvas: PlatformCanvas) {
-        drawSelf(canvas)
-        children.forEach {
-            canvas.save()
-            val x = it.position(Direction.x)
-            val y = it.position(Direction.y)
-            canvas.translate(x, y)
-            it.draw(canvas)
-            canvas.restore()
+) {
+    constructor(context: StateHolder<Node>) : this(
+        context.getParent() ?: throw Error("需要找到父节点才行")
+    ) {
+        getChildren = context.renderNode(this, ::collectIndex) {
+            argChildren()
         }
     }
 
-    fun drawSelf(canvas: PlatformCanvas) {}
+    open fun StateHolder<Node>.argChildren() {}
+
+    var getChildren: GetValue<List<Node>> = { emptyList() }
+        internal set
+    val children: List<Node>
+        get() = getChildren()
+
+    open fun argPosition(direction: Direction): Float = 0f
+
+    var index = 0
+        internal set
+        get() {
+            parent?.children
+            return field
+        }
+
+    open val x: Float
+        get() = argPosition(Direction.x)
+
+    open val y: Float
+        get() = argPosition(Direction.y)
+
+    open fun acceptHit(x: Float, y: Float): Boolean {
+        return false
+    }
+
+    open fun mouseClick(e: MouseEvent) {}
+    open fun mouseClickCapture(e: MouseEvent) {}
+    open fun mouseDown(e: MouseEvent) {}
+    open fun mouseDownCapture(e: MouseEvent) {}
+    open fun mouseUp(e: MouseEvent) {}
+    open fun mouseUpCapture(e: MouseEvent) {}
+
+    open fun draw(canvas: PlatformCanvas) {
+        drawChildren(canvas)
+    }
+}
+
+fun Node.drawChildren(canvas: PlatformCanvas) {
+    children.forEach {
+        canvas.save()
+        canvas.translate(it.x, it.y)
+        it.draw(canvas)
+        canvas.restore()
+    }
+
 }
 
 
 fun Node.hitest(x: Float, y: Float): NodeWithPosition? {
-    val rx = x - position(Direction.x)
-    val ry = y - position(Direction.y)
+    val rx = x - this.x
+    val ry = y - this.y
     children.asReversed().forEach {
         val node = it.hitest(rx, ry)
         if (node != null) {
@@ -76,6 +96,11 @@ fun Node.hitest(x: Float, y: Float): NodeWithPosition? {
     return null
 }
 
+fun Node.position(direction: Direction) = when (direction) {
+    Direction.x -> x
+    Direction.y -> y
+}
+
 fun Node.absolutePosition(d: Direction): Float {
     var n = position(d)
     var p = parent
@@ -86,13 +111,16 @@ fun Node.absolutePosition(d: Direction): Float {
     return n
 }
 
+val Node.absoluteX
+    get() = absolutePosition(Direction.x)
+val Node.absoluteY
+    get() = absolutePosition(Direction.y)
+
 internal fun collectIndex(list: List<Node>) {
     var index = 0
     var layoutIndex = 0
     for (node in list) {
-        if (node is NodeI) {
-            node.index = index++
-        }
+        node.index = index++
         if (node is RectNode) {
             node.layoutIndex = layoutIndex++
         }

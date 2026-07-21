@@ -20,8 +20,8 @@ interface StateHolder<Node> {
 
     fun <T, K, O> renderForEach(
         forEach: (callback: (K, T) -> GetValue<O>) -> Unit,
+        duplicateInfo: DuplicateInfo = DuplicateInfo.IGNORE,
         creater: Creater<Node, T, K, O>,
-        duplicateInfo: DuplicateInfo = DuplicateInfo.IGNORE
     ): Memo<*>
 
     fun renderNode(

@@ -1,7 +1,6 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
-import org.wy.engine.layout.LayoutSize
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.memo
@@ -178,16 +177,14 @@ open class WrappedTextNode(
         return low.coerceIn(line.start, line.end)
     }
 
-    override fun size(direction: Direction): LayoutSize = when (direction) {
-        Direction.x -> sizeFromParent(direction)
-        Direction.y -> {
+
+    override val argHeight: LayoutSize
+        get(){
             val lineList = lines()
-            LayoutSize(
+           return LayoutSize(
                 max(lineList.size * lineHeight, fontSize * 1.4f), true
             )
         }
-    }
-
     protected var anchorIndex by createSignal(-1)
     protected var focusIndex by createSignal(-1)
 
@@ -219,7 +216,7 @@ open class WrappedTextNode(
         context.addDestroy { d1(); d2() }
     }
 
-    override fun drawSelf(canvas: PlatformCanvas) {
+    override fun draw(canvas: PlatformCanvas) {
         if (text.isEmpty()) return
         val lineList = lines()
         val h = lineHeight
@@ -255,5 +252,6 @@ open class WrappedTextNode(
                 )
             }
         }
+        super.draw(canvas)
     }
 }

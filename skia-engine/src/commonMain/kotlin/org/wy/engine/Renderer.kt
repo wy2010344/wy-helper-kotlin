@@ -1,42 +1,22 @@
 package org.wy.engine
 
 import com.wy.layout.Layout
-import com.wy.layout.LayoutInsideObject
 import com.wy.mve.renderRoot
-import org.wy.engine.layout.LayoutNode
-import org.wy.engine.layout.LayoutSize
 import org.wy.lib.EmptyFun
 import org.wy.lib.GetValue
 import org.wy.signal.TrackSignal
 import org.wy.signal.memo
 import kotlin.collections.set
-import kotlin.concurrent.atomics.AtomicBoolean
-import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
-abstract class Renderer : Node, LayoutNode {
+open class Renderer : Node(null), LayoutNode {
+    final override val layoutParent: LayoutNode? = null
+   final override val layoutIndex: Int = 0
 
-    final override val parent: Node? = null
-    abstract val width: Float
-    abstract val height: Float
-
-    override val layoutParent: LayoutNode? = null
-    override val layoutIndex: Int = 0
-
-    final override fun size(direction: Direction): LayoutSize = LayoutSize(
-        when (direction) {
-            Direction.x -> width
-            Direction.y -> height
-        }, false
-    )
-
-    override val layoutX: GetValue<Layout> = createLayout(Direction.x)
-    override val layoutY: GetValue<Layout> = createLayout(Direction.y)
-
-    private val _layoutChildren = memo {
+    val getLayoutChildren = memo {
         children.filterIsInstance<LayoutNode>()
     }
-    override val layoutChildren: List<LayoutNode>
-        get() = _layoutChildren()
+    final override val layoutChildren: List<LayoutNode>
+        get() = getLayoutChildren()
 
 
     private val moveList = mutableMapOf<MouseCallback, EmptyFun>()
@@ -46,7 +26,6 @@ abstract class Renderer : Node, LayoutNode {
     private val composingList = mutableMapOf<ComposingTextCallback, EmptyFun>()
 
     private val state = renderRoot<Node>(this@Renderer, ::collectIndex) {
-
         provide(engineGlobalContext, object : EngineGlobal {
             override fun registerMouseMove(callback: MouseCallback): EmptyFun {
                 return register(moveList, callback)
@@ -68,7 +47,7 @@ abstract class Renderer : Node, LayoutNode {
                 return register(composingList, callback)
             }
         })
-        buildChildren()
+        argChildren()
     }
 
     fun destroy() {
@@ -80,11 +59,11 @@ abstract class Renderer : Node, LayoutNode {
         state.destroy()
     }
 
+    init {
+        this.getChildren = state.target
+    }
 
-    override val children: List<Node>
-        get() = state.target()
-
-    abstract fun frameCallback()
+    open fun frameCallback() {}
 
     var scheduled = false
     private val signal = object : TrackSignal<Unit>() {
@@ -98,8 +77,8 @@ abstract class Renderer : Node, LayoutNode {
         try {
             canvas.clear(rgba(255, 255, 255))
             signal.collect {
-                width
-                height
+                outerSize(Direction.x)
+                outerSize(Direction.y)
                 draw(canvas)
             }
         } catch (err: Throwable) {
@@ -127,7 +106,6 @@ abstract class Renderer : Node, LayoutNode {
                 //冒泡
                 val e = MouseEvent(it.x, it.y, x, y)
                 sendMouseEvent(it.node, type, e, false)
-                it.node.mouseClick(e)
                 if (e.stoppedProgression) {
                     return
                 }
@@ -194,6 +172,10 @@ abstract class Renderer : Node, LayoutNode {
             println("输入法事件出错--$e")
         }
     }
+
+
+    final override val layoutX: GetValue<Layout> = createLayout(Direction.x)
+    final override val layoutY: GetValue<Layout> = createLayout(Direction.y)
 }
 
 private fun <K> register(map: MutableMap<K, EmptyFun>, key: K): EmptyFun {

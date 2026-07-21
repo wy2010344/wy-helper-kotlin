@@ -28,7 +28,7 @@ interface StackObject<T> : LayoutFun<T>, StackChildConvert<T> {
     val alignFix: Boolean
         get() = false
 
-    override fun createLayout(o: LayoutInsideObject<T>): Layout {
+    override fun invoke(o: LayoutInsideObject<T>): Layout {
         return StackLayout(this, o, this)
     }
 }
@@ -96,5 +96,8 @@ class StackLayout<T>(
     override fun childSize(index: Int): Float {
         return child(index, true)
     }
+
+    override val allowSizeFromChildren: Boolean
+        get() = true
 
 }

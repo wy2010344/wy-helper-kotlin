@@ -6,6 +6,7 @@ interface Layout {
     val sizeFromChildren: Float
     fun childSize(index: Int): Float
     fun childPosition(index: Int): Float
+    val allowSizeFromChildren: Boolean
 }
 
 
@@ -14,9 +15,8 @@ interface LayoutInsideObject<T> {
     val innerSize: Float
 }
 
-interface LayoutFun<T> {
-    fun createLayout(o: LayoutInsideObject<T>): Layout
-}
+typealias LayoutFun<T> = (o: LayoutInsideObject<T>) -> Layout
+
 
 
 class LayoutError(message:String?): Error(message)

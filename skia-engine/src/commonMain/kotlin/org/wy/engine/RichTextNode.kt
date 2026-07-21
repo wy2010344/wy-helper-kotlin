@@ -1,7 +1,6 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
-import org.wy.engine.layout.LayoutSize
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.memo
@@ -250,9 +249,8 @@ open class RichTextNode(
         return low.coerceIn(info.start, info.end)
     }
 
-    override fun size(direction: Direction): LayoutSize = when (direction) {
-        Direction.x -> sizeFromParent(direction)
-        Direction.y -> {
+    override val argHeight: LayoutSize
+        get() {
             val infoList = lineInfos()
             val totalH = if (infoList.isNotEmpty()) {
                 val last = infoList.last()
@@ -260,9 +258,8 @@ open class RichTextNode(
             } else {
                 maxFontSizeInLine(0, 0) * 1.4f
             }
-            LayoutSize(totalH, true)
+            return LayoutSize(totalH, true)
         }
-    }
 
     private var anchorIndex by createSignal(-1)
     private var focusIndex by createSignal(-1)
@@ -295,7 +292,7 @@ open class RichTextNode(
         context.addDestroy { d1(); d2() }
     }
 
-    override fun drawSelf(canvas: PlatformCanvas) {
+    override fun draw(canvas: PlatformCanvas) {
         val text = fullText
         if (text.isEmpty()) return
         val infoList = lineInfos()
@@ -338,5 +335,6 @@ open class RichTextNode(
                 i = segEnd
             }
         }
+        super.draw(canvas)
     }
 }

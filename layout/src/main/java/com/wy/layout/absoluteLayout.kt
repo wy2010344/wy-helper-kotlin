@@ -1,5 +1,7 @@
 package com.wy.layout
 
+import org.wy.lib.GetValue
+
 
 private val absoluteLayoutObject = object : Layout{
     override val sizeFromChildren: Float
@@ -12,10 +14,13 @@ private val absoluteLayoutObject = object : Layout{
     override fun childSize(index: Int): Float {
         throw LayoutError("没有子节点的尺寸")
     }
+
+    override val allowSizeFromChildren: Boolean
+        get() = false
 }
 
 private val absoluteLayoutFun:LayoutFun<Any> = object : LayoutFun<Any>{
-    override fun createLayout(o: LayoutInsideObject<Any>): Layout {
+    override fun invoke(o: LayoutInsideObject<Any>): Layout {
         return absoluteLayoutObject
     }
 }

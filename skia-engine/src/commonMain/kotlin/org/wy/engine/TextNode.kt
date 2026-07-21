@@ -1,7 +1,6 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
-import org.wy.engine.layout.LayoutSize
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.memo
@@ -57,15 +56,14 @@ open class TextNode(
         }
         return positions.size
     }
-    override fun size(direction: Direction): LayoutSize {
-        return when (direction) {
-            Direction.x -> {
-                val positions = charPositions()
-                return LayoutSize(positions.lastOrNull() ?: 0f, true)
-            }
-            Direction.y -> LayoutSize(fontSize * 1.4f, true)
+
+    override val argWidth: LayoutSize
+        get() {
+            val positions = charPositions()
+            return LayoutSize(positions.lastOrNull() ?: 0f, true)
         }
-    }
+    override val argHeight: LayoutSize
+        get() = LayoutSize(fontSize * 1.4f, true)
 
     private var onMouseDown = false
     override fun mouseDown(e: MouseEvent) {
@@ -86,13 +84,13 @@ open class TextNode(
                 focusIndex = charAt(it.x - absoluteX())
             }
         }
-       context.addDestroy {
+        context.addDestroy {
             d1()
             d2()
         }
     }
 
-    override fun drawSelf(canvas: PlatformCanvas) {
+    override fun draw(canvas: PlatformCanvas) {
         if (text.isEmpty()) return
 
         val positions = charPositions()
@@ -113,5 +111,6 @@ open class TextNode(
             fontSize = fontSize,
             color = color
         )
+        super.draw(canvas)
     }
 }

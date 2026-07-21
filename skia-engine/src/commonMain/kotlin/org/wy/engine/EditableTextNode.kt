@@ -199,9 +199,9 @@ open class EditableTextNode(
         }
     }
 
-    override fun drawSelf(canvas: PlatformCanvas) {
-        super.drawSelf(canvas)
+    override fun draw(canvas: PlatformCanvas) {
 
+        super.draw(canvas)
         if (!hasSelection && cursorVisible) {
             val pos = cursorIndex()
             drawCursor(canvas, pos)

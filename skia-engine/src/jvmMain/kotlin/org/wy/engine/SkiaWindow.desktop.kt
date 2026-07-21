@@ -1,20 +1,15 @@
 package org.wy.engine
 
-import com.wy.layout.LayoutFun
-import com.wy.layout.absoluteLayout
-import com.wy.mve.StateHolder
-import kotlinx.coroutines.launch
-import org.jetbrains.skia.*
+import com.wy.layout.Layout
 import org.jetbrains.skiko.SkiaLayer
 import org.jetbrains.skiko.SkikoRenderDelegate
-import org.wy.engine.layout.LayoutNode
+import org.wy.engine.layout.FlexObject
+import org.wy.engine.layout.FlexParam
 import org.wy.lib.EmptyFun
+import org.wy.lib.GetValue
 import org.wy.signal.TrackSignal
-import org.wy.signal.batchScope
-import org.wy.signal.batchSignalEnd
 import org.wy.signal.createSignal
 import java.awt.Dimension
-import java.awt.Graphics
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
 import java.awt.event.MouseAdapter
@@ -22,16 +17,10 @@ import java.awt.event.MouseEvent
 import java.awt.event.MouseMotionAdapter
 import java.awt.event.MouseWheelEvent
 import java.awt.event.MouseWheelListener
-import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent as AwtKeyEvent
 import java.awt.event.KeyListener
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
-import java.awt.image.BufferedImage
-import java.awt.image.DataBufferByte
-import java.util.Date
-import java.util.concurrent.locks.ReentrantLock
-import javax.swing.JComponent
 import javax.swing.JFrame
 import javax.swing.SwingUtilities
 import javax.swing.WindowConstants
@@ -47,12 +36,11 @@ open class SkiaApp(width: Int = 800, height: Int = 600) : Renderer() {
     open var title = "Skia Engine"
     private val w = createSignal(width)
     private val h = createSignal(height)
-    final override val width: Float
-        get() = w.value.toFloat()
 
-    final override val height: Float
-        get() = h.value.toFloat()
-
+    final override val argWidth: LayoutSize
+        get() = LayoutSize(w.value.toFloat(),false)
+    final override val argHeight: LayoutSize
+        get() = LayoutSize(h.value.toFloat(),false)
     private val skiaLayer = SkiaLayer()
 
     override fun frameCallback() {
