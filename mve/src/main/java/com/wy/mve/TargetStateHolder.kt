@@ -1,11 +1,8 @@
 package com.wy.mve
 
 import org.wy.lib.GetValue
-import org.wy.lib.QuoteValue
 import org.wy.lib.SetValue
 import org.wy.signal.Memo
-import org.wy.signal.memo
-import java.rmi.server.RemoteCall
 
 interface RootReturn<Node> {
     fun destroy()
@@ -13,11 +10,11 @@ interface RootReturn<Node> {
 }
 
 internal open class TargetStateHolder<Node>(
-    private val node: Node,
+    override val node: Node,
     after: SetValue<List<Node>>?,
-    private val callback: StateHolder<Node>.() -> Unit,
+    private val callback: StateHolderWithNode<Node,List<Node>>.() -> Unit,
     parent: StateHolderI<Node>?=null
-) : StateHolderI<Node>(parent), RootReturn<Node> {
+) : StateHolderI<Node>(parent), RootReturn<Node>, StateHolderWithNode<Node,List<Node>> {
     override fun buildChildren() {
         provide<Node>(parentContext as Context<Node>, node)
         callback()
@@ -48,10 +45,10 @@ internal open class TargetStateHolder<Node>(
 internal val parentContext = Context<Any?>(null)
 
 
-fun <Node> renderRoot(
+fun <Node> renderListRoot(
     node: Node,
     after: SetValue<List<Node>>? = null,
-    callback: StateHolder<Node>.() -> Unit
+    callback: StateHolderWithNode<Node,List<Node>>.() -> Unit
 ): RootReturn<Node> {
     val node= TargetStateHolder(node, after, callback)
     node.create()

@@ -98,6 +98,7 @@ class StackLayout<T>(
     }
 
     override val allowSizeFromChildren: Boolean
-        get() = true
+        //必须阻断，否则进入死循环
+        get() =!arg.alignFix
 
 }

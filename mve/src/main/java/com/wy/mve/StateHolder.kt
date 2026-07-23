@@ -2,7 +2,6 @@ package com.wy.mve
 
 import org.wy.lib.EmptyFun
 import org.wy.lib.GetValue
-import org.wy.lib.QuoteValue
 import org.wy.lib.SetValue
 import org.wy.signal.Memo
 
@@ -12,6 +11,8 @@ enum class DuplicateInfo { IGNORE, WARN, THROW }
 interface StateHolder<Node> {
     fun <T> provide(context: Context<T>, value: T)
 
+
+    fun addNode(n:Node)
     fun <T> consume(context: Context<T>): T
 
     fun addDestroy(destroy: EmptyFun)
@@ -24,11 +25,16 @@ interface StateHolder<Node> {
         creater: Creater<Node, T, K, O>,
     ): Memo<*>
 
-    fun renderNode(
+    fun renderListNode(
         node: Node,
         after: SetValue<List<Node>>? = null,
-        callback: StateHolder<Node>.() -> Unit
+        callback: StateHolderWithNode<Node,List<Node>>.() -> Unit
     ): GetValue<List<Node>>
 
-    fun getParent(): Node?
+    fun getParent(): Any?
+}
+
+interface StateHolderWithNode<T,F>: StateHolder<T>{
+    val node:T
+    val target: GetValue<F>
 }

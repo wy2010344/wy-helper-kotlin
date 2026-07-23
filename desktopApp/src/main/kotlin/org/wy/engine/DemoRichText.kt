@@ -2,6 +2,7 @@ package org.wy.engine
 
 import com.wy.layout.AlignItem
 import com.wy.mve.StateHolder
+import com.wy.mve.StateHolderWithNode
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.LayoutDirection
@@ -25,7 +26,7 @@ fun demoRichText(context: StateHolder<Node>) {
         override val alignItem: AlignItem
             get() = AlignItem.stretch
 
-        override fun StateHolder<Node>.argChildren() {
+        override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
 
             var text by createSignal("")
             object : WrappedTextNode(this) {

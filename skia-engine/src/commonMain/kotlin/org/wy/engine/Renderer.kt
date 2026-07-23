@@ -1,23 +1,25 @@
 package org.wy.engine
 
-import com.wy.layout.Layout
-import com.wy.mve.renderRoot
+import com.wy.mve.StateHolder
+import com.wy.mve.renderListRoot
 import org.wy.lib.EmptyFun
-import org.wy.lib.GetValue
 import org.wy.signal.TrackSignal
-import org.wy.signal.memo
 import kotlin.collections.set
 
-open class Renderer : Node(null), LayoutNode {
-    final override val layoutParent: LayoutNode? = null
-   final override val layoutIndex: Int = 0
-
-    val getLayoutChildren = memo {
-        children.filterIsInstance<LayoutNode>()
+private class Register(context: StateHolder<Node>?) {
+    init {
+        if (context != null) {
+            provide(context)
+        }
     }
-    final override val layoutChildren: List<LayoutNode>
-        get() = getLayoutChildren()
 
+    fun destroy() {
+        moveList.clear()
+        upList.clear()
+        wheelList.clear()
+        keyPressList.clear()
+        composingList.clear()
+    }
 
     private val moveList = mutableMapOf<MouseCallback, EmptyFun>()
     private val upList = mutableMapOf<MouseCallback, EmptyFun>()
@@ -25,8 +27,8 @@ open class Renderer : Node(null), LayoutNode {
     private val keyPressList = mutableMapOf<KeyPressCallback, EmptyFun>()
     private val composingList = mutableMapOf<ComposingTextCallback, EmptyFun>()
 
-    private val state = renderRoot<Node>(this@Renderer, ::collectIndex) {
-        provide(engineGlobalContext, object : EngineGlobal {
+    fun provide(context: StateHolder<Node>) {
+        context.provide(engineGlobalContext, object : EngineGlobal {
             override fun registerMouseMove(callback: MouseCallback): EmptyFun {
                 return register(moveList, callback)
             }
@@ -47,24 +49,51 @@ open class Renderer : Node(null), LayoutNode {
                 return register(composingList, callback)
             }
         })
-        argChildren()
     }
+
+    fun dispatchMouseUp(x: Float, y: Float) {
+        upList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) }
+    }
+
+    fun dispatchMouseMove(x: Float, y: Float) {
+
+        moveList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) }
+    }
+
+    fun dispatchMouseWheel(x: Float, y: Float, delta: Float) {
+        wheelList.forEach { it.key(GlobalWheelEvent(x, y, delta, it.value)) }
+    }
+
+    fun dispatchKeyPress(e: KeyEvent) {keyPressList.forEach { it.key(e) }}
+    fun dispatchComposingText(text: String, cursorPosition: Int) {
+        composingList.forEach { it.key(text, cursorPosition) }
+    }
+}
+
+open class Renderer private constructor(
+    context: StateHolder<Node>?,
+    private val register: Register
+) : LayoutNode(null) {
+    constructor(context: StateHolder<Node>?) : this(context, Register(context)) {
+        if (context == null) {
+            val state = renderListRoot<Node>(this@Renderer, ::collectIndex) {
+                register.provide(this)
+                argChildren()
+            }
+            this.getChildren = state.target
+            this.destroyFun = state::destroy
+        }
+    }
+
 
     fun destroy() {
-        moveList.clear()
-        upList.clear()
-        wheelList.clear()
-        keyPressList.clear()
-        composingList.clear()
-        state.destroy()
-    }
-
-    init {
-        this.getChildren = state.target
+        register.destroy()
+        destroyFun()
     }
 
     open fun frameCallback() {}
 
+    private var destroyFun = {}
     var scheduled = false
     private val signal = object : TrackSignal<Unit>() {
         override fun get(old: Unit?, inited: Boolean) {
@@ -134,7 +163,8 @@ open class Renderer : Node(null), LayoutNode {
     fun mouseUp(x: Float, y: Float) {
         try {
             mouseEventOf(x, y, MouseEventEnum.up)
-            upList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) }
+            register.dispatchMouseUp(x, y)
+
         } catch (e: Throwable) {
             println("全局mouseup事件出错--$e")
         }
@@ -142,7 +172,7 @@ open class Renderer : Node(null), LayoutNode {
 
     fun mouseMove(x: Float, y: Float) {
         try {
-            moveList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) }
+            register.dispatchMouseMove(x,y)
         } catch (e: Throwable) {
             println("全局mouseup事件出错--$e")
         }
@@ -150,7 +180,7 @@ open class Renderer : Node(null), LayoutNode {
 
     fun mouseWheel(x: Float, y: Float, delta: Float) {
         try {
-            wheelList.forEach { it.key(GlobalWheelEvent(x, y, delta, it.value)) }
+            register.dispatchMouseWheel(x,y,delta)
         } catch (e: Throwable) {
             println("全局mouseup事件出错--$e")
         }
@@ -159,7 +189,7 @@ open class Renderer : Node(null), LayoutNode {
     fun keyPress(key: Char, code: KeyCode, ctrl: Boolean, shift: Boolean, alt: Boolean) {
         try {
             val e = KeyEvent(key, code, ctrl, shift, alt)
-            keyPressList.forEach { it.key(e) }
+            register.dispatchKeyPress(e)
         } catch (e: Throwable) {
             println("键盘事件出错--$e")
         }
@@ -167,15 +197,11 @@ open class Renderer : Node(null), LayoutNode {
 
     fun composingText(text: String, cursorPosition: Int) {
         try {
-            composingList.forEach { it.key(text, cursorPosition) }
+            register.dispatchComposingText(text,cursorPosition)
         } catch (e: Throwable) {
             println("输入法事件出错--$e")
         }
     }
-
-
-    final override val layoutX: GetValue<Layout> = createLayout(Direction.x)
-    final override val layoutY: GetValue<Layout> = createLayout(Direction.y)
 }
 
 private fun <K> register(map: MutableMap<K, EmptyFun>, key: K): EmptyFun {

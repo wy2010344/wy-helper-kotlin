@@ -12,18 +12,8 @@ import org.wy.signal.memo
 
 abstract class RectNode(
     context: StateHolder<Node>
-) : Node(context), LayoutNode {
+) : LayoutNode(context){
 
-    override var layoutIndex: Int = 0
-        internal set
-        get() {
-            layoutParent?.layoutChildren
-            return field
-        }
-
-    val getLayoutChildren = memo { children.filterIsInstance<LayoutNode>() }
-    override val layoutChildren: List<LayoutNode>
-        get() = getLayoutChildren()
 
     override fun argPosition(direction: Direction): Float {
         val lp = layoutParent
@@ -45,23 +35,4 @@ abstract class RectNode(
         return sizeFromParent(direction)
     }
 
-    final override val layoutParent: LayoutNode? = run {
-        var p: Node? = parent
-        while (p != null) {
-            if (p is LayoutNode) {
-                return@run p
-            }
-            p = p.parent
-        }
-        return@run null
-    }
-
-    override fun acceptHit(x: Float, y: Float): Boolean {
-        val w = outerSize(Direction.x)
-        val h = outerSize(Direction.y)
-        return x > 0 && x < w && y > 0 && y < h
-    }
-
-    final override val layoutX: GetValue<Layout> = createLayout(Direction.x)
-    final override val layoutY: GetValue<Layout> = createLayout(Direction.y)
 }

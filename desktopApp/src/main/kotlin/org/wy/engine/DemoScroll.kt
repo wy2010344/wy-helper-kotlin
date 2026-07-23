@@ -2,6 +2,7 @@ package org.wy.engine
 
 import com.wy.layout.AlignItem
 import com.wy.mve.StateHolder
+import com.wy.mve.StateHolderWithNode
 import org.wy.engine.helper.drag
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
@@ -41,7 +42,7 @@ fun demoScroll(context: StateHolder<Node>) {
         }
 
         val scroll = this
-        override fun StateHolder<Node>.argChildren() {
+        override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
             val maxScrollBar = memo { scroll.scrollBarSize(Direction.y) }
             object : RectNode(this) {
                 override fun mouseDown(e: MouseEvent) {
@@ -83,7 +84,7 @@ fun demoScroll(context: StateHolder<Node>) {
                 override val alignItem: AlignItem
                     get() = AlignItem.stretch
 
-                override fun StateHolder<Node>.argChildren() {
+                override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
 
                     object : WrappedTextNode(this) {
                         override val text: String

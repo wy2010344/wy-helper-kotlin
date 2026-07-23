@@ -19,7 +19,7 @@ internal open class StateHolderI<Node>(
         this.parent?.children?.add(this)
     }
 
-    internal fun addNode(n: Node) {
+    override  fun addNode(n: Node) {
         if (destroyed) {
             throw Error("已经结构构建，无法再继续添加")
         }
@@ -177,12 +177,12 @@ internal open class StateHolderI<Node>(
         return context.value
     }
 
-    override fun renderNode(
+    override fun renderListNode(
         node: Node,
         after: SetValue<List<Node>>?,
-        callback: StateHolder<Node>.() -> Unit
+        callback: StateHolderWithNode<Node, List<Node>>.() -> Unit
     ): GetValue<List<Node>> {
-        addNode(node)
+//        addNode(node)
         val a = object : TargetStateHolder<Node>(node, after, callback,this@StateHolderI) {
             override fun toString(): String {
                 return "render-node-target"
@@ -192,8 +192,8 @@ internal open class StateHolderI<Node>(
         return a.target
     }
 
-    override fun getParent(): Node? {
-        return consume(parentContext) as Node?
+    override fun getParent(): Any? {
+        return consume(parentContext)
     }
 }
 

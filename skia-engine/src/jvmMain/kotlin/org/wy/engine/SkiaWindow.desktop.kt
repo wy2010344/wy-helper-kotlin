@@ -1,6 +1,7 @@
 package org.wy.engine
 
 import com.wy.layout.Layout
+import com.wy.mve.StateHolder
 import org.jetbrains.skiko.SkiaLayer
 import org.jetbrains.skiko.SkikoRenderDelegate
 import org.wy.engine.layout.FlexObject
@@ -32,15 +33,16 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
  */
 
 @OptIn(ExperimentalAtomicApi::class)
-open class SkiaApp(width: Int = 800, height: Int = 600) : Renderer() {
+open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Node>? = null) :
+    Renderer(context) {
     open var title = "Skia Engine"
     private val w = createSignal(width)
     private val h = createSignal(height)
 
     final override val argWidth: LayoutSize
-        get() = LayoutSize(w.value.toFloat(),false)
+        get() = LayoutSize(w.value.toFloat(), false)
     final override val argHeight: LayoutSize
-        get() = LayoutSize(h.value.toFloat(),false)
+        get() = LayoutSize(h.value.toFloat(), false)
     private val skiaLayer = SkiaLayer()
 
     override fun frameCallback() {
@@ -147,6 +149,7 @@ open class SkiaApp(width: Int = 800, height: Int = 600) : Renderer() {
                         this@SkiaApp.composingText(composingText, composingText.length)
                     }
                 }
+
                 override fun caretPositionChanged(e: java.awt.event.InputMethodEvent?) {}
             })
             skiaLayer.addKeyListener(object : KeyListener {

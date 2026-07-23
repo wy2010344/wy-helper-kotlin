@@ -72,7 +72,7 @@ fun ScrollNode.drawChildren(canvas: PlatformCanvas){
  * 最大可滚动
  */
 fun ScrollNode.maxScroll(direction: Direction): Float {
-    return contentSize(direction) - innerSize(direction)
+    return max(0f, contentSize(direction) - innerSize(direction))
 }
 
 fun ScrollNode.scroll(direction: Direction): Float = when (direction) {

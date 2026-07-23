@@ -2,6 +2,7 @@ package org.wy.engine
 
 import com.wy.layout.AlignItem
 import com.wy.mve.StateHolder
+import com.wy.mve.StateHolderWithNode
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.LayoutDirection
@@ -32,7 +33,7 @@ fun demoEditableText(context: StateHolder<Node>) {
             get() = true
         override val alignItem: AlignItem
             get() = AlignItem.stretch
-        override fun StateHolder<Node>.argChildren() {
+        override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
 
             var infoText by createSignal("Type something below. Ctrl+Z=Undo, Ctrl+Y=Redo")
             object : TextNode(this) {
@@ -64,7 +65,7 @@ fun demoEditableTextWithStatus(context: StateHolder<Node>) {
         override val alignItem: AlignItem
             get() = AlignItem.stretch
 
-        override fun StateHolder<Node>.argChildren() {
+        override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
 
             var statusText by createSignal("Chars: 0 | Cursor: 0")
             object : TextNode(this) {
@@ -96,7 +97,7 @@ fun demoMultipleEditableText(context: StateHolder<Node>) {
         override val alignItem: AlignItem
             get() = AlignItem.stretch
 
-        override fun StateHolder<Node>.argChildren() {
+        override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
 
 
             object : TextNode(this) {

@@ -1,6 +1,7 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
+import com.wy.mve.StateHolderWithNode
 import org.wy.lib.GetValue
 
 enum class Direction {
@@ -22,20 +23,32 @@ data class NodeWithPosition(
 
 
 open class Node(
-    val parent: Node?
+    val context: StateHolder<Node>?
 ) {
-    constructor(context: StateHolder<Node>) : this(
-        context.getParent() ?: throw Error("需要找到父节点才行")
-    ) {
-        getChildren = context.renderNode(this, ::collectIndex) {
-            argChildren()
+    val parent: Node?
+
+    init {
+        if (context == null) {
+            parent = null
+        } else {
+            val p = context.getParent()
+            if (p is Node) {
+                parent = p
+                context.addNode(this)
+            } else if (p != null) {
+                parent = null
+            } else {
+                throw Error("需要找到parent")
+            }
         }
     }
 
-    open fun StateHolder<Node>.argChildren() {}
+    open fun StateHolderWithNode<Node, List<Node>>.argChildren() {}
 
-    var getChildren: GetValue<List<Node>> = { emptyList() }
-        internal set
+    var getChildren: GetValue<List<Node>> = context?.renderListNode(this, ::collectIndex) {
+        argChildren()
+    } ?: { emptyList() }
+        protected set
     val children: List<Node>
         get() = getChildren()
 
@@ -118,12 +131,7 @@ val Node.absoluteY
 
 internal fun collectIndex(list: List<Node>) {
     var index = 0
-    var layoutIndex = 0
     for (node in list) {
         node.index = index++
-        if (node is RectNode) {
-            node.layoutIndex = layoutIndex++
-        }
     }
-
 }
