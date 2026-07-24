@@ -35,6 +35,7 @@ interface LayoutDirection {
     val layoutX: LayoutFun<LayoutNode>
     val layoutY: LayoutFun<LayoutNode>
 }
+
 class FlexObject(val arg: FlexParam):Flex(){
     override val gap: Float
         get() = arg.gap
@@ -60,6 +61,24 @@ val absoluteLayoutDirection:LayoutDirection = object : LayoutDirection{
         get() = absoluteLayout()
 
 }
+
+
+
+interface GrowChild{
+    fun argGrow(direction: Direction): Float=0f
+    val growX
+        get() = argGrow(Direction.x)
+    val growY
+        get() = argGrow(Direction.y)
+}
+
+interface AlignChild{
+    fun argAlign(direction: Direction): Align?
+    val alignX
+        get() = argAlign(Direction.x)
+    val alignY
+        get() = argAlign(Direction.y)
+}
 abstract class Flex : FlexObject<LayoutNode> ,LayoutDirection{
     open val direction: Direction = Direction.x
     final override fun index(n: LayoutNode): Int {
@@ -67,7 +86,13 @@ abstract class Flex : FlexObject<LayoutNode> ,LayoutDirection{
     }
 
     final override fun grow(n: LayoutNode): Float {
-        return n.grow
+        if(n is GrowChild){
+            return when(direction){
+                Direction.x -> n.growX
+                Direction.y -> n.growY
+            }
+        }
+        return 0f
     }
 
     final override fun outerSize(n: LayoutNode): Float {
@@ -94,7 +119,13 @@ abstract class Flex : FlexObject<LayoutNode> ,LayoutDirection{
             get() = this@Flex.alignFix
 
         override fun align(n: LayoutNode): Align? {
-            return n.align
+            if(n is AlignChild){
+                when(direction){
+                    Direction.x -> n.alignY
+                    Direction.y -> n.alignX
+                }
+            }
+            return null
         }
 
         override fun outerSize(n: LayoutNode): Float {

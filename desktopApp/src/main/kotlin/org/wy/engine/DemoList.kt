@@ -6,6 +6,7 @@ import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
+import org.wy.engine.layout.GrowChild
 import org.wy.engine.layout.LayoutDirection
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
@@ -29,10 +30,11 @@ fun StateHolder<Node>.demoList() {
                 override fun argSize(direction: Direction): LayoutSize {
                     return LayoutSize(300f, false)
                 }
+
                 val scroll = this
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    object : ScrollContent(this), FlexParam {
-                        override val grow: Float = 1f
+                    object : ScrollContent(this), FlexParam, GrowChild {
+                        override fun argGrow(direction: Direction): Float = 1f
                         override val alignFix = true
                         override val gap: Float = 10f
                         override val alignItem: AlignItem = AlignItem.stretch
@@ -74,12 +76,12 @@ fun StateHolder<Node>.demoList() {
                         }
                     }
 
-                    object : RectNode(this) , FlexParam{
+                    object : RectNode(this), FlexParam {
 
                         override val alignFix: Boolean = true
                         override val alignItem: AlignItem = AlignItem.stretch
                         override val directionJustify: DirectionJustify = DirectionJustify.start
-                        override val layout: LayoutDirection= FlexObject(this)
+                        override val layout: LayoutDirection = FlexObject(this)
                         override val argWidth: LayoutSize = LayoutSize(10f, false)
 
                         override fun draw(canvas: PlatformCanvas) {
@@ -97,9 +99,9 @@ fun StateHolder<Node>.demoList() {
                                         override val argWidth: LayoutSize
                                             get() = super.argWidth
                                         override val argHeight: LayoutSize
-                                            get() = LayoutSize(et.value?.size?:0f,false)
+                                            get() = LayoutSize(et.value?.size ?: 0f, false)
                                         override val y: Float
-                                            get() = et.value?.offset?:0f
+                                            get() = et.value?.offset ?: 0f
 
                                         override fun draw(canvas: PlatformCanvas) {
                                             fillInnerRect(canvas)
