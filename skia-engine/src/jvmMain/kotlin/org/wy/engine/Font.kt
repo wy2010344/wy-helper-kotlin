@@ -16,8 +16,13 @@ val chineseFontName = when {
 fun loadSystemFont(
     familyName: String, style: FontStyle
 ): Typeface {
-    return FontMgr.default.matchFamilyStyle(familyName, style) ?: FontMgr.default.matchFamilyStyle(
-        null,
-        style
-    )!!
+    val t = FontMgr.default.matchFamilyStyle(familyName, style)
+    if (t != null) return t
+    println("Font not found: $familyName, fallback to default")
+    return FontMgr.default.matchFamilyStyle(null, style)!!
+}
+
+fun listFonts(): List<String> {
+    val count = FontMgr.default.familiesCount
+    return (0 until count).mapNotNull { FontMgr.default.getFamilyName(it) }
 }

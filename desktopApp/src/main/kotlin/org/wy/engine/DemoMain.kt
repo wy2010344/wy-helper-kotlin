@@ -1,5 +1,6 @@
 package org.wy.engine
 
+import com.wy.layout.AlignItem
 import com.wy.layout.DirectionJustify
 import com.wy.mve.StateHolderWithNode
 import org.wy.engine.layout.FlexObject
@@ -18,6 +19,8 @@ fun main() {
             get() = DirectionJustify.center
         override val alignFix: Boolean
             get() = true
+        override val alignItem: AlignItem
+            get() = AlignItem.stretch
         override val gap: Float
             get() = 10f
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
@@ -26,7 +29,14 @@ fun main() {
 //            demoScroll(this)
 //            demoRichText(this)
 //            demoEditableText(this)
-            demoList()
+//            demoMultiLanguage(this)
+//            demoVerticalText(this)
+//            demoRTLText(this)
+//            demoList()
+            demoMultiLanguage(this)
+            demoRTLText(this)
+//            demoRichText(this)
+//            demoVerticalText(this)
         }
     }
 }

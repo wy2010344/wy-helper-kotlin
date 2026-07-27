@@ -3,6 +3,7 @@ package org.wy.signal
 
 import kotlin.collections.iterator
 import org.wy.lib.*
+import kotlin.reflect.KProperty
 
 private val stackMemos = mutableListOf<Memo<*>>()
 
@@ -92,6 +93,7 @@ abstract class Memo<T> : GetValue<T> {
         return v
     }
 }
+
 
 fun <T> memo(get: GetValue<T>): Memo<T> = get as? Memo
     ?: object : Memo<T>() {

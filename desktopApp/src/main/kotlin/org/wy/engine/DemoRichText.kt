@@ -17,6 +17,9 @@ import org.wy.signal.setValue
  * 并支持点击拖拽选中文本。
  */
 fun demoRichText(context: StateHolder<Node>) {
+    println("=== Available fonts ===")
+    listFonts().forEach { println(it) }
+    println("=======================")
     object :RectNode(context), FlexParam{
         override val layout: LayoutDirection = FlexObject(this)
         override val argWidth: LayoutSize
@@ -47,9 +50,11 @@ fun demoRichText(context: StateHolder<Node>) {
                             color = rgba(0, 0, 200)
                         ),
                         RichTextSpan(
-                            " demo. You can click and drag to select text across different styles.\n",
+                            " demo.\n",
                             fontSize = 14f
                         ),
+                        RichTextSpan("مرحبا بالعالم ", fontFamily = "Arial", fontSize = 20f, color = rgba(180, 0, 120)),
+                        RichTextSpan("שלום עולם ", fontFamily = "Arial", fontSize = 20f, color = rgba(0, 120, 180)),
                         RichTextSpan(
                             "标题 ",
                             fontSize = 28f,

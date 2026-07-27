@@ -1,5 +1,7 @@
 package org.wy.lib
 
+import kotlin.reflect.KProperty
+
 typealias Compare<T> = (a: T, b: T) -> Boolean
 typealias GetValue<T> = () -> T
 typealias QuoteValue<T> = (v: T) -> T
@@ -8,6 +10,9 @@ typealias EmptyFun = () -> Unit
 
 fun <T> simpleNotEqual(a: T, b: T) = a != b
 fun <T> simpleEqual(a: T, b: T) = a == b
+
+
+operator fun <T> GetValue<T>.getValue(thisRef: Any?, prop: KProperty<*>) = this()
 
 // ═══════════════════════════════════════════
 // StoreRef (simple get/set container)

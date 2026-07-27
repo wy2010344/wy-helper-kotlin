@@ -2,12 +2,16 @@ package org.wy.engine
 
 import org.jetbrains.skia.Canvas
 import org.jetbrains.skia.ClipMode
-import org.jetbrains.skia.Color
 import org.jetbrains.skia.Font
+import org.jetbrains.skia.FontMgr
 import org.jetbrains.skia.FontSlant
 import org.jetbrains.skia.FontStyle
 import org.jetbrains.skia.FontWidth
 import org.jetbrains.skia.Paint
+import org.jetbrains.skia.Point
+import org.jetbrains.skia.shaper.Shaper
+import org.jetbrains.skia.shaper.ShapingOptions
+
 actual class PlatformCanvas(val skCanvas: Canvas) {
     actual fun clear(int: Int) {
         skCanvas.clear(int)
@@ -37,7 +41,6 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
         skCanvas.drawRect(x, y, x + w, y + h, paint)
     }
 
-
     actual fun strokeRect(
         x: Float,
         y: Float,
@@ -62,26 +65,29 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
         fontFamily: String?,
         fontWeight: Int,
         fontSize: Float,
-        color: ColorInt
+        color: ColorInt,
+        letterSpacing: Float,
+        wordSpacing: Float,
+        isRTL: Boolean
     ) {
+        if (text.isEmpty()) return
         val paint = Paint().apply {
             this.color = color
             isAntiAlias = true
         }
-        val font = loadSystemFont(
-            fontFamily ?: chineseFontName, FontStyle(
-                fontWeight,
-                FontWidth.NORMAL,
-                FontSlant.ITALIC
-            )
+        val font = getFont(fontFamily, fontWeight, fontSize)
+        val shaper = getShaper()
+        val opts = ShapingOptions(
+            fontMgr = null,
+            features = null,
+            isLeftToRight = !isRTL,
+            isApproximateSpaces = false,
+            isApproximatePunctuation = false
         )
-        skCanvas.drawString(
-            text, x, y, getFont(
-                fontFamily,
-                fontWeight,
-                fontSize
-            ), paint
-        )
+        val blob = shaper.shape(text, font, opts, Float.MAX_VALUE, Point(0f, 0f))
+        if (blob != null) {
+            skCanvas.drawTextBlob(blob, x, y, paint)
+        }
     }
 }
 
@@ -92,20 +98,24 @@ private fun getFont(
     fontSize: Float
 ): Font {
     val family = fontFamily ?: chineseFontName
-    val font = Font(
+    return Font(
         loadSystemFont(
             family,
             fontStyles.getOrPut(fontWeight) {
                 FontStyle(
                     fontWeight,
                     FontWidth.NORMAL,
-                    FontSlant.ITALIC
+                    FontSlant.UPRIGHT
                 )
             }
         ),
         fontSize
     )
-    return font
+}
+
+private var sharedShaper: Shaper? = null
+private fun getShaper(): Shaper {
+    return sharedShaper ?: Shaper.make().also { sharedShaper = it }
 }
 
 actual fun measureText(
@@ -113,19 +123,20 @@ actual fun measureText(
     fontFamily: String?,
     fontWeight: Int,
     fontSize: Float,
+    letterSpacing: Float,
+    wordSpacing: Float,
+    isRTL: Boolean
 ): Float {
-    val font = Font(
-        loadSystemFont(
-            fontFamily ?: chineseFontName, FontStyle(
-                fontWeight,
-                FontWidth.NORMAL,
-                FontSlant.ITALIC
-            )
-        ), fontSize
+    if (text.isEmpty()) return 0f
+    val font = getFont(fontFamily, fontWeight, fontSize)
+    val shaper = getShaper()
+    val opts = ShapingOptions(
+        fontMgr = null,
+        features = null,
+        isLeftToRight = !isRTL,
+        isApproximateSpaces = false,
+        isApproximatePunctuation = false
     )
-    return getFont(
-        fontFamily,
-        fontWeight,
-        fontSize
-    ).measureTextWidth(text)
+    val blob = shaper.shape(text, font, opts, Float.MAX_VALUE, Point(0f, 0f))
+    return blob?.bounds?.width ?: font.measureTextWidth(text)
 }

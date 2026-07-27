@@ -18,10 +18,18 @@ import kotlin.math.max
 open class ScrollNode(
     context: StateHolder<Node>
 ) : RectNode(context) {
-    var scrollX by createSignal(0f)
+    var _scrollX by createSignal(0f)
         private set
-    var scrollY by createSignal(0f)
+    var _scrollY by createSignal(0f)
         private set
+
+    var scrollX
+        get() = _scrollX.coerceIn(0f,maxScroll(Direction.x))
+        set(value){_scrollX=value}
+
+    var scrollY
+        get() = _scrollY.coerceIn(0f,maxScroll(Direction.y))
+        set(value) {_scrollY=value}
 
 
     override fun draw(canvas: PlatformCanvas) {

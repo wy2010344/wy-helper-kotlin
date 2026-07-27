@@ -8,12 +8,15 @@ import org.wy.signal.setValue
 import kotlin.math.max
 import kotlin.math.min
 
+enum class TextDirection { LTR, RTL }
+
 data class RichTextSpan(
     val text: String,
     val fontFamily: String? = null,
     val fontSize: Float = 16f,
     val fontWeight: Int = 400,
-    val color: ColorInt = rgba(0, 0, 0)
+    val color: ColorInt = rgba(0, 0, 0),
+    val direction: TextDirection = TextDirection.LTR
 )
 
 open class RichTextNode(
@@ -31,7 +34,8 @@ open class RichTextNode(
         val fontFamily: String?,
         val fontWeight: Int,
         val fontSize: Float,
-        val color: ColorInt
+        val color: ColorInt,
+        val direction: TextDirection
     )
 
     private val fullText: String
@@ -46,7 +50,8 @@ open class RichTextNode(
                     result.add(
                         SpanRange(
                             pos, pos + span.text.length,
-                            span.fontFamily, span.fontWeight, span.fontSize, span.color
+                            span.fontFamily, span.fontWeight, span.fontSize, span.color,
+                            span.direction
                         )
                     )
                     pos += span.text.length
@@ -108,7 +113,6 @@ open class RichTextNode(
         val result = mutableListOf<TextLine>()
         var pos = 0
         val len = text.length
-
         while (pos < len) {
             val nl = text.indexOf('\n', pos)
             val segEnd = if (nl >= 0) nl else len
@@ -252,13 +256,15 @@ open class RichTextNode(
     override val argHeight: LayoutSize
         get() {
             val infoList = lineInfos()
-            val totalH = if (infoList.isNotEmpty()) {
-                val last = infoList.last()
-                last.y + last.height
-            } else {
-                maxFontSizeInLine(0, 0) * 1.4f
-            }
-            return LayoutSize(totalH, true)
+            return LayoutSize(
+                if (infoList.isNotEmpty()) {
+                    val last = infoList.last()
+                    last.y + last.height
+                } else {
+                    maxFontSizeInLine(0, 0) * 1.4f
+                },
+                true
+            )
         }
 
     private var anchorIndex by createSignal(-1)
@@ -308,10 +314,8 @@ open class RichTextNode(
                     else measureRichRange(info.start, ls)
                     val rightX = measureRichRange(info.start, le)
                     canvas.fillRect(
-                        x = leftX,
-                        y = info.y,
-                        w = rightX - leftX,
-                        h = info.height,
+                        x = leftX, y = info.y,
+                        w = rightX - leftX, h = info.height,
                         color = selectionColor
                     )
                 }

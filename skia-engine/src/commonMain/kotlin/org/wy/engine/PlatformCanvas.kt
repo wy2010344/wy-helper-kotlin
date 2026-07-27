@@ -1,48 +1,53 @@
 package org.wy.engine
 
 expect class PlatformCanvas {
-    fun clear(int:Int=rgba(255,255,255,))
+    fun clear(int: Int = rgba(255, 255, 255))
 
     fun save()
 
     fun restore()
 
-    fun translate(dx: Float,dy: Float)
+    fun translate(dx: Float, dy: Float)
 
     fun clipRect(x: Float, y: Float, w: Float, h: Float)
 
     fun fillRect(
-        x: Float=0f,
-        y: Float=0f,
+        x: Float = 0f,
+        y: Float = 0f,
         w: Float,
         h: Float,
-        color:Int=rgba(0,0,0)
+        color: Int = rgba(0, 0, 0)
     )
 
-
     fun strokeRect(
-        x: Float=0f,
-        y: Float=0f,
+        x: Float = 0f,
+        y: Float = 0f,
         w: Float,
         h: Float,
-        color:Int=rgba(0,0,0),
-        strokeWidth: Float=1f,
+        color: Int = rgba(0, 0, 0),
+        strokeWidth: Float = 1f,
     )
 
     fun drawText(
         text: String,
-        x: Float=0f,
-        y: Float=0f,
-        fontFamily: String?=null,
-        fontWeight:Int=400,
-        fontSize: Float=16f,
-        color: ColorInt=rgba(0,0,0)
+        x: Float = 0f,
+        y: Float = 0f,
+        fontFamily: String? = null,
+        fontWeight: Int = 400,
+        fontSize: Float = 16f,
+        color: ColorInt = rgba(0, 0, 0),
+        letterSpacing: Float = 0f,
+        wordSpacing: Float = 0f,
+        isRTL: Boolean = false
     )
 }
 
 expect fun measureText(
     text: String,
-    fontFamily: String?=null,
-    fontWeight:Int=400,
-    fontSize: Float=16f,
+    fontFamily: String? = null,
+    fontWeight: Int = 400,
+    fontSize: Float = 16f,
+    letterSpacing: Float = 0f,
+    wordSpacing: Float = 0f,
+    isRTL: Boolean = false
 ): Float

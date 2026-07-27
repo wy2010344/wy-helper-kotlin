@@ -37,7 +37,6 @@ actual class PlatformCanvas(val canvas: Canvas) {
             isAntiAlias = true
         }
         canvas.drawRect(x, y, x + w, y + h, paint)
-
     }
 
     actual fun drawText(
@@ -47,27 +46,34 @@ actual class PlatformCanvas(val canvas: Canvas) {
         fontFamily: String?,
         fontWeight: Int,
         fontSize: Float,
-        color: ColorInt
+        color: ColorInt,
+        letterSpacing: Float,
+        wordSpacing: Float,
+        isRTL: Boolean
     ) {
-
         val paint = Paint().apply {
             this.color = color
             this.textSize = fontSize
+            this.letterSpacing = letterSpacing / fontSize
             isAntiAlias = true
             typeface = Typeface.DEFAULT
         }
         canvas.drawText(text, x, y, paint)
     }
-
 }
-
 
 actual fun measureText(
     text: String,
     fontFamily: String?,
     fontWeight: Int,
-    fontSize: Float
+    fontSize: Float,
+    letterSpacing: Float,
+    wordSpacing: Float,
+    isRTL: Boolean
 ): Float {
-    val paint = Paint().apply { textSize = fontSize }
+    val paint = Paint().apply {
+        textSize = fontSize
+        this.letterSpacing = letterSpacing / fontSize
+    }
     return paint.measureText(text)
 }
