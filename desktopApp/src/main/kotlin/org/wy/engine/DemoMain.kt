@@ -1,5 +1,6 @@
 package org.wy.engine
 
+import androidx.compose.ui.text.Paragraph
 import com.wy.layout.AlignItem
 import com.wy.layout.DirectionJustify
 import com.wy.mve.StateHolderWithNode
@@ -28,15 +29,12 @@ fun main() {
 //            demoForcedBreak(this)
 //            demoScroll(this)
 //            demoRichText(this)
-//            demoEditableText(this)
-//            demoMultiLanguage(this)
-//            demoVerticalText(this)
-//            demoRTLText(this)
+            demoEditableText(this)
 //            demoList()
             demoMultiLanguage(this)
             demoRTLText(this)
-//            demoRichText(this)
-//            demoVerticalText(this)
+
+            demoRichText(this)
         }
     }
 }

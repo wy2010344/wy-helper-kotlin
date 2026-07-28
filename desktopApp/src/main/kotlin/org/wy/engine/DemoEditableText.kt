@@ -36,7 +36,7 @@ fun demoEditableText(context: StateHolder<Node>) {
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
 
             var infoText by createSignal("Type something below. Ctrl+Z=Undo, Ctrl+Y=Redo")
-            object : TextNode(this) {
+            object : WrappedTextNode(this) {
                 override val text: String get() = infoText
                 override val fontSize: Float get() = 11f
                 override val color: ColorInt get() = rgba(120, 120, 120)
@@ -68,7 +68,7 @@ fun demoEditableTextWithStatus(context: StateHolder<Node>) {
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
 
             var statusText by createSignal("Chars: 0 | Cursor: 0")
-            object : TextNode(this) {
+            object : WrappedTextNode(this) {
                 override val text: String get() = statusText
                 override val fontSize: Float get() = 11f
                 override val color: ColorInt get() = rgba(100, 100, 200)
@@ -100,7 +100,7 @@ fun demoMultipleEditableText(context: StateHolder<Node>) {
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
 
 
-            object : TextNode(this) {
+            object : WrappedTextNode(this) {
                 override val text: String get() = "Field #1:"
                 override val fontSize: Float get() = 12f
                 override val color: ColorInt get() = rgba(80, 80, 80)
@@ -113,7 +113,7 @@ fun demoMultipleEditableText(context: StateHolder<Node>) {
             }
 
 
-            object : TextNode(this) {
+            object : WrappedTextNode(this) {
                 override val text: String get() = "Field #2:"
                 override val fontSize: Float get() = 12f
                 override val color: ColorInt get() = rgba(80, 80, 80)

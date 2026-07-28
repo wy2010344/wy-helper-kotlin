@@ -28,26 +28,5 @@ expect class PlatformCanvas {
         strokeWidth: Float = 1f,
     )
 
-    fun drawText(
-        text: String,
-        x: Float = 0f,
-        y: Float = 0f,
-        fontFamily: String? = null,
-        fontWeight: Int = 400,
-        fontSize: Float = 16f,
-        color: ColorInt = rgba(0, 0, 0),
-        letterSpacing: Float = 0f,
-        wordSpacing: Float = 0f,
-        isRTL: Boolean = false
-    )
+    fun drawParagraph(paragraph: PlatformParagraph, x: Float, y: Float)
 }
-
-expect fun measureText(
-    text: String,
-    fontFamily: String? = null,
-    fontWeight: Int = 400,
-    fontSize: Float = 16f,
-    letterSpacing: Float = 0f,
-    wordSpacing: Float = 0f,
-    isRTL: Boolean = false
-): Float

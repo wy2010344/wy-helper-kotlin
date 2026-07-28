@@ -165,6 +165,22 @@ open class EditableTextNode(
         setCursor(state.cursor)
     }
 
+    private fun getCharRect(charIdx: Int): TextRect? {
+        val p = paragraph() ?: return null
+        val clamped = charIdx.coerceIn(0, text.length)
+        if (text.isEmpty()) return null
+        return if (clamped >= text.length) {
+            val rects = p.getRectsForRange(text.length - 1, text.length)
+            if (rects.isNotEmpty()) {
+                val last = rects.last()
+                TextRect(last.right, last.top, last.right, last.bottom)
+            } else null
+        } else {
+            val rects = p.getRectsForRange(clamped, clamped + 1)
+            if (rects.isNotEmpty()) rects.first() else null
+        }
+    }
+
     init {
         val engineGlobal = context.consume(engineGlobalContext)!!
         val d3 = engineGlobal.registerKeyPress { e ->
@@ -200,13 +216,10 @@ open class EditableTextNode(
     }
 
     override fun draw(canvas: PlatformCanvas) {
-
         super.draw(canvas)
         if (!hasSelection && cursorVisible) {
-            val pos = cursorIndex()
-            drawCursor(canvas, pos)
+            drawCursor(canvas)
         }
-
         if (composingText.isNotEmpty()) {
             drawComposingText(canvas)
         }
@@ -214,40 +227,36 @@ open class EditableTextNode(
 
     private fun drawComposingText(canvas: PlatformCanvas) {
         val pos = cursorIndex()
-        val lineList = lines()
-
-        if (lineList.isEmpty()) {
-            canvas.drawText(
-                composingText, 0f, fontSize,
-                fontFamily, fontWeight, fontSize,
-                color = color
-            )
-            return
-        }
-
-        var targetLine = 0
-        var xInLine = 0f
-        for ((li, line) in lineList.withIndex()) {
-            if (pos >= line.start && pos <= line.end) {
-                targetLine = li
-                xInLine = measureText(
-                    text.substring(line.start, pos),
-                    fontFamily, fontWeight, fontSize
-                )
-                break
-            }
-        }
-
-        canvas.drawText(
-            composingText, xInLine, targetLine * lineHeight + fontSize,
-            fontFamily, fontWeight, fontSize,
-            color = color
+        val rect = getCharRect(pos)
+        val composingParagraph = buildParagraph(
+            text = composingText,
+            fontFamily = fontFamily,
+            fontWeight = fontWeight,
+            fontSize = fontSize,
+            fontColor = color,
+            lineHeight = lineHeight,
+            maxWidth = Float.MAX_VALUE,
+            wordBreak = WordBreak.BREAK_WORD
         )
+        if (rect != null) {
+            canvas.drawParagraph(composingParagraph, rect.left, rect.top)
+        } else {
+            canvas.drawParagraph(composingParagraph, 0f, 0f)
+        }
     }
 
-    private fun drawCursor(canvas: PlatformCanvas, charPos: Int) {
-        val lineList = lines()
-        if (lineList.isEmpty()) {
+    private fun drawCursor(canvas: PlatformCanvas) {
+        val pos = cursorIndex()
+        val rect = getCharRect(pos)
+        if (rect != null) {
+            canvas.fillRect(
+                x = rect.left,
+                y = rect.top,
+                w = cursorWidth,
+                h = rect.height,
+                color = cursorColor
+            )
+        } else {
             canvas.fillRect(
                 x = 0f,
                 y = 0f,
@@ -255,28 +264,6 @@ open class EditableTextNode(
                 h = lineHeight,
                 color = cursorColor
             )
-            return
         }
-
-        var targetLine = 0
-        var xInLine = 0f
-        for ((li, line) in lineList.withIndex()) {
-            if (charPos >= line.start && charPos <= line.end) {
-                targetLine = li
-                xInLine = measureText(
-                    text.substring(line.start, charPos),
-                    fontFamily, fontWeight, fontSize
-                )
-                break
-            }
-        }
-
-        canvas.fillRect(
-            x = xInLine,
-            y = targetLine * lineHeight,
-            w = cursorWidth,
-            h = lineHeight,
-            color = cursorColor
-        )
     }
 }

@@ -62,7 +62,7 @@ fun StateHolder<Node>.demoList() {
                                     }
 
                                     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                                        object : TextNode(this) {
+                                        object : WrappedTextNode(this) {
                                             override val text: String
                                                 get() = "key-$key-index-${it.index}"
                                         }

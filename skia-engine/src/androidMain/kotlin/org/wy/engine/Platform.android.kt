@@ -2,7 +2,6 @@ package org.wy.engine
 
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.Typeface
 
 actual class PlatformCanvas(val canvas: Canvas) {
     actual fun clear(int: Int) {
@@ -39,41 +38,7 @@ actual class PlatformCanvas(val canvas: Canvas) {
         canvas.drawRect(x, y, x + w, y + h, paint)
     }
 
-    actual fun drawText(
-        text: String,
-        x: Float,
-        y: Float,
-        fontFamily: String?,
-        fontWeight: Int,
-        fontSize: Float,
-        color: ColorInt,
-        letterSpacing: Float,
-        wordSpacing: Float,
-        isRTL: Boolean
-    ) {
-        val paint = Paint().apply {
-            this.color = color
-            this.textSize = fontSize
-            this.letterSpacing = letterSpacing / fontSize
-            isAntiAlias = true
-            typeface = Typeface.DEFAULT
-        }
-        canvas.drawText(text, x, y, paint)
+    actual fun drawParagraph(paragraph: PlatformParagraph, x: Float, y: Float) {
+        paragraph.paint(this, x, y)
     }
-}
-
-actual fun measureText(
-    text: String,
-    fontFamily: String?,
-    fontWeight: Int,
-    fontSize: Float,
-    letterSpacing: Float,
-    wordSpacing: Float,
-    isRTL: Boolean
-): Float {
-    val paint = Paint().apply {
-        textSize = fontSize
-        this.letterSpacing = letterSpacing / fontSize
-    }
-    return paint.measureText(text)
 }
