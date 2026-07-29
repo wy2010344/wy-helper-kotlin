@@ -62,10 +62,10 @@ fun StateHolder<Node>.demoList() {
                                     }
 
                                     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                                        object : WrappedTextNode(this) {
-                                            override val text: String
-                                                get() = "key-$key-index-${it.index}"
-                                        }
+//                                        object : WrappedTextNode(this) {
+//                                            override val text: String
+//                                                get() = "key-$key-index-${it.index}"
+//                                        }
                                     }
 
                                     override fun mouseClick(e: MouseEvent) {

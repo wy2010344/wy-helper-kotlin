@@ -20,8 +20,8 @@ fun main() {
             get() = DirectionJustify.center
         override val alignFix: Boolean
             get() = true
-        override val alignItem: AlignItem
-            get() = AlignItem.stretch
+//        override val alignItem: AlignItem
+//            get() = AlignItem.stretch
         override val gap: Float
             get() = 10f
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
@@ -29,12 +29,12 @@ fun main() {
 //            demoForcedBreak(this)
 //            demoScroll(this)
 //            demoRichText(this)
-            demoEditableText(this)
-//            demoList()
-            demoMultiLanguage(this)
-            demoRTLText(this)
-
-            demoRichText(this)
+//            demoEditableText()
+            demoList()
+//            demoMultiLanguage(this)
+//            demoRTLText(this)
+//
+//            demoRichText(this)
         }
     }
 }

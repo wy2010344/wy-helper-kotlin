@@ -10,6 +10,7 @@ import org.wy.lib.EmptyFun
 import org.wy.lib.GetValue
 import org.wy.signal.TrackSignal
 import org.wy.signal.createSignal
+import java.awt.Color
 import java.awt.Dimension
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
@@ -23,6 +24,8 @@ import java.awt.event.KeyListener
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import javax.swing.JFrame
+import javax.swing.JLayeredPane
+import javax.swing.JTextField
 import javax.swing.SwingUtilities
 import javax.swing.WindowConstants
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
@@ -111,72 +114,107 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Nod
                 }
             })
 
-            skiaLayer.isFocusable = true
-            skiaLayer.addInputMethodListener(object : java.awt.event.InputMethodListener {
-                override fun inputMethodTextChanged(e: java.awt.event.InputMethodEvent) {
-                    val iter = e.text
-                    val composingText = if (iter != null) {
-                        val sb = StringBuilder()
-                        var idx = iter.beginIndex
-                        val end = iter.endIndex
-                        while (idx < end) {
-                            sb.append(iter.current())
-                            iter.next()
-                            idx++
-                        }
-                        sb.toString()
-                    } else {
-                        ""
+            // Hidden JTextField for native text input (IME positioning + character filtering)
+            val hiddenField = JTextField().apply {
+                isVisible = true
+                background = Color(0, 0, 0, 0)
+                foreground = Color(0, 0, 0, 0)
+                caretColor = Color(0, 0, 0, 0)
+                border = null
+                isOpaque = false
+                setBounds(0, 0, 1, 1)
+                enableInputMethods(true)
+
+                addKeyListener(object : KeyListener {
+                    override fun keyTyped(e: AwtKeyEvent?) {
+                        if (e == null) return
+                        if (e.isControlDown || e.isAltDown || e.isMetaDown) return
+                        val ch = e.keyChar
+                        if (ch.code < 0x20 || ch.code == 0x7F || ch == Char(0xFFFF)) return
+                        e.consume()
+                        this@SkiaApp.keyPress(ch, KeyCode.Unknown, false, false, false)
                     }
-                    val committedCount = e.committedCharacterCount
-                    if (committedCount > 0) {
-                        val committed = if (iter != null) {
+
+                    override fun keyPressed(e: AwtKeyEvent?) {
+                        if (e == null) return
+                        val code = KeyCode.fromAwt(e.keyCode)
+                        val isModifier = e.isControlDown || e.isAltDown || e.isMetaDown
+                        if (code == KeyCode.Unknown && !isModifier) return
+                        e.consume()
+                        val ch = if (isModifier && e.keyCode in 65..90) {
+                            (e.keyCode + 32).toChar()
+                        } else {
+                            e.keyChar
+                        }
+                        this@SkiaApp.keyPress(ch, code, e.isControlDown, e.isShiftDown, e.isAltDown)
+                    }
+
+                    override fun keyReleased(e: AwtKeyEvent?) {}
+                })
+
+                addInputMethodListener(object : java.awt.event.InputMethodListener {
+                    override fun inputMethodTextChanged(e: java.awt.event.InputMethodEvent) {
+                        val iter = e.text
+                        val composingText = if (iter != null) {
                             val sb = StringBuilder()
-                            iter.setIndex(iter.beginIndex)
-                            var remaining = committedCount
-                            while (remaining > 0 && iter.index < iter.endIndex) {
+                            var idx = iter.beginIndex
+                            val end = iter.endIndex
+                            while (idx < end) {
                                 sb.append(iter.current())
                                 iter.next()
-                                remaining--
+                                idx++
                             }
                             sb.toString()
-                        } else ""
-                        for (ch in committed) {
-                            this@SkiaApp.keyPress(ch, KeyCode.Unknown, false, false, false)
+                        } else {
+                            ""
                         }
-                        this@SkiaApp.composingText("", 0)
-                    } else {
-                        this@SkiaApp.composingText(composingText, composingText.length)
+                        val committedCount = e.committedCharacterCount
+                        if (committedCount > 0) {
+                            val committed = if (iter != null) {
+                                val sb = StringBuilder()
+                                iter.setIndex(iter.beginIndex)
+                                var remaining = committedCount
+                                while (remaining > 0 && iter.index < iter.endIndex) {
+                                    sb.append(iter.current())
+                                    iter.next()
+                                    remaining--
+                                }
+                                sb.toString()
+                            } else ""
+                            for (ch in committed) {
+                                this@SkiaApp.keyPress(ch, KeyCode.Unknown, false, false, false)
+                            }
+                            this@SkiaApp.composingText("", 0)
+                        } else {
+                            this@SkiaApp.composingText(composingText, composingText.length)
+                        }
+                    }
+
+                    override fun caretPositionChanged(e: java.awt.event.InputMethodEvent?) {}
+                })
+            }
+
+            window.rootPane.layeredPane.add(hiddenField, JLayeredPane.POPUP_LAYER)
+
+            this@SkiaApp.setInputOverlayHandler(
+                show = { x, y, w, h, fontSize ->
+                    SwingUtilities.invokeLater {
+                        hiddenField.setBounds(x.toInt(), y.toInt(), 1, 1)
+                        hiddenField.font = hiddenField.font.deriveFont(fontSize)
+                        hiddenField.requestFocusInWindow()
+                    }
+                },
+                hide = {
+                    SwingUtilities.invokeLater {
+                        hiddenField.setBounds(0, 0, 1, 1)
+                        skiaLayer.requestFocusInWindow()
                     }
                 }
+            )
 
-                override fun caretPositionChanged(e: java.awt.event.InputMethodEvent?) {}
-            })
-            skiaLayer.addKeyListener(object : KeyListener {
-                override fun keyTyped(e: AwtKeyEvent?) {
-                    if (e == null) return
-                    if (e.isControlDown || e.isAltDown || e.isMetaDown) return
-                    val ch = e.keyChar
-                    if (ch.code < 0x20 || ch.code == 0x7F || ch == Char(0xFFFF)) return
-                    val code = KeyCode.fromAwt(e.keyCode)
-                    this@SkiaApp.keyPress(ch, code, false, false, false)
-                }
-
-                override fun keyPressed(e: AwtKeyEvent?) {
-                    if (e == null) return
-                    val code = KeyCode.fromAwt(e.keyCode)
-                    val isModifier = e.isControlDown || e.isAltDown || e.isMetaDown
-                    if (code == KeyCode.Unknown && !isModifier) return
-                    val ch = if (isModifier && e.keyCode in 65..90) {
-                        (e.keyCode + 32).toChar()
-                    } else {
-                        e.keyChar
-                    }
-                    this@SkiaApp.keyPress(ch, code, e.isControlDown, e.isShiftDown, e.isAltDown)
-                }
-
-                override fun keyReleased(e: AwtKeyEvent?) {}
-            })
+            skiaLayer.isFocusable = true
+            // When SkiaLayer gains focus, we can optionally re-focus hiddenField
+            // if an EditableTextNode is still active.
 
             skiaLayer.renderDelegate = SkikoRenderDelegate { canvas, _, _, _ ->
                 if (this@SkiaApp.scheduled) {

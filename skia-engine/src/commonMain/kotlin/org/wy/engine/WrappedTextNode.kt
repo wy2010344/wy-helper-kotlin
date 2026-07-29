@@ -1,10 +1,11 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
+import org.wy.lib.getValue
 import org.wy.signal.createSignal
-import org.wy.signal.getValue
 import org.wy.signal.memo
 import org.wy.signal.setValue
+import org.wy.signal.getValue
 import kotlin.math.max
 import kotlin.math.min
 
@@ -30,15 +31,14 @@ open class WrappedTextNode(
     protected var anchorIndex by createSignal(-1)
     protected var focusIndex by createSignal(-1)
 
-    val selectionText: String?
-        get() {
-            if (anchorIndex < 0 || focusIndex < 0 || anchorIndex == focusIndex) return null
-            val start = min(anchorIndex, focusIndex)
-            val end = max(anchorIndex, focusIndex)
-            return text.substring(start, end)
-        }
+    val selectionText by memo {
+        if (anchorIndex < 0 || focusIndex < 0 || anchorIndex == focusIndex) return@memo null
+        val start = min(anchorIndex, focusIndex)
+        val end = max(anchorIndex, focusIndex)
+        text.substring(start, end)
+    }
 
-    val paragraph = memo {
+    val paragraph by memo {
         if (text.isEmpty()) return@memo null
         buildParagraph(
             text = text,
@@ -52,20 +52,14 @@ open class WrappedTextNode(
         )
     }
 
-    override val argWidth: LayoutSize
-        get() {
-            val p = paragraph() ?: return LayoutSize(0f, true)
-            return LayoutSize(p.longestLine.let { if (it > 0f) it else 0f }, true)
-        }
-
     override val argHeight: LayoutSize
         get() {
-            val p = paragraph() ?: return LayoutSize(lineHeight, true)
-            return LayoutSize(p.height, true)
+            val p = paragraph
+            return LayoutSize(p?.height ?: lineHeight, true)
         }
 
     protected fun charAt(x: Float, y: Float): Int {
-        val p = paragraph() ?: return 0
+        val p = paragraph ?: return 0
         return p.getGlyphPositionAtCoordinate(x, y)
     }
 
@@ -82,11 +76,11 @@ open class WrappedTextNode(
         val d1 = engineGlobal.registerMouseUp {
             onMouseDown = false
         }
-        val absoluteX = memo { absolutePosition(Direction.x) }
-        val absoluteY = memo { absolutePosition(Direction.y) }
+        val absoluteX by memo { absolutePosition(Direction.x) }
+        val absoluteY by memo { absolutePosition(Direction.y) }
         val d2 = engineGlobal.registerMouseMove {
             if (onMouseDown) {
-                focusIndex = charAt(it.x - absoluteX(), it.y - absoluteY())
+                focusIndex = charAt(it.x - absoluteX, it.y - absoluteY)
             }
         }
         context.addDestroy {
@@ -96,7 +90,7 @@ open class WrappedTextNode(
     }
 
     override fun draw(canvas: PlatformCanvas) {
-        val p = paragraph() ?: return
+        val p = paragraph ?: return
 
         if (anchorIndex >= 0 && focusIndex >= 0 && anchorIndex != focusIndex) {
             val start = min(anchorIndex, focusIndex)

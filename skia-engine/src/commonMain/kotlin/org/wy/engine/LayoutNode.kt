@@ -9,6 +9,7 @@ import org.wy.engine.layout.absoluteLayoutDirection
 import org.wy.lib.GetValue
 import org.wy.signal.Memo
 import org.wy.signal.memo
+import kotlin.math.max
 
 enum class StartEnd {
     start, end
@@ -134,17 +135,17 @@ fun LayoutNode.size(direction: Direction) = when (direction) {
 fun LayoutNode.outerSize(direction: Direction): Float {
     val s = size(direction)
     if (s.fromInside) {
-        return s.value + padding(direction, StartEnd.start) + padding(direction, StartEnd.end)
+        return max(0f,s.value + padding(direction, StartEnd.start) + padding(direction, StartEnd.end))
     }
-    return s.value
+    return max(0f,s.value)
 }
 
 fun LayoutNode.innerSize(direction: Direction): Float {
     val s = size(direction)
     if (s.fromInside) {
-        return s.value
+        return max(0f, s.value)
     }
-    return s.value - padding(direction, StartEnd.start) - padding(direction, StartEnd.end)
+    return max(0f,s.value - padding(direction, StartEnd.start) - padding(direction, StartEnd.end))
 }
 
 val LayoutNode.outerWidth

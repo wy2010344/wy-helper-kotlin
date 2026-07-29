@@ -26,8 +26,6 @@ data class TextRect(
 
 expect class PlatformParagraph {
     val height: Float
-    val longestLine: Float
-    fun paint(canvas: PlatformCanvas, x: Float, y: Float)
     fun getGlyphPositionAtCoordinate(dx: Float, dy: Float): Int
     fun getRectsForRange(start: Int, end: Int): List<TextRect>
 }

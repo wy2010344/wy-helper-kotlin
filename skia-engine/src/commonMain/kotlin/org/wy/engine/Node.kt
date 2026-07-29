@@ -71,6 +71,8 @@ open class Node(
         return false
     }
 
+    open fun acceptClip(x: Float, y: Float): Boolean = true
+
     open fun mouseClick(e: MouseEvent) {}
     open fun mouseClickCapture(e: MouseEvent) {}
     open fun mouseDown(e: MouseEvent) {}
@@ -98,9 +100,11 @@ fun Node.hitest(x: Float, y: Float): NodeWithPosition? {
     val rx = x - this.x
     val ry = y - this.y
     children.asReversed().forEach {
-        val node = it.hitest(rx, ry)
-        if (node != null) {
-            return NodeWithPosition(this, rx, ry, node)
+        if (it.acceptClip(rx, ry)) {
+            val node = it.hitest(rx, ry)
+            if (node != null) {
+                return NodeWithPosition(this, rx, ry, node)
+            }
         }
     }
     if (acceptHit(rx, ry)) {

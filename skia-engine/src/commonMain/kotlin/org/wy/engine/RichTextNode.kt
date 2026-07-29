@@ -1,6 +1,7 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
+import org.wy.lib.getValue
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.memo
@@ -15,10 +16,9 @@ open class RichTextNode(
     open val spans: List<RichTextSpan> = emptyList()
     open val selectionColor: ColorInt = rgba(100, 100, 200, 60)
 
-    private val fullText: String
-        get() = spans.joinToString("") { it.text }
+    private val fullText by memo { spans.joinToString("") { it.text } }
 
-    private val paragraph = memo {
+    private val paragraph by memo {
         val maxW = innerSize(Direction.x)
         if (maxW <= 0f || fullText.isEmpty()) null
         else buildParagraph(spans, maxW)
@@ -26,7 +26,7 @@ open class RichTextNode(
 
     override val argHeight: LayoutSize
         get() {
-            val p = paragraph()
+            val p = paragraph
             val h = p?.height ?: maxFontSizeInSpans() * 1.4f
             return LayoutSize(h, true)
         }
@@ -42,19 +42,18 @@ open class RichTextNode(
     private var anchorIndex by createSignal(-1)
     private var focusIndex by createSignal(-1)
 
-    val selectionText: String?
-        get() {
-            if (anchorIndex < 0 || focusIndex < 0 || anchorIndex == focusIndex) return null
-            val text = fullText
-            val s = min(anchorIndex, focusIndex)
-            val e = max(anchorIndex, focusIndex)
-            return text.substring(s, e)
-        }
+    val selectionText by memo {
+        if (anchorIndex < 0 || focusIndex < 0 || anchorIndex == focusIndex) return@memo null
+        val text = fullText
+        val s = min(anchorIndex, focusIndex)
+        val e = max(anchorIndex, focusIndex)
+        text.substring(s, e)
+    }
 
     private var onMouseDown = false
 
     override fun mouseDown(e: MouseEvent) {
-        val p = paragraph() ?: return
+        val p = paragraph ?: return
         anchorIndex = p.getGlyphPositionAtCoordinate(e.x, e.y)
         focusIndex = anchorIndex
         onMouseDown = true
@@ -63,20 +62,20 @@ open class RichTextNode(
 
     init {
         val engineGlobal = context.consume(engineGlobalContext)!!
-        val d1 = engineGlobal.registerMouseUp { e -> onMouseDown = false }
-        val ax = memo { absolutePosition(Direction.x) }
-        val ay = memo { absolutePosition(Direction.y) }
+        val d1 = engineGlobal.registerMouseUp { onMouseDown = false }
+        val absoluteX by memo { absolutePosition(Direction.x) }
+        val absoluteY by memo { absolutePosition(Direction.y) }
         val d2 = engineGlobal.registerMouseMove { e ->
             if (onMouseDown) {
-                val p = paragraph() ?: return@registerMouseMove
-                focusIndex = p.getGlyphPositionAtCoordinate(e.x - ax(), e.y - ay())
+                val p = paragraph ?: return@registerMouseMove
+                focusIndex = p.getGlyphPositionAtCoordinate(e.x - absoluteX, e.y - absoluteY)
             }
         }
         context.addDestroy { d1(); d2() }
     }
 
     override fun draw(canvas: PlatformCanvas) {
-        val p = paragraph() ?: return
+        val p = paragraph ?: return
 
         if (anchorIndex >= 0 && focusIndex >= 0 && anchorIndex != focusIndex) {
             val selStart = min(anchorIndex, focusIndex)
@@ -93,7 +92,7 @@ open class RichTextNode(
             }
         }
 
-        p.paint(canvas, 0f, 0f)
+        canvas.drawParagraph(p, 0f, 0f)
         super.draw(canvas)
     }
 }

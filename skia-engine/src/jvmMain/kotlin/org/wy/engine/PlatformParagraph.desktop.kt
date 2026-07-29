@@ -14,12 +14,6 @@ import org.jetbrains.skia.paragraph.TextStyle
 
 actual class PlatformParagraph(internal val paragraph: Paragraph) {
     actual val height: Float get() = paragraph.height
-    actual val longestLine: Float get() = paragraph.longestLine
-
-    actual fun paint(canvas: PlatformCanvas, x: Float, y: Float) {
-        paragraph.paint(canvas.skCanvas, x, y)
-    }
-
     actual fun getGlyphPositionAtCoordinate(dx: Float, dy: Float): Int {
         return paragraph.getGlyphPositionAtCoordinate(dx, dy).position
     }
@@ -42,7 +36,8 @@ private fun makeTextStyle(
     fontSize: Float,
     fontColor: ColorInt,
     letterSpacing: Float = 0f,
-    wordSpacing: Float = 0f
+    wordSpacing: Float = 0f,
+    lineHeightMultiplier: Float? = null
 ): TextStyle {
     return TextStyle().apply {
         fontFamily?.let { setFontFamily(it) }
@@ -53,6 +48,7 @@ private fun makeTextStyle(
         setColor(fontColor)
         if (letterSpacing != 0f) setLetterSpacing(letterSpacing)
         if (wordSpacing != 0f) setWordSpacing(wordSpacing)
+        if (lineHeightMultiplier != null) setHeight(lineHeightMultiplier)
     }
 }
 
@@ -95,7 +91,8 @@ actual fun buildParagraph(
     val style = ParagraphStyle()
     val builder = ParagraphBuilder(style, defaultFontCollection)
 
-    builder.pushStyle(makeTextStyle(fontFamily, fontWeight, fontSize, fontColor))
+    val lineHeightMultiplier = lineHeight / fontSize
+    builder.pushStyle(makeTextStyle(fontFamily, fontWeight, fontSize, fontColor, lineHeightMultiplier = lineHeightMultiplier))
     builder.addText(text)
     builder.popStyle()
 

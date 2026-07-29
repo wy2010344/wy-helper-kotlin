@@ -15,39 +15,24 @@ import android.text.style.TypefaceSpan
 
 actual class PlatformParagraph(private val layout: Layout) {
     actual val height: Float get() = layout.height.toFloat()
-    actual val longestLine: Float get() {
-        var max = 0f
-        for (i in 0 until layout.lineCount) {
-            val w = layout.getLineWidth(i)
-            if (w > max) max = w
-        }
-        return max
-    }
-
-    actual fun paint(canvas: PlatformCanvas, x: Float, y: Float) {
-        canvas.canvas.save()
-        canvas.canvas.translate(x, y)
-        layout.draw(canvas.canvas)
-        canvas.canvas.restore()
-    }
 
     actual fun getGlyphPositionAtCoordinate(dx: Float, dy: Float): Int {
-        val offset = layout.getOffsetForHorizontal(dy.toInt().coerceIn(0, layout.lineCount - 1), dx)
-        return offset
+        val line = (0 until layout.lineCount).indexOfFirst {
+            dy >= layout.getLineTop(it) && dy <= layout.getLineBottom(it)
+        }
+        val clampedLine = if (line < 0) layout.lineCount - 1 else line
+        return layout.getOffsetForHorizontal(clampedLine, dx)
     }
 
     actual fun getRectsForRange(start: Int, end: Int): List<TextRect> {
         if (start >= end) return emptyList()
         val result = mutableListOf<TextRect>()
-        val ssb = layout.text
         for (line in 0 until layout.lineCount) {
             val lineStart = layout.getLineStart(line)
             val lineEnd = layout.getLineEnd(line)
             val ls = maxOf(start, lineStart)
             val le = minOf(end, lineEnd)
             if (ls < le) {
-                val left = layout.getHorizontalAdvance(ls, le, layout.getLineLeft(line))
-                val right = layout.getHorizontalAdvance(ls, le, layout.getLineLeft(line))
                 result.add(
                     TextRect(
                         layout.getPrimaryHorizontal(ls),

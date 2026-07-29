@@ -24,30 +24,19 @@ import org.wy.signal.setValue
  * - Home / End 跳转行首/行尾
  * - Ctrl+A 全选
  */
-fun demoEditableText(context: StateHolder<Node>) {
-    object :RectNode(context), FlexParam{
-        override val layout: LayoutDirection = FlexObject(this)
-        override val argWidth: LayoutSize
-            get() = LayoutSize(400f,true)
-        override val alignFix: Boolean
-            get() = true
-        override val alignItem: AlignItem
-            get() = AlignItem.stretch
-        override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+fun  StateHolder<Node>.demoEditableText() {
+    var infoText by createSignal("Type something below. Ctrl+Z=Undo, Ctrl+Y=Redo")
+    object : WrappedTextNode(this) {
+        override val text: String get() = infoText
+        override val fontSize: Float get() = 11f
+        override val color: ColorInt get() = rgba(120, 120, 120)
+    }
 
-            var infoText by createSignal("Type something below. Ctrl+Z=Undo, Ctrl+Y=Redo")
-            object : WrappedTextNode(this) {
-                override val text: String get() = infoText
-                override val fontSize: Float get() = 11f
-                override val color: ColorInt get() = rgba(120, 120, 120)
-            }
-
-            val editor = object : EditableTextNode(this) {
-                override val fontSize: Float get() = 16f
-                override val color: ColorInt get() = rgba(0, 0, 0)
-                override val cursorColor: ColorInt get() = rgba(0, 0, 0)
-            }
-        }
+    val editor = object : EditableTextNode(this) {
+        override var text by createSignal("abc")
+        override val fontSize: Float get() = 16f
+        override val color: ColorInt get() = rgba(0, 0, 0)
+        override val cursorColor: ColorInt get() = rgba(0, 0, 0)
     }
 }
 

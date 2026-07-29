@@ -16,6 +16,7 @@ private class Register(context: StateHolder<Node>?) {
     fun destroy() {
         moveList.clear()
         upList.clear()
+        downList.clear()
         wheelList.clear()
         keyPressList.clear()
         composingList.clear()
@@ -23,12 +24,28 @@ private class Register(context: StateHolder<Node>?) {
 
     private val moveList = mutableMapOf<MouseCallback, EmptyFun>()
     private val upList = mutableMapOf<MouseCallback, EmptyFun>()
+    private val downList = mutableMapOf<MouseCallback, EmptyFun>()
     private val wheelList = mutableMapOf<WheelCallback, EmptyFun>()
     private val keyPressList = mutableMapOf<KeyPressCallback, EmptyFun>()
     private val composingList = mutableMapOf<ComposingTextCallback, EmptyFun>()
 
+    private var overlayShow: ((x: Float, y: Float, w: Float, h: Float, fontSize: Float) -> Unit)? = null
+    private var overlayHide: (() -> Unit)? = null
+
+    fun setOverlayHandler(
+        show: (x: Float, y: Float, w: Float, h: Float, fontSize: Float) -> Unit,
+        hide: () -> Unit
+    ) {
+        overlayShow = show
+        overlayHide = hide
+    }
+
     fun provide(context: StateHolder<Node>) {
         context.provide(engineGlobalContext, object : EngineGlobal {
+            override fun registerMouseDown(callback: MouseCallback): EmptyFun {
+                return register(downList, callback)
+            }
+
             override fun registerMouseMove(callback: MouseCallback): EmptyFun {
                 return register(moveList, callback)
             }
@@ -48,11 +65,23 @@ private class Register(context: StateHolder<Node>?) {
             override fun registerComposingText(callback: ComposingTextCallback): EmptyFun {
                 return register(composingList, callback)
             }
+
+            override fun requestInputOverlay(x: Float, y: Float, w: Float, h: Float, fontSize: Float) {
+                overlayShow?.invoke(x, y, w, h, fontSize)
+            }
+
+            override fun hideInputOverlay() {
+                overlayHide?.invoke()
+            }
         })
     }
 
     fun dispatchMouseUp(x: Float, y: Float) {
         upList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) }
+    }
+
+    fun dispatchMouseDown(x: Float, y: Float) {
+        downList.forEach { it.key(GlobalMouseEvent(x, y, {})) }
     }
 
     fun dispatchMouseMove(x: Float, y: Float) {
@@ -85,6 +114,13 @@ open class Renderer private constructor(
         }
     }
 
+
+    fun setInputOverlayHandler(
+        show: (x: Float, y: Float, w: Float, h: Float, fontSize: Float) -> Unit,
+        hide: () -> Unit
+    ) {
+        register.setOverlayHandler(show, hide)
+    }
 
     fun destroy() {
         register.destroy()
@@ -157,6 +193,7 @@ open class Renderer private constructor(
     }
 
     fun mouseDown(x: Float, y: Float) {
+        register.dispatchMouseDown(x, y)
         mouseEventOf(x, y, MouseEventEnum.down)
     }
 

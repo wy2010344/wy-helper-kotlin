@@ -154,4 +154,13 @@ open class ScrollContent(context: StateHolder<Node>) : RectNode(context) {
         get() = -scrollNode.scrollX
     final override val y: Float
         get() = -scrollNode.scrollY
+
+    override fun acceptClip(x: Float, y: Float): Boolean {
+        val sn = scrollNode
+        val left = sn.paddingInlineStart
+        val top = sn.paddingBlockStart
+        val right = left + sn.innerSize(Direction.x)
+        val bottom = top + sn.innerSize(Direction.y)
+        return x > left && x < right && y > top && y < bottom
+    }
 }
