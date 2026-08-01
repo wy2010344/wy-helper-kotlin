@@ -99,6 +99,22 @@ actual class PlatformCanvas(val canvas: Canvas) {
         })
     }
 
+    actual fun strokeOval(
+        x: Float,
+        y: Float,
+        w: Float,
+        h: Float,
+        color: Int,
+        strokeWidth: Float,
+    ) {
+        canvas.drawOval(x, y, x + w, y + h, Paint().apply {
+            this.color = color
+            this.strokeWidth = strokeWidth
+            style = Paint.Style.STROKE
+            isAntiAlias = true
+        })
+    }
+
     actual fun drawLine(
         x1: Float,
         y1: Float,

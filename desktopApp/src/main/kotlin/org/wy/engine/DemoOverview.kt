@@ -41,11 +41,8 @@ internal fun StateHolder<Node>.dStatCard(
     private val hovered by memo { g.moveHitest?.include(this) ?: false }
 
     override fun draw(canvas: PlatformCanvas) {
-        canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 10f, CARD)
-        canvas.strokeRoundRect(
-            0f, 0f, outerWidth, outerHeight, 10f,
-            if (hovered) accent else BORDER, 1f
-        )
+        fillOuterRoundRect(canvas, 10f, CARD)
+        strokeOuterRoundRect(canvas, 10f, if (hovered) accent else BORDER, 1f)
         val sw = 54f
         val sh = 20f
         val sx = outerWidth - sw - 14f
@@ -92,8 +89,8 @@ internal fun StateHolder<Node>.dChartPanel(): RectNode {
             if (direction == Direction.x) 16f else 12f
 
         override fun draw(canvas: PlatformCanvas) {
-            canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 10f, CARD)
-            canvas.strokeRoundRect(0f, 0f, outerWidth, outerHeight, 10f, BORDER, 1f)
+            fillOuterRoundRect(canvas, 10f, CARD)
+            strokeOuterRoundRect(canvas, 10f, BORDER, 1f)
             super.draw(canvas)
         }
 
@@ -182,7 +179,7 @@ internal fun StateHolder<Node>.dChartPanel(): RectNode {
                             if (direction == Direction.x) 6f else 3f
 
                         override fun draw(canvas: PlatformCanvas) {
-                            canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 4f, rgba(30, 41, 59, 235))
+                            fillOuterRoundRect(canvas, 4f, rgba(30, 41, 59, 235))
                             super.draw(canvas)
                         }
                     }

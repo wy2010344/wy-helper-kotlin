@@ -67,6 +67,15 @@ expect class PlatformCanvas {
         color: Int = rgba(0, 0, 0)
     )
 
+    fun strokeOval(
+        x: Float,
+        y: Float,
+        w: Float,
+        h: Float,
+        color: Int = rgba(0, 0, 0),
+        strokeWidth: Float = 1f,
+    )
+
     fun drawLine(
         x1: Float,
         y1: Float,

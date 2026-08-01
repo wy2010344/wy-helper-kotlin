@@ -222,7 +222,7 @@ fun StateHolder<Node>.demoList() {
                                     override val argHeight: LayoutSize get() = LayoutSize(26f, false)
 
                                     override fun draw(canvas: PlatformCanvas) {
-                                        canvas.fillRect(0f, 0f, outerWidth, outerHeight, rgba(235, 235, 245))
+                                        fillOuterRect(canvas, rgba(235, 235, 245))
                                         super.draw(canvas)
                                     }
 
@@ -270,7 +270,7 @@ fun StateHolder<Node>.demoList() {
                 }
 
                 override fun draw(canvas: PlatformCanvas) {
-                    canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 8f, rgba(180, 210, 255))
+                    fillOuterRoundRect(canvas, 8f, rgba(180, 210, 255))
                     super.draw(canvas)
                 }
 

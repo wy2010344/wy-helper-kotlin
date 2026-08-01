@@ -207,6 +207,92 @@ fun LayoutNode.strokeOuterRect(
     canvas.strokeRect(0f, 0f, outerWidth, outerHeight, color, strokeWidth)
 }
 
+fun LayoutNode.fillOuterRoundRect(
+    canvas: PlatformCanvas,
+    radius: Float,
+    color: Int = rgba(0, 0, 0)
+) {
+    canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, radius, color)
+}
+
+fun LayoutNode.fillInnerRoundRect(
+    canvas: PlatformCanvas,
+    radius: Float,
+    color: Int = rgba(0, 0, 0)
+) {
+    canvas.fillRoundRect(
+        paddingInlineStart, paddingBlockStart, innerWidth, innerHeight, radius, color
+    )
+}
+
+fun LayoutNode.strokeOuterRoundRect(
+    canvas: PlatformCanvas,
+    radius: Float,
+    color: Int = rgba(0, 0, 0),
+    strokeWidth: Float = 1f
+) {
+    canvas.strokeRoundRect(0f, 0f, outerWidth, outerHeight, radius, color, strokeWidth)
+}
+
+fun LayoutNode.strokeInnerRoundRect(
+    canvas: PlatformCanvas,
+    radius: Float,
+    color: Int = rgba(0, 0, 0),
+    strokeWidth: Float = 1f
+) {
+    canvas.strokeRoundRect(
+        paddingInlineStart, paddingBlockStart, innerWidth, innerHeight, radius, color, strokeWidth
+    )
+}
+
+fun LayoutNode.fillOuterOval(
+    canvas: PlatformCanvas,
+    color: Int = rgba(0, 0, 0)
+) {
+    canvas.fillOval(0f, 0f, outerWidth, outerHeight, color)
+}
+
+fun LayoutNode.fillInnerOval(
+    canvas: PlatformCanvas,
+    color: Int = rgba(0, 0, 0)
+) {
+    canvas.fillOval(paddingInlineStart, paddingBlockStart, innerWidth, innerHeight, color)
+}
+
+fun LayoutNode.strokeOuterOval(
+    canvas: PlatformCanvas,
+    color: Int = rgba(0, 0, 0),
+    strokeWidth: Float = 1f
+) {
+    canvas.strokeOval(0f, 0f, outerWidth, outerHeight, color, strokeWidth)
+}
+
+fun LayoutNode.strokeInnerOval(
+    canvas: PlatformCanvas,
+    color: Int = rgba(0, 0, 0),
+    strokeWidth: Float = 1f
+) {
+    canvas.strokeOval(
+        paddingInlineStart, paddingBlockStart, innerWidth, innerHeight, color, strokeWidth
+    )
+}
+
+/**
+ * 沿节点外缘画一圈描边，[gap] 为离外缘的间距（负值表示向内收缩，
+ * 常用于焦点环：`strokeOuterRing(canvas, 2f, radius, ACCENT, 2f)`）。
+ */
+fun LayoutNode.strokeOuterRing(
+    canvas: PlatformCanvas,
+    gap: Float,
+    radius: Float,
+    color: Int = rgba(0, 0, 0),
+    strokeWidth: Float = 1f
+) {
+    canvas.strokeRoundRect(
+        -gap, -gap, outerWidth + gap * 2f, outerHeight + gap * 2f, radius, color, strokeWidth
+    )
+}
+
 
 fun LayoutNode.sizeFromParent(direction: Direction): LayoutSize {
     val lp = layoutParent

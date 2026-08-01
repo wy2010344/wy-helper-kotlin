@@ -34,8 +34,8 @@ internal fun StateHolder<Node>.dActivityPanel(
         if (direction == Direction.x) 16f else 12f
 
     override fun draw(canvas: PlatformCanvas) {
-        canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 10f, CARD)
-        canvas.strokeRoundRect(0f, 0f, outerWidth, outerHeight, 10f, BORDER, 1f)
+        fillOuterRoundRect(canvas, 10f, CARD)
+        strokeOuterRoundRect(canvas, 10f, BORDER, 1f)
         super.draw(canvas)
     }
 
@@ -82,7 +82,7 @@ internal fun StateHolder<Node>.dActivityPanel(
 
                                 override fun draw(canvas: PlatformCanvas) {
                                     if (hovered) {
-                                        canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 6f, GRID)
+                                        fillOuterRoundRect(canvas, 6f, GRID)
                                     }
                                     super.draw(canvas)
                                 }
@@ -119,10 +119,7 @@ internal fun StateHolder<Node>.dActivityPanel(
 
                                         override fun draw(canvas: PlatformCanvas) {
                                             val on = it.value.done
-                                            canvas.strokeRoundRect(
-                                                1f, 1f, outerWidth - 2f, outerHeight - 2f, 5f,
-                                                if (on) GREEN else BORDER, 2f
-                                            )
+                                            strokeOuterRing(canvas, -1f, 5f, if (on) GREEN else BORDER, 2f)
                                             if (on) {
                                                 canvas.drawLine(
                                                     4f, 11f, 8f, 15f, GREEN, 2f
@@ -130,6 +127,9 @@ internal fun StateHolder<Node>.dActivityPanel(
                                                 canvas.drawLine(
                                                     8f, 15f, 16f, 5f, GREEN, 2f
                                                 )
+                                            }
+                                            if (isFocused) {
+                                                strokeOuterRing(canvas, 2f, 7f, ACCENT, 2f)
                                             }
                                         }
                                     }
@@ -150,10 +150,7 @@ internal fun StateHolder<Node>.dActivityPanel(
                                                 override val argHeight: LayoutSize = LayoutSize(7f, false)
 
                                                 override fun draw(canvas: PlatformCanvas) {
-                                                    canvas.fillOval(
-                                                        0f, 0f, outerWidth, outerHeight,
-                                                        if (it.value.done) GREEN else AMBER
-                                                    )
+                                                    fillOuterOval(canvas, if (it.value.done) GREEN else AMBER)
                                                 }
                                             }
                                             dLabel(

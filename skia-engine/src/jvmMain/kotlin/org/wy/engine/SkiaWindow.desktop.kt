@@ -120,6 +120,42 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Nod
                 }
             })
 
+            // Shared KeyListener: forwards keys to the engine from wherever the
+            // AWT focus currently sits (main canvas or the hidden input overlay).
+            val keyListener = object : KeyListener {
+                override fun keyTyped(e: AwtKeyEvent?) {
+                    if (e == null) return
+                    if (e.isControlDown || e.isAltDown || e.isMetaDown) return
+                    val ch = e.keyChar
+                    if (ch.code < 0x20 || ch.code == 0x7F || ch == Char(0xFFFF)) return
+                    e.consume()
+                    this@SkiaApp.keyPress(ch, KeyCode.Unknown, false, false, false)
+                }
+
+                override fun keyPressed(e: AwtKeyEvent?) {
+                    if (e == null) return
+                    val code = KeyCode.fromAwt(e.keyCode)
+                    val isModifier = e.isControlDown || e.isAltDown || e.isMetaDown
+                    if (code == KeyCode.Unknown && !isModifier) return
+                    e.consume()
+                    val ch = if (isModifier && e.keyCode in 65..90) {
+                        (e.keyCode + 32).toChar()
+                    } else {
+                        e.keyChar
+                    }
+                    if (ch == Char(0xFFFF) && code == KeyCode.Unknown) return
+                    this@SkiaApp.keyPress(
+                        ch, code,
+                        e.isControlDown,
+                        e.isShiftDown,
+                        e.isAltDown,
+                        e.isMetaDown
+                    )
+                }
+
+                override fun keyReleased(e: AwtKeyEvent?) {}
+            }
+
             // Hidden JTextField for native text input (IME positioning + character filtering)
             val hiddenField = JTextField().apply {
                 isVisible = true
@@ -130,40 +166,8 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Nod
                 isOpaque = false
                 setBounds(0, 0, 1, 1)
                 enableInputMethods(true)
-
-                addKeyListener(object : KeyListener {
-                    override fun keyTyped(e: AwtKeyEvent?) {
-                        if (e == null) return
-                        if (e.isControlDown || e.isAltDown || e.isMetaDown) return
-                        val ch = e.keyChar
-                        if (ch.code < 0x20 || ch.code == 0x7F || ch == Char(0xFFFF)) return
-                        e.consume()
-                        this@SkiaApp.keyPress(ch, KeyCode.Unknown, false, false, false)
-                    }
-
-                    override fun keyPressed(e: AwtKeyEvent?) {
-                        if (e == null) return
-                        val code = KeyCode.fromAwt(e.keyCode)
-                        val isModifier = e.isControlDown || e.isAltDown || e.isMetaDown
-                        if (code == KeyCode.Unknown && !isModifier) return
-                        e.consume()
-                        val ch = if (isModifier && e.keyCode in 65..90) {
-                            (e.keyCode + 32).toChar()
-                        } else {
-                            e.keyChar
-                        }
-                        if (ch == Char(0xFFFF) && code == KeyCode.Unknown) return
-                        this@SkiaApp.keyPress(
-                            ch, code,
-                            e.isControlDown,
-                            e.isShiftDown,
-                            e.isAltDown,
-                            e.isMetaDown
-                        )
-                    }
-
-                    override fun keyReleased(e: AwtKeyEvent?) {}
-                })
+                focusTraversalKeysEnabled = false
+                addKeyListener(keyListener)
 
                 addInputMethodListener(object : java.awt.event.InputMethodListener {
                     override fun inputMethodTextChanged(e: java.awt.event.InputMethodEvent) {
@@ -238,6 +242,8 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Nod
             }
 
             skiaLayer.isFocusable = true
+            skiaLayer.focusTraversalKeysEnabled = false
+            skiaLayer.addKeyListener(keyListener)
             // When SkiaLayer gains focus, we can optionally re-focus hiddenField
             // if an EditableTextNode is still active.
 
@@ -251,6 +257,10 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Nod
             }
             skiaLayer.attachTo(window.contentPane)
             skiaLayer.needRender()
+            window.pack()
+            window.isVisible = true
+            // Request focus only after the window is actually shown, otherwise the
+            // request is dropped and the keyboard has nowhere to land.
             skiaLayer.requestFocusInWindow()
             window.addComponentListener(object : ComponentAdapter() {
                 override fun componentResized(e: ComponentEvent?) {
@@ -258,8 +268,6 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Nod
                     this@SkiaApp.h.value = skiaLayer.height
                 }
             })
-            window.pack()
-            window.isVisible = true
         }
     }
 }

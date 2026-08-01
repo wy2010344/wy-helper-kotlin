@@ -50,8 +50,8 @@ internal fun StateHolder<Node>.dSettingsPage(active: StoreRef<DemoTab>, toast: S
                 override val gap: Float get() = 14f
 
                 override fun draw(canvas: PlatformCanvas) {
-                    canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 10f, CARD)
-                    canvas.strokeRoundRect(0f, 0f, outerWidth, outerHeight, 10f, BORDER, 1f)
+                    fillOuterRoundRect(canvas, 10f, CARD)
+                    strokeOuterRoundRect(canvas, 10f, BORDER, 1f)
                     super.draw(canvas)
                 }
 

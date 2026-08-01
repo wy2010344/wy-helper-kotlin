@@ -70,10 +70,10 @@ internal fun StateHolder<Node>.dButton(
             hovered -> if (primary) ACCENT_HOVER else rgba(241, 245, 249)
             else -> if (primary) ACCENT else CARD
         }
-        canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 8f, bg)
-        canvas.strokeRoundRect(0f, 0f, outerWidth, outerHeight, 8f, if (primary) bg else BORDER, 1f)
+        fillOuterRoundRect(canvas, 8f, bg)
+        strokeOuterRoundRect(canvas, 8f, if (primary) bg else BORDER, 1f)
         if (isFocused) {
-            canvas.strokeRoundRect(-2f, -2f, outerWidth + 4f, outerHeight + 4f, 10f, ACCENT, 2f)
+            strokeOuterRing(canvas, 2f, 10f, ACCENT, 2f)
         }
         super.draw(canvas)
     }
@@ -103,9 +103,9 @@ internal fun StateHolder<Node>.dTextField(value: StoreRef<String>, focusOrder: I
             if (direction == Direction.x) 10f else 6f
 
         override fun draw(canvas: PlatformCanvas) {
-            canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 8f, rgba(244, 246, 251))
-            canvas.strokeRoundRect(
-                0f, 0f, outerWidth, outerHeight, 8f,
+            fillOuterRoundRect(canvas, 8f, rgba(244, 246, 251))
+            strokeOuterRoundRect(
+                canvas, 8f,
                 when {
                     isFocused -> ACCENT
                     hovered -> BAR

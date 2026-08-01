@@ -37,7 +37,7 @@ internal fun StateHolder<Node>.dStatusBar(active: StoreRef<DemoTab>, toast: Stor
         override val argHeight: LayoutSize get() = LayoutSize(30f, false)
 
         override fun draw(canvas: PlatformCanvas) {
-            canvas.fillRect(0f, 0f, outerWidth, outerHeight, CARD)
+            fillOuterRect(canvas, CARD)
             canvas.drawLine(0f, 0f, outerWidth, 0f, BORDER, 1f)
             super.draw(canvas)
         }
@@ -55,10 +55,7 @@ internal fun StateHolder<Node>.dStatusBar(active: StoreRef<DemoTab>, toast: Stor
                         override val argHeight: LayoutSize = LayoutSize(8f, false)
 
                         override fun draw(canvas: PlatformCanvas) {
-                            canvas.fillOval(
-                                0f, 0f, outerWidth, outerHeight,
-                                if (toast.value.isEmpty()) GREEN else AMBER
-                            )
+                            fillOuterOval(canvas, if (toast.value.isEmpty()) GREEN else AMBER)
                         }
                     }
                     dLabel({ if (toast.value.isEmpty()) "就绪" else toast.value }, 11f, TEXT2)
@@ -125,7 +122,7 @@ private fun StateHolder<Node>.buildGrandDemo() {
         override val gap: Float get() = 12f
 
         override fun draw(canvas: PlatformCanvas) {
-            canvas.fillRect(0f, 0f, outerWidth, outerHeight, CARD)
+            fillOuterRect(canvas, CARD)
             canvas.drawLine(0f, outerHeight - 1f, outerWidth, outerHeight - 1f, BORDER, 1f)
             super.draw(canvas)
         }
@@ -177,9 +174,9 @@ private fun StateHolder<Node>.buildGrandDemo() {
                     if (direction == Direction.x) 10f else 5f
 
                 override fun draw(canvas: PlatformCanvas) {
-                    canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 16f, BG)
-                    canvas.strokeRoundRect(
-                        0f, 0f, outerWidth, outerHeight, 16f,
+                    fillOuterRoundRect(canvas, 16f, BG)
+                    strokeOuterRoundRect(
+                        canvas, 16f,
                         when {
                             isFocused -> ACCENT
                             hovered -> BAR
@@ -214,7 +211,7 @@ private fun StateHolder<Node>.buildGrandDemo() {
                         override val argHeight: LayoutSize = LayoutSize(8f, false)
 
                         override fun draw(canvas: PlatformCanvas) {
-                            canvas.fillOval(0f, 0f, outerWidth, outerHeight, GREEN)
+                            fillOuterOval(canvas, GREEN)
                         }
                     }
                     dLabel({ "在线" }, 12f, TEXT2)
@@ -245,7 +242,7 @@ private fun StateHolder<Node>.buildGrandDemo() {
                 override val gap: Float get() = 4f
 
                 override fun draw(canvas: PlatformCanvas) {
-                    canvas.fillRect(0f, 0f, outerWidth, outerHeight, CARD)
+                    fillOuterRect(canvas, CARD)
                     canvas.drawLine(outerWidth - 1f, 0f, outerWidth - 1f, outerHeight, BORDER, 1f)
                     super.draw(canvas)
                 }
@@ -280,7 +277,7 @@ private fun StateHolder<Node>.buildGrandDemo() {
                 override val gap: Float get() = 12f
 
                 override fun draw(canvas: PlatformCanvas) {
-                    canvas.fillRect(0f, 0f, outerWidth, outerHeight, BG)
+                    fillOuterRect(canvas, BG)
                     super.draw(canvas)
                 }
 

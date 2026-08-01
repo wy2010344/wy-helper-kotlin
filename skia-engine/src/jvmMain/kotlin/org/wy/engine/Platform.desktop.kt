@@ -107,6 +107,22 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
         })
     }
 
+    actual fun strokeOval(
+        x: Float,
+        y: Float,
+        w: Float,
+        h: Float,
+        color: Int,
+        strokeWidth: Float,
+    ) {
+        skCanvas.drawOval(x, y, x + w, y + h, Paint().apply {
+            this.color = color
+            this.strokeWidth = strokeWidth
+            setStroke(true)
+            isAntiAlias = true
+        })
+    }
+
     actual fun drawLine(
         x1: Float,
         y1: Float,

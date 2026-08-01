@@ -57,12 +57,12 @@ internal fun <T> StateHolder<Node>.dNavItem(
             hovered -> rgba(241, 245, 249)
             else -> rgba(0, 0, 0, 0)
         }
-        canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 8f, bg)
+        fillOuterRoundRect(canvas, 8f, bg)
         if (isActive) {
             canvas.fillRoundRect(0f, 10f, 3f, outerHeight - 20f, 1.5f, ACCENT)
         }
         if (isFocused) {
-            canvas.strokeRoundRect(1f, 1f, outerWidth - 2f, outerHeight - 2f, 8f, ACCENT, 1f)
+            strokeOuterRing(canvas, -1f, 8f, ACCENT, 1f)
         }
         super.draw(canvas)
     }
@@ -80,7 +80,7 @@ internal fun <T> StateHolder<Node>.dNavItem(
                     override val argHeight: LayoutSize get() = LayoutSize(8f, false)
 
                     override fun draw(canvas: PlatformCanvas) {
-                        canvas.fillOval(0f, 0f, outerWidth, outerHeight, iconColor)
+                        fillOuterOval(canvas, iconColor)
                     }
                 }
                 dLabel({ label }, 13f, if (isActive) ACCENT else TEXT, if (isActive) 600 else 400)
@@ -98,7 +98,7 @@ internal fun <T> StateHolder<Node>.dNavItem(
                     if (direction == Direction.x) 6f else 2f
 
                 override fun draw(canvas: PlatformCanvas) {
-                    canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 9f, ACCENT)
+                    fillOuterRoundRect(canvas, 9f, ACCENT)
                     super.draw(canvas)
                 }
             }
@@ -145,12 +145,12 @@ internal fun StateHolder<Node>.dToggleRow(
 
             override fun draw(canvas: PlatformCanvas) {
                 val on = checked.value
-                canvas.fillRoundRect(0f, 0f, 40f, 22f, 11f, if (on) ACCENT else rgba(203, 213, 225))
+                fillOuterRoundRect(canvas, 11f, if (on) ACCENT else rgba(203, 213, 225))
                 canvas.fillOval(if (on) 40f - 20f else 2f, 2f, 18f, 18f, rgba(255, 255, 255))
                 if (isFocused) {
-                    canvas.strokeRoundRect(-2f, -2f, 44f, 26f, 13f, ACCENT, 2f)
+                    strokeOuterRing(canvas, 2f, 13f, ACCENT, 2f)
                 } else if (hovered) {
-                    canvas.strokeRoundRect(-1f, -1f, 42f, 24f, 12f, BAR, 1f)
+                    strokeOuterRing(canvas, 1f, 12f, BAR, 1f)
                 }
             }
         }
@@ -232,7 +232,7 @@ internal fun <T> StateHolder<Node>.dSegTabs(active: StoreRef<T>, items: List<Pai
         override val gap: Float get() = 6f
 
         override fun draw(canvas: PlatformCanvas) {
-            canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 10f, rgba(241, 245, 249))
+            fillOuterRoundRect(canvas, 10f, rgba(241, 245, 249))
             super.draw(canvas)
         }
 
@@ -269,6 +269,9 @@ internal fun <T> StateHolder<Node>.dSegTabs(active: StoreRef<T>, items: List<Pai
                             canvas.strokeRoundRect(0f, 2f, outerWidth, outerHeight - 4f, 8f, BORDER, 1f)
                         } else if (hovered) {
                             canvas.fillRoundRect(0f, 2f, outerWidth, outerHeight - 4f, 8f, rgba(255, 255, 255))
+                        }
+                        if (isFocused) {
+                            canvas.strokeRoundRect(1f, 3f, outerWidth - 2f, outerHeight - 6f, 8f, ACCENT, 2f)
                         }
                         super.draw(canvas)
                     }
