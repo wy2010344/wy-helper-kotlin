@@ -4,6 +4,7 @@ import org.jetbrains.skia.FontMgr
 import org.jetbrains.skia.FontSlant
 import org.jetbrains.skia.FontStyle
 import org.jetbrains.skia.FontWidth
+import org.jetbrains.skia.paragraph.Alignment
 import org.jetbrains.skia.paragraph.FontCollection
 import org.jetbrains.skia.paragraph.Paragraph
 import org.jetbrains.skia.paragraph.ParagraphBuilder
@@ -14,14 +15,21 @@ import org.jetbrains.skia.paragraph.TextStyle
 
 actual class PlatformParagraph(internal val paragraph: Paragraph) {
     actual val height: Float get() = paragraph.height
+
+    actual val width: Float get() = paragraph.longestLine
+
     actual fun getGlyphPositionAtCoordinate(dx: Float, dy: Float): Int {
         return paragraph.getGlyphPositionAtCoordinate(dx, dy).position
     }
 
-    actual fun getRectsForRange(start: Int, end: Int): List<TextRect> {
+    actual fun getRectsForRange(start: Int, end: Int, style: RectStyle): List<TextRect> {
         if (start >= end) return emptyList()
+        val (heightMode, widthMode) = when (style) {
+            RectStyle.TIGHT -> RectHeightMode.TIGHT to RectWidthMode.TIGHT
+            RectStyle.FULL -> RectHeightMode.MAX to RectWidthMode.MAX
+        }
         return paragraph.getRectsForRange(
-            start, end, RectHeightMode.MAX, RectWidthMode.MAX
+            start, end, heightMode, widthMode
         ).map { TextRect(it.rect.left, it.rect.top, it.rect.right, it.rect.bottom) }
     }
 }
@@ -52,49 +60,45 @@ private fun makeTextStyle(
     }
 }
 
+private fun toAlignment(textAlign: TextAlign): Alignment = when (textAlign) {
+    TextAlign.START -> Alignment.START
+    TextAlign.CENTER -> Alignment.CENTER
+    TextAlign.END -> Alignment.END
+    TextAlign.JUSTIFY -> Alignment.JUSTIFY
+}
+
 actual fun buildParagraph(
     spans: List<RichTextSpan>,
-    maxWidth: Float
+    maxWidth: Float,
+    maxLines: Int,
+    ellipsis: String,
+    textAlign: TextAlign,
 ): PlatformParagraph {
-    val style = ParagraphStyle()
+    val style = ParagraphStyle().apply {
+        this.alignment = toAlignment(textAlign)
+        if (maxLines != Int.MAX_VALUE) {
+            this.maxLinesCount = maxLines
+            this.ellipsis = ellipsis
+        }
+    }
     val builder = ParagraphBuilder(style, defaultFontCollection)
 
     for (span in spans) {
         if (span.text.isEmpty()) continue
-        builder.pushStyle(makeTextStyle(
-            span.style.fontFamily,
-            span.style.fontWeight,
-            span.style.fontSize,
-            span.style.color,
-            span.style.letterSpacing,
-            span.style.wordSpacing
-        ))
+        builder.pushStyle(
+            makeTextStyle(
+                span.style.fontFamily,
+                span.style.fontWeight,
+                span.style.fontSize,
+                span.style.color,
+                span.style.letterSpacing,
+                span.style.wordSpacing,
+                span.style.lineHeightMultiplier
+            )
+        )
         builder.addText(span.text)
         builder.popStyle()
     }
-
-    val paragraph = builder.build()
-    paragraph.layout(maxWidth)
-    return PlatformParagraph(paragraph)
-}
-
-actual fun buildParagraph(
-    text: String,
-    fontFamily: String?,
-    fontWeight: Int,
-    fontSize: Float,
-    fontColor: ColorInt,
-    lineHeight: Float,
-    maxWidth: Float,
-    wordBreak: WordBreak
-): PlatformParagraph {
-    val style = ParagraphStyle()
-    val builder = ParagraphBuilder(style, defaultFontCollection)
-
-    val lineHeightMultiplier = lineHeight / fontSize
-    builder.pushStyle(makeTextStyle(fontFamily, fontWeight, fontSize, fontColor, lineHeightMultiplier = lineHeightMultiplier))
-    builder.addText(text)
-    builder.popStyle()
 
     val paragraph = builder.build()
     paragraph.layout(maxWidth)

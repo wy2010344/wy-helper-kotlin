@@ -6,13 +6,22 @@ data class RichTextStyle(
     val fontWeight: Int = 400,
     val color: ColorInt = rgba(0, 0, 0),
     val letterSpacing: Float = 0f,
-    val wordSpacing: Float = 0f
+    val wordSpacing: Float = 0f,
+    val lineHeightMultiplier: Float? = null
 )
 
 data class RichTextSpan(
     val text: String,
     val style: RichTextStyle = RichTextStyle()
 )
+
+enum class RectStyle {
+    TIGHT, FULL
+}
+
+enum class TextAlign {
+    START, CENTER, END, JUSTIFY
+}
 
 data class TextRect(
     val left: Float,
@@ -26,22 +35,15 @@ data class TextRect(
 
 expect class PlatformParagraph {
     val height: Float
+    val width: Float
     fun getGlyphPositionAtCoordinate(dx: Float, dy: Float): Int
-    fun getRectsForRange(start: Int, end: Int): List<TextRect>
+    fun getRectsForRange(start: Int, end: Int, style: RectStyle): List<TextRect>
 }
 
 expect fun buildParagraph(
     spans: List<RichTextSpan>,
-    maxWidth: Float
-): PlatformParagraph
-
-expect fun buildParagraph(
-    text: String,
-    fontFamily: String?,
-    fontWeight: Int,
-    fontSize: Float,
-    fontColor: ColorInt,
-    lineHeight: Float,
     maxWidth: Float,
-    wordBreak: WordBreak
+    maxLines: Int = Int.MAX_VALUE,
+    ellipsis: String = "\u2026",
+    textAlign: TextAlign = TextAlign.START,
 ): PlatformParagraph

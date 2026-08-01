@@ -16,15 +16,16 @@ abstract class RectNode(
 
 
     override fun argPosition(direction: Direction): Float {
-        val lp = layoutParent
-        if (lp != null) {
-            try {
-                return lp.layoutValue(direction).childPosition(layoutIndex)
-            } catch (err: LayoutError) {
+        val lp = layoutParent!!
+        try {
+            return lp.layoutValue(direction).childPosition(layoutIndex) + lp.padding(
+                direction,
+                StartEnd.start
+            )
+        } catch (err: LayoutError) {
 
-            }
         }
-        return 0f
+        return lp.padding(direction, StartEnd.start)
     }
 
     override fun argSize(direction: Direction): LayoutSize {

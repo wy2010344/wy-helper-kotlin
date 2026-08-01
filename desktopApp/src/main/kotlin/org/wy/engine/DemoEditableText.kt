@@ -1,6 +1,7 @@
 package org.wy.engine
 
 import com.wy.layout.AlignItem
+import com.wy.layout.DirectionJustify
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import org.wy.engine.layout.FlexObject
@@ -9,6 +10,27 @@ import org.wy.engine.layout.LayoutDirection
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.setValue
+
+
+fun main() {
+
+    object : SkiaApp(), FlexParam {
+        override val layout: LayoutDirection = FlexObject(this)
+        override val directionJustify: DirectionJustify
+            get() = DirectionJustify.center
+        override val alignFix: Boolean
+            get() = true
+        override val alignItem: AlignItem
+            get() = AlignItem.stretch
+        override val gap: Float
+            get() = 10f
+
+        override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+            demoEditableText()
+            demoEditableText()
+        }
+    }
+}
 
 /**
  * 演示 EditableTextNode 可编辑文本组件。
@@ -24,7 +46,7 @@ import org.wy.signal.setValue
  * - Home / End 跳转行首/行尾
  * - Ctrl+A 全选
  */
-fun  StateHolder<Node>.demoEditableText() {
+fun StateHolder<Node>.demoEditableText() {
     var infoText by createSignal("Type something below. Ctrl+Z=Undo, Ctrl+Y=Redo")
     object : WrappedTextNode(this) {
         override val text: String get() = infoText
@@ -45,7 +67,7 @@ fun  StateHolder<Node>.demoEditableText() {
  * 实时显示当前文本长度和光标位置。
  */
 fun demoEditableTextWithStatus(context: StateHolder<Node>) {
-    object :RectNode(context), FlexParam{
+    object : RectNode(context), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)
         override val argWidth: LayoutSize
             get() = LayoutSize(400f, true)
@@ -77,7 +99,7 @@ fun demoEditableTextWithStatus(context: StateHolder<Node>) {
  */
 fun demoMultipleEditableText(context: StateHolder<Node>) {
 
-    object :RectNode(context), FlexParam{
+    object : RectNode(context), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)
         override val argWidth: LayoutSize
             get() = LayoutSize(400f, true)

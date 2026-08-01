@@ -10,6 +10,7 @@ import org.wy.signal.Memo
  * 固定不变的如parent/parentContextIndex，必须从参数传入，如果使用重载，可能还没有初始化而出问题。
  */
 internal open class StateHolderI<Node>(
+    val config: ShareConfig<Node>,
     val parent: StateHolderI<Node>? = null,
     val parentContextIndex: Int = parent?.contexts?.size ?: 0
 ) : StateHolder<Node> {
@@ -87,7 +88,7 @@ internal open class StateHolderI<Node>(
                     val ev: EachValue<Node, T, O>
                     if (holders.isNullOrEmpty()) {
                         ev = object :
-                            EachValue<Node, T, O>(getSignal, this@StateHolderI, contextIndex) {
+                            EachValue<Node, T, O>(this@StateHolderI.config, getSignal, this@StateHolderI, contextIndex) {
                             override fun buildChildren() {
                                 creater(key, this)
                             }
@@ -179,11 +180,10 @@ internal open class StateHolderI<Node>(
 
     override fun renderListNode(
         node: Node,
-        after: SetValue<List<Node>>?,
         callback: StateHolderWithNode<Node, List<Node>>.() -> Unit
     ): GetValue<List<Node>> {
 //        addNode(node)
-        val a = object : TargetStateHolder<Node>(node, after, callback,this@StateHolderI) {
+        val a = object : TargetStateHolder<Node>(node, config, callback,this@StateHolderI) {
             override fun toString(): String {
                 return "render-node-target"
             }

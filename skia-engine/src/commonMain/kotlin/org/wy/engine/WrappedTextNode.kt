@@ -15,99 +15,29 @@ enum class WordBreak {
 
 open class WrappedTextNode(
     context: StateHolder<Node>
-) : RectNode(context) {
+) : RichTextNode(context) {
     open val text: String = ""
     open val fontFamily: String? = null
     open val fontSize: Float = 16f
     open val fontWeight: Int = 400
     open val color: ColorInt = rgba(0, 0, 0)
-    open val selectionColor: ColorInt = rgba(0, 100, 200, 60)
-    open val lineHeight: Float
-        get() = fontSize * 1.4f
+    open val lineHeightMultiplier: Float =1.4f
 
-    open val wordBreak: WordBreak = WordBreak.BREAK_WORD
-    open val locale: String? = null
+    open val letterSpacing: Float=0f
+    open val wordSpacing: Float=0f
 
-    protected var anchorIndex by createSignal(-1)
-    protected var focusIndex by createSignal(-1)
+    override val maxLines: Int = Int.MAX_VALUE
+    override val ellipsis: String = "\u2026"
+    override val textAlign: TextAlign = TextAlign.START
 
-    val selectionText by memo {
-        if (anchorIndex < 0 || focusIndex < 0 || anchorIndex == focusIndex) return@memo null
-        val start = min(anchorIndex, focusIndex)
-        val end = max(anchorIndex, focusIndex)
-        text.substring(start, end)
-    }
-
-    val paragraph by memo {
-        if (text.isEmpty()) return@memo null
-        buildParagraph(
-            text = text,
-            fontFamily = fontFamily,
-            fontWeight = fontWeight,
-            fontSize = fontSize,
-            fontColor = color,
-            lineHeight = lineHeight,
-            maxWidth = innerSize(Direction.x).let { if (it > 0f) it else Float.MAX_VALUE },
-            wordBreak = wordBreak
-        )
-    }
-
-    override val argHeight: LayoutSize
-        get() {
-            val p = paragraph
-            return LayoutSize(p?.height ?: lineHeight, true)
-        }
-
-    protected fun charAt(x: Float, y: Float): Int {
-        val p = paragraph ?: return 0
-        return p.getGlyphPositionAtCoordinate(x, y)
-    }
-
-    private var onMouseDown = false
-    override fun mouseDown(e: MouseEvent) {
-        anchorIndex = charAt(e.x, e.y)
-        focusIndex = anchorIndex
-        onMouseDown = true
-        e.stopPropagation()
-    }
-
-    init {
-        val engineGlobal = context.consume(engineGlobalContext)!!
-        val d1 = engineGlobal.registerMouseUp {
-            onMouseDown = false
-        }
-        val absoluteX by memo { absolutePosition(Direction.x) }
-        val absoluteY by memo { absolutePosition(Direction.y) }
-        val d2 = engineGlobal.registerMouseMove {
-            if (onMouseDown) {
-                focusIndex = charAt(it.x - absoluteX, it.y - absoluteY)
-            }
-        }
-        context.addDestroy {
-            d1()
-            d2()
-        }
-    }
-
-    override fun draw(canvas: PlatformCanvas) {
-        val p = paragraph ?: return
-
-        if (anchorIndex >= 0 && focusIndex >= 0 && anchorIndex != focusIndex) {
-            val start = min(anchorIndex, focusIndex)
-            val end = max(anchorIndex, focusIndex)
-            val rects = p.getRectsForRange(start, end)
-            for (rect in rects) {
-                canvas.fillRect(
-                    x = rect.left,
-                    y = rect.top,
-                    w = rect.width,
-                    h = rect.height,
-                    color = selectionColor
-                )
-            }
-        }
-
-        canvas.drawParagraph(p, 0f, 0f)
-        super.draw(canvas)
-    }
+    override val spans: List<RichTextSpan>
+        get() = listOf(RichTextSpan(text, RichTextStyle(
+            fontFamily,
+            fontSize,
+            fontWeight,
+            color,
+            letterSpacing,
+            wordSpacing,
+            lineHeightMultiplier
+        )))
 }

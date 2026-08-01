@@ -66,6 +66,24 @@ class ReplaceSelectionAction(
     }
 }
 
+class ReplaceRangeAction(
+    private val position:Int,
+    private val removed: String,
+    private val inserted: String
+): TextEditAction{
+    override fun undo(state: TextState): TextState {
+        val newText=state.text.substring(0,position)+removed+state.text.substring(position+inserted.length)
+        return TextState(newText,position)
+    }
+
+    override fun redo(state: TextState): TextState {
+        val newText=state.text.substring(0,position)+inserted+state.text.substring(position+removed.length)
+        return TextState(newText,position)
+    }
+}
+
+
+@Suppress("NewApi")
 class UndoRedo(private val maxHistorySize: Int = 100) {
     private val undoStack = mutableListOf<TextEditAction>()
     private val redoStack = mutableListOf<TextEditAction>()

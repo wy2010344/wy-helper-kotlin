@@ -1,91 +1,48 @@
 package org.wy.engine
 
-import com.wy.layout.Layout
-import com.wy.layout.LayoutFun
-import com.wy.layout.absoluteLayout
 import com.wy.mve.StateHolder
-import org.wy.engine.contentSize
-import org.wy.engine.innerSize
-import org.wy.engine.layout.FlexObject
-import org.wy.engine.layout.FlexParam
-import org.wy.engine.scroll
-import org.wy.lib.GetValue
-import org.wy.signal.createSignal
-import org.wy.signal.getValue
-import org.wy.signal.setValue
+import org.wy.signal.OneSetStoreRef
+import org.wy.signal.createLateSignal
 import kotlin.math.max
 
-open class ScrollNode(
-    context: StateHolder<Node>
-) : RectNode(context) {
-    var _scrollX by createSignal(0f)
-        private set
-    var _scrollY by createSignal(0f)
-        private set
 
-    var scrollX
-        get() = _scrollX.coerceIn(0f,maxScroll(Direction.x))
-        set(value){_scrollX=value}
+class Scroll(
+    val container: LayoutNode,
+    val direction: Direction = Direction.y,
+    value: OneSetStoreRef<Float> = createLateSignal(0f)
+) {
+    private val setValue = value.getOnlySet()
+    private val getValue = value::get
 
-    var scrollY
-        get() = _scrollY.coerceIn(0f,maxScroll(Direction.y))
-        set(value) {_scrollY=value}
+    var value
+        get() = getValue().coerceIn(0f, container.maxScroll(direction))
+        set(value) {
+            setValue(value)
+        }
 
-
-    override fun draw(canvas: PlatformCanvas) {
-        drawChildren(canvas)
-    }
-
-    /**
-     * 滚动一定偏移
-     */
     fun scroll(delta: Float): Float {
-        val next = (scrollY + delta).coerceIn(0f, maxScroll(Direction.y))
-        val realDelta = next - scrollY
-        scrollY = next
+        val next = (value + delta).coerceIn(0f, container.maxScroll(direction))
+        val realDelta = next - value
+        value = next
         return realDelta
     }
-
-    init {
-        val engineGlobal = context.consume(engineGlobalContext)!!
-        val d0 = engineGlobal.registerMouseWheel {
-            if (inRange(absoluteX + paddingInlineStart, it.x, innerSize(Direction.x))
-                && inRange(absoluteY + paddingBlockStart, it.y, innerSize(Direction.y))
-            ) {
-                scroll(it.delta)
-            }
-        }
-        context.addDestroy(d0)
-    }
 }
 
-fun ScrollNode.drawChildren(canvas: PlatformCanvas){
-
-    children.forEach {
-        canvas.save()
-        if (it is ScrollContent) {
-            canvas.clipRect(
-                padding(Direction.x, StartEnd.start),
-                padding(Direction.y, StartEnd.start),
-                innerSize(Direction.x),
-                innerSize(Direction.y)
-            )
+fun StateHolder<Node>.registerScroll(scroll: Scroll) {
+    val engineGlobal = consume(engineGlobalContext)!!
+    val d0 = engineGlobal.registerMouseWheel {
+        if (scroll.container.absoluteInInner(it.x, it.y)) {
+            scroll.scroll(it.delta)
         }
-        canvas.translate(it.position(Direction.x), it.position(Direction.y))
-        it.draw(canvas)
-        canvas.restore()
     }
+    addDestroy(d0)
 }
+
 /**
  * 最大可滚动
  */
-fun ScrollNode.maxScroll(direction: Direction): Float {
+fun LayoutNode.maxScroll(direction: Direction): Float {
     return max(0f, contentSize(direction) - innerSize(direction))
-}
-
-fun ScrollNode.scroll(direction: Direction): Float = when (direction) {
-    Direction.x -> scrollX
-    Direction.y -> scrollY
 }
 
 
@@ -93,20 +50,20 @@ fun ScrollNode.scroll(direction: Direction): Float = when (direction) {
  * length 滚动的长度
  * return <尺寸，位置>
  */
-fun ScrollNode.scrollBarSize(
+fun Scroll.scrollBarSize(
     direction: Direction,
     length: Float = 0f
 ): ScrollBarCalculate? {
-    val length = if (length > 0) length else innerSize(direction)
-    val v = innerSize(direction)
-    val c = contentSize(direction)
-    val m = maxScroll(direction)
+    val length = if (length > 0) length else container.innerSize(direction)
+    val v = container.innerSize(direction)
+    val c = container.contentSize(direction)
+    val m = container.maxScroll(direction)
     if (m > 0) {
         //
         val thumb = max(20f, length * v / c)
         //最大偏移*偏移比例
         val maxOffset = length - thumb
-        val move = maxOffset * scroll(direction) / m
+        val move = maxOffset * value / m
         return ScrollBarCalculate(thumb, move, m, maxOffset)
     }
     return null
@@ -116,7 +73,7 @@ fun ScrollNode.scrollBarSize(
 /**
  * 内容区尺寸
  */
-fun ScrollNode.contentSize(direction: Direction): Float {
+fun LayoutNode.contentSize(direction: Direction): Float {
     children.forEach {
         if (it is ScrollContent) {
             return it.outerSize(direction)
@@ -141,22 +98,8 @@ class ScrollBarCalculate(
 }
 
 open class ScrollContent(context: StateHolder<Node>) : RectNode(context) {
-    val scrollNode: ScrollNode
-
-    init {
-        if (parent !is ScrollNode) {
-            throw Error("必须在ScrollNode下")
-        }
-        scrollNode = parent
-    }
-
-    final override val x: Float
-        get() = -scrollNode.scrollX
-    final override val y: Float
-        get() = -scrollNode.scrollY
-
     override fun acceptClip(x: Float, y: Float): Boolean {
-        val sn = scrollNode
+        val sn = layoutParent!!
         val left = sn.paddingInlineStart
         val top = sn.paddingBlockStart
         val right = left + sn.innerSize(Direction.x)

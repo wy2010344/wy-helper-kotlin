@@ -2,6 +2,7 @@ package org.wy.engine
 
 import com.wy.mve.Context
 import org.wy.lib.EmptyFun
+import org.wy.lib.StoreRef
 
 data class GlobalMouseEvent(
     val x: Float,
@@ -27,11 +28,16 @@ data class KeyEvent(
     val code: KeyCode,
     val ctrl: Boolean,
     val shift: Boolean,
-    val alt: Boolean
+    val alt: Boolean,
+    val meta: Boolean
 )
 
 typealias KeyPressCallback = (e: KeyEvent) -> Unit
 typealias ComposingTextCallback = (text: String, cursorPosition: Int) -> Unit
+
+enum class CursorType {
+    DEFAULT, POINTER, TEXT
+}
 
 interface EngineGlobal {
     fun registerMouseDown(callback: MouseCallback): EmptyFun
@@ -41,6 +47,10 @@ interface EngineGlobal {
     fun registerKeyPress(callback: KeyPressCallback): EmptyFun
     fun registerComposingText(callback: ComposingTextCallback): EmptyFun
 
+    val pressed: Boolean
+    val moveHitest: NodeWithPosition?
+
+    var focused: Node?
     /**
      * 请求平台在指定屏幕位置显示原生输入控件（隐藏的 JTextField），
      * 用于代理所有文本输入和 IME 组合。
@@ -50,6 +60,9 @@ interface EngineGlobal {
 
     /** 隐藏原生输入控件 */
     fun hideInputOverlay()
+
+    /** 请求平台切换鼠标光标（如悬停在可点击控件上时显示手型光标） */
+    fun requestCursor(type: CursorType)
 }
 
 val engineGlobalContext= Context<EngineGlobal?>(null)

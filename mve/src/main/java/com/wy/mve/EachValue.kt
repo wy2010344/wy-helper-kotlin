@@ -4,10 +4,12 @@ import org.wy.lib.GetValue
 
 
 internal open class EachValue<Node, T, O>(
+    config: ShareConfig<Node>,
     val getSignal: GetValue<*>,
     parent: StateHolderI<Node>,
     parentContextIndex: Int
 ) : StateHolderI<Node>(
+    config,
     parent,
     parentContextIndex
 ), EachTime<T> {

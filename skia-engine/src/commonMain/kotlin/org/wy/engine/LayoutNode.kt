@@ -20,6 +20,16 @@ data class LayoutSize(
     val fromInside: Boolean
 )
 
+/**
+ * [LayoutSize] + 方向：指定某个方向上的一种尺寸（宽或高），
+ * 用于只给一个方向、其余按比例推算的场景（如 [org.wy.engine.ImageNode]）。
+ */
+data class LayoutSizeDirection(
+    val direction: Direction,
+    val value: Float,
+    val fromInside: Boolean
+)
+
 val layoutSize0 = LayoutSize(0f, true)
 
 enum class SizeFrom {
@@ -65,6 +75,9 @@ open class LayoutNode(context: StateHolder<Node>?) : Node(context) {
     var layoutIndex: Int = 0
         internal set
         get() {
+            if(hide){
+                throw Error("已经隐藏不再显示")
+            }
             layoutParent?.layoutChildren
             return field
         }
@@ -135,9 +148,12 @@ fun LayoutNode.size(direction: Direction) = when (direction) {
 fun LayoutNode.outerSize(direction: Direction): Float {
     val s = size(direction)
     if (s.fromInside) {
-        return max(0f,s.value + padding(direction, StartEnd.start) + padding(direction, StartEnd.end))
+        return max(
+            0f,
+            s.value + padding(direction, StartEnd.start) + padding(direction, StartEnd.end)
+        )
     }
-    return max(0f,s.value)
+    return max(0f, s.value)
 }
 
 fun LayoutNode.innerSize(direction: Direction): Float {
@@ -145,7 +161,7 @@ fun LayoutNode.innerSize(direction: Direction): Float {
     if (s.fromInside) {
         return max(0f, s.value)
     }
-    return max(0f,s.value - padding(direction, StartEnd.start) - padding(direction, StartEnd.end))
+    return max(0f, s.value - padding(direction, StartEnd.start) - padding(direction, StartEnd.end))
 }
 
 val LayoutNode.outerWidth
@@ -232,4 +248,12 @@ fun LayoutNode.createLayout(direction: Direction): GetValue<Layout> {
         }
         layout(insideObject)
     }
+}
+
+fun LayoutNode.absoluteInInner(x: Float, y: Float): Boolean {
+    return inRange(
+        absoluteX + paddingInlineStart,
+        x,
+        innerWidth
+    ) && inRange(absoluteY + paddingBlockStart, y, innerHeight)
 }

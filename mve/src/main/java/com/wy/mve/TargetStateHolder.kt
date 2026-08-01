@@ -11,10 +11,10 @@ interface RootReturn<Node> {
 
 internal open class TargetStateHolder<Node>(
     override val node: Node,
-    after: SetValue<List<Node>>?,
+    config: ShareConfig<Node>,
     private val callback: StateHolderWithNode<Node,List<Node>>.() -> Unit,
     parent: StateHolderI<Node>?=null
-) : StateHolderI<Node>(parent), RootReturn<Node>, StateHolderWithNode<Node,List<Node>> {
+) : StateHolderI<Node>(config,parent), RootReturn<Node>, StateHolderWithNode<Node,List<Node>> {
     override fun buildChildren() {
         provide<Node>(parentContext as Context<Node>, node)
         callback()
@@ -23,7 +23,7 @@ internal open class TargetStateHolder<Node>(
     override val target = object : Memo<List<Node>>() {
         override fun get(old: List<Node>?, inited: Boolean): List<Node> {
             val newList = mutableListOf<Node>()
-            purifyList(nodes, newList)
+            purifyList(nodes, newList,config::ignore)
            return newList
         }
 
@@ -31,9 +31,7 @@ internal open class TargetStateHolder<Node>(
             return "target-memo"
         }
     }.apply {
-        if (after != null) {
-            afters.add(after)
-        }
+        afters.add(config::after)
     }
 
     override fun toString(): String {
@@ -47,10 +45,10 @@ internal val parentContext = Context<Any?>(null)
 
 fun <Node> renderListRoot(
     node: Node,
-    after: SetValue<List<Node>>? = null,
+    config: ShareConfig<Node>,
     callback: StateHolderWithNode<Node,List<Node>>.() -> Unit
 ): RootReturn<Node> {
-    val node= TargetStateHolder(node, after, callback)
+    val node= TargetStateHolder(node, config, callback)
     node.create()
     return  node
 }

@@ -7,6 +7,11 @@ import org.wy.signal.Memo
 
 typealias Creater<Node, T, K, O> = StateHolder<Node>.(K, EachTime<T>) -> O
 
+
+interface ShareConfig<Node>{
+    fun ignore(node:Node): Boolean
+    fun after(list:List<Node>): Unit
+}
 enum class DuplicateInfo { IGNORE, WARN, THROW }
 interface StateHolder<Node> {
     fun <T> provide(context: Context<T>, value: T)
@@ -27,7 +32,6 @@ interface StateHolder<Node> {
 
     fun renderListNode(
         node: Node,
-        after: SetValue<List<Node>>? = null,
         callback: StateHolderWithNode<Node,List<Node>>.() -> Unit
     ): GetValue<List<Node>>
 

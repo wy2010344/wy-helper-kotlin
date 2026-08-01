@@ -11,6 +11,7 @@ import org.wy.lib.GetValue
 import org.wy.signal.TrackSignal
 import org.wy.signal.createSignal
 import java.awt.Color
+import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
@@ -91,6 +92,10 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Nod
                     if (e == null) return
                     this@SkiaApp.mouseUp(e.x.toFloat(), e.y.toFloat())
                 }
+
+                override fun mouseExited(e: MouseEvent?) {
+                    this@SkiaApp.mouseExit()
+                }
             })
             skiaLayer.addMouseMotionListener(object : MouseMotionAdapter() {
                 override fun mouseMoved(e: MouseEvent?) {
@@ -104,6 +109,7 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Nod
                     if (e == null) return
                     this@SkiaApp.mouseMove(e.x.toFloat(), e.y.toFloat())
                 }
+
             })
             skiaLayer.addMouseWheelListener(object : MouseWheelListener {
                 override fun mouseWheelMoved(e: MouseWheelEvent?) {
@@ -146,7 +152,14 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Nod
                         } else {
                             e.keyChar
                         }
-                        this@SkiaApp.keyPress(ch, code, e.isControlDown, e.isShiftDown, e.isAltDown)
+                        if (ch == Char(0xFFFF) && code == KeyCode.Unknown) return
+                        this@SkiaApp.keyPress(
+                            ch, code,
+                            e.isControlDown,
+                            e.isShiftDown,
+                            e.isAltDown,
+                            e.isMetaDown
+                        )
                     }
 
                     override fun keyReleased(e: AwtKeyEvent?) {}
@@ -190,7 +203,7 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Nod
                         }
                     }
 
-                    override fun caretPositionChanged(e: java.awt.event.InputMethodEvent?) {}
+                    override fun caretPositionChanged(e: java.awt.event.InputMethodEvent) {}
                 })
             }
 
@@ -199,18 +212,30 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Nod
             this@SkiaApp.setInputOverlayHandler(
                 show = { x, y, w, h, fontSize ->
                     SwingUtilities.invokeLater {
+                        hiddenField.setText("")
                         hiddenField.setBounds(x.toInt(), y.toInt(), 1, 1)
                         hiddenField.font = hiddenField.font.deriveFont(fontSize)
-                        hiddenField.requestFocusInWindow()
+                        if (!hiddenField.requestFocusInWindow()) {
+                            hiddenField.requestFocus()
+                        }
                     }
                 },
                 hide = {
                     SwingUtilities.invokeLater {
+                        hiddenField.setText("")
                         hiddenField.setBounds(0, 0, 1, 1)
                         skiaLayer.requestFocusInWindow()
                     }
                 }
             )
+
+            this@SkiaApp.setCursorHandler { type ->
+                skiaLayer.cursor = when (type) {
+                    CursorType.POINTER -> Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                    CursorType.TEXT -> Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR)
+                    CursorType.DEFAULT -> Cursor.getDefaultCursor()
+                }
+            }
 
             skiaLayer.isFocusable = true
             // When SkiaLayer gains focus, we can optionally re-focus hiddenField

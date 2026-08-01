@@ -2,12 +2,12 @@ package org.wy.engine
 
 import android.graphics.Canvas as AndroidCanvas
 import android.graphics.Paint
-import android.graphics.Rect
 import android.text.Layout
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.text.TextUtils
 import android.text.style.ForegroundColorSpan
 import android.text.style.RelativeSizeSpan
 import android.text.style.StyleSpan
@@ -15,6 +15,16 @@ import android.text.style.TypefaceSpan
 
 actual class PlatformParagraph(private val layout: Layout) {
     actual val height: Float get() = layout.height.toFloat()
+
+    fun draw(canvas: AndroidCanvas, x: Float, y: Float) {
+        canvas.save()
+        canvas.translate(x, y)
+        layout.draw(canvas)
+        canvas.restore()
+    }
+
+    actual val width: Float
+        get() = (0 until layout.lineCount).maxOfOrNull { layout.getLineWidth(it) } ?: 0f
 
     actual fun getGlyphPositionAtCoordinate(dx: Float, dy: Float): Int {
         val line = (0 until layout.lineCount).indexOfFirst {
@@ -24,7 +34,7 @@ actual class PlatformParagraph(private val layout: Layout) {
         return layout.getOffsetForHorizontal(clampedLine, dx)
     }
 
-    actual fun getRectsForRange(start: Int, end: Int): List<TextRect> {
+    actual fun getRectsForRange(start: Int, end: Int, style: RectStyle): List<TextRect> {
         if (start >= end) return emptyList()
         val result = mutableListOf<TextRect>()
         for (line in 0 until layout.lineCount) {
@@ -47,9 +57,19 @@ actual class PlatformParagraph(private val layout: Layout) {
     }
 }
 
+private fun toAlignment(textAlign: TextAlign): Layout.Alignment = when (textAlign) {
+    TextAlign.START -> Layout.Alignment.ALIGN_NORMAL
+    TextAlign.CENTER -> Layout.Alignment.ALIGN_CENTER
+    TextAlign.END -> Layout.Alignment.ALIGN_OPPOSITE
+    TextAlign.JUSTIFY -> Layout.Alignment.ALIGN_JUSTIFIED
+}
+
 actual fun buildParagraph(
     spans: List<RichTextSpan>,
-    maxWidth: Float
+    maxWidth: Float,
+    maxLines: Int,
+    ellipsis: String,
+    textAlign: TextAlign,
 ): PlatformParagraph {
     val ssb = SpannableStringBuilder()
     var offset = 0
@@ -71,41 +91,13 @@ actual fun buildParagraph(
     val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = 16f
     }
-    val layout = StaticLayout.Builder.obtain(ssb, 0, ssb.length, paint, maxWidth.toInt())
-        .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+    val builder = StaticLayout.Builder.obtain(ssb, 0, ssb.length, paint, maxWidth.toInt())
+        .setAlignment(toAlignment(textAlign))
         .setLineSpacing(0f, 1f)
         .setIncludePad(true)
-        .build()
-
-    return PlatformParagraph(layout)
-}
-
-actual fun buildParagraph(
-    text: String,
-    fontFamily: String?,
-    fontWeight: Int,
-    fontSize: Float,
-    fontColor: ColorInt,
-    lineHeight: Float,
-    maxWidth: Float,
-    wordBreak: WordBreak
-): PlatformParagraph {
-    val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = fontSize
-        color = fontColor
-        this.typeface = when {
-            fontWeight >= 700 -> Typeface.create(null, Typeface.BOLD)
-            fontWeight >= 400 -> Typeface.DEFAULT
-            else -> Typeface.create(null, Typeface.NORMAL)
-        }
-        fontFamily?.let { this.typeface = Typeface.create(it, this.typeface?.style ?: 0) }
+    if (maxLines != Int.MAX_VALUE) {
+        builder.setMaxLines(maxLines).setEllipsize(TextUtils.TruncateAt.END)
     }
 
-    val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, maxWidth.toInt())
-        .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-        .setLineSpacing(0f, lineHeight / fontSize)
-        .setIncludePad(true)
-        .build()
-
-    return PlatformParagraph(layout)
+    return PlatformParagraph(builder.build())
 }

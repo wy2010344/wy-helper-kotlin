@@ -1,9 +1,15 @@
 package org.wy.engine
 
+import com.wy.mve.ShareConfig
 import com.wy.mve.StateHolder
 import com.wy.mve.renderListRoot
+import org.wy.engine.hitest
 import org.wy.lib.EmptyFun
+import org.wy.lib.left
 import org.wy.signal.TrackSignal
+import org.wy.signal.createSignal
+import org.wy.signal.getValue
+import org.wy.signal.setValue
 import kotlin.collections.set
 
 private class Register(context: StateHolder<Node>?) {
@@ -22,6 +28,10 @@ private class Register(context: StateHolder<Node>?) {
         composingList.clear()
     }
 
+    var pressed by createSignal(false)
+    var moveHitest by createSignal<NodeWithPosition?>(null)
+    var focused by createSignal<Node?>(null)
+
     private val moveList = mutableMapOf<MouseCallback, EmptyFun>()
     private val upList = mutableMapOf<MouseCallback, EmptyFun>()
     private val downList = mutableMapOf<MouseCallback, EmptyFun>()
@@ -29,8 +39,11 @@ private class Register(context: StateHolder<Node>?) {
     private val keyPressList = mutableMapOf<KeyPressCallback, EmptyFun>()
     private val composingList = mutableMapOf<ComposingTextCallback, EmptyFun>()
 
-    private var overlayShow: ((x: Float, y: Float, w: Float, h: Float, fontSize: Float) -> Unit)? = null
+    private var overlayShow: ((x: Float, y: Float, w: Float, h: Float, fontSize: Float) -> Unit)? =
+        null
     private var overlayHide: (() -> Unit)? = null
+    private var cursorHandler: ((CursorType) -> Unit)? = null
+    private var lastCursor: CursorType? = null
 
     fun setOverlayHandler(
         show: (x: Float, y: Float, w: Float, h: Float, fontSize: Float) -> Unit,
@@ -38,6 +51,16 @@ private class Register(context: StateHolder<Node>?) {
     ) {
         overlayShow = show
         overlayHide = hide
+    }
+
+    fun setCursorHandler(handler: (CursorType) -> Unit) {
+        cursorHandler = handler
+    }
+
+    fun requestCursor(type: CursorType) {
+        if (lastCursor == type) return
+        lastCursor = type
+        cursorHandler?.invoke(type)
     }
 
     fun provide(context: StateHolder<Node>) {
@@ -66,12 +89,34 @@ private class Register(context: StateHolder<Node>?) {
                 return register(composingList, callback)
             }
 
-            override fun requestInputOverlay(x: Float, y: Float, w: Float, h: Float, fontSize: Float) {
+            override val pressed: Boolean
+                get() = this@Register.pressed
+
+            override val moveHitest: NodeWithPosition?
+                get() = this@Register.moveHitest
+
+            override var focused: Node?
+                get() = this@Register.focused
+                set(value) {
+                    this@Register.focused = value
+                }
+
+            override fun requestInputOverlay(
+                x: Float,
+                y: Float,
+                w: Float,
+                h: Float,
+                fontSize: Float
+            ) {
                 overlayShow?.invoke(x, y, w, h, fontSize)
             }
 
             override fun hideInputOverlay() {
                 overlayHide?.invoke()
+            }
+
+            override fun requestCursor(type: CursorType) {
+                this@Register.requestCursor(type)
             }
         })
     }
@@ -93,19 +138,32 @@ private class Register(context: StateHolder<Node>?) {
         wheelList.forEach { it.key(GlobalWheelEvent(x, y, delta, it.value)) }
     }
 
-    fun dispatchKeyPress(e: KeyEvent) {keyPressList.forEach { it.key(e) }}
+    fun dispatchKeyPress(e: KeyEvent) {
+        keyPressList.forEach { it.key(e) }
+    }
+
     fun dispatchComposingText(text: String, cursorPosition: Int) {
         composingList.forEach { it.key(text, cursorPosition) }
+    }
+}
+
+private val nodeConfig = object : ShareConfig<Node> {
+    override fun ignore(node: Node): Boolean {
+        return node.hide
+    }
+
+    override fun after(list: List<Node>) {
+        collectIndex(list)
     }
 }
 
 open class Renderer private constructor(
     context: StateHolder<Node>?,
     private val register: Register
-) : LayoutNode(null) {
+) : LayoutNode(context) {
     constructor(context: StateHolder<Node>?) : this(context, Register(context)) {
         if (context == null) {
-            val state = renderListRoot<Node>(this@Renderer, ::collectIndex) {
+            val state = renderListRoot<Node>(this@Renderer, nodeConfig) {
                 register.provide(this)
                 argChildren()
             }
@@ -120,6 +178,10 @@ open class Renderer private constructor(
         hide: () -> Unit
     ) {
         register.setOverlayHandler(show, hide)
+    }
+
+    fun setCursorHandler(handler: (CursorType) -> Unit) {
+        register.setCursorHandler(handler)
     }
 
     fun destroy() {
@@ -152,80 +214,126 @@ open class Renderer private constructor(
         scheduled = false
     }
 
-    private fun mouseEventOf(x: Float, y: Float, type: MouseEventEnum) {
-        try {
-            var nodeWithPosition: NodeWithPosition? = hitest(x, y) ?: return
-            val list = mutableListOf<NodeWithPosition>()
-            //这里检查时，如果直接事件发生，造成状态改变，再向上查询时会出错。
-            while (nodeWithPosition != null) {
-                //捕获
-                val e = MouseEvent(nodeWithPosition.x, nodeWithPosition.y, x, y)
-                sendMouseEvent(nodeWithPosition.node, type, e, true)
-                if (e.stoppedProgression) {
-                    return
-                }
-                list.add(nodeWithPosition)
-                nodeWithPosition = nodeWithPosition.next
-            }
-            list.asReversed().forEach {
-                //冒泡
-                val e = MouseEvent(it.x, it.y, x, y)
-                sendMouseEvent(it.node, type, e, false)
-                if (e.stoppedProgression) {
-                    return
-                }
-            }
-        } catch (e: Throwable) {
-            println("事件出错--${type}-$e")
-        }
-    }
 
     fun mouseClick(x: Float, y: Float) {
-        mouseEventOf(x, y, MouseEventEnum.click)
-    }
-
-    private fun sendMouseEvent(node: Node, type: MouseEventEnum, e: MouseEvent, capture: Boolean) {
-        when (type) {
-            MouseEventEnum.click -> if (capture) node.mouseClickCapture(e) else node.mouseClick(e)
-            MouseEventEnum.down -> if (capture) node.mouseDownCapture(e) else node.mouseDown(e)
-            MouseEventEnum.up -> if (capture) node.mouseUpCapture(e) else node.mouseUp(e)
+        try {
+            hitest(x, y)?.let {
+                mouseEventOf(it, MouseEventEnum.click)
+            }
+        } catch (e: Throwable) {
+            println("全局mouseClick事件出错--$e")
         }
     }
 
     fun mouseDown(x: Float, y: Float) {
-        register.dispatchMouseDown(x, y)
-        mouseEventOf(x, y, MouseEventEnum.down)
+        try {
+            register.pressed = true
+            hitest(x, y)?.let {
+                setFocused(it.last.node)
+                mouseEventOf(it, MouseEventEnum.down)
+            } ?: run {
+                setFocused(null)
+            }
+            register.dispatchMouseDown(x, y)
+        } catch (e: Throwable) {
+            println("全局mouseDown事件出错--$e")
+        }
+    }
+
+    private fun setFocused(node: Node?) {
+        val old = register.focused
+        if (old === node) return
+        register.focused = node
+    }
+
+    /**
+     * 收集整棵节点树中可聚焦的节点；有 `focusOrder` 的按值升序排在前面，
+     * 其余按文档顺序排在后面。
+     */
+    private fun focusableNodes(): List<Node> {
+        val result = mutableListOf<Node>()
+        fun collect(node: Node) {
+            if (node.focusable && !node.hide) {
+                result.add(node)
+            }
+            node.children.forEach(::collect)
+        }
+        children.forEach(::collect)
+        if (result.any { it.focusOrder != null }) {
+            result.sortBy { it.focusOrder ?: Int.MAX_VALUE }
+        }
+        return result
+    }
+
+    /**
+     * Tab 移动到下一个可聚焦节点，Shift+Tab 移动到上一个；循环遍历。
+     */
+    private fun moveFocus(next: Boolean) {
+        val nodes = focusableNodes()
+        if (nodes.isEmpty()) return
+        val current = register.focused
+        val index = nodes.indexOfFirst { it === current }
+        val targetIndex = when {
+            index < 0 -> if (next) 0 else nodes.size - 1
+            next -> (index + 1) % nodes.size
+            else -> (index - 1 + nodes.size) % nodes.size
+        }
+        setFocused(nodes[targetIndex])
     }
 
     fun mouseUp(x: Float, y: Float) {
         try {
-            mouseEventOf(x, y, MouseEventEnum.up)
+            register.pressed = false
+            hitest(x, y)?.let {
+                mouseEventOf(it, MouseEventEnum.up)
+            }
             register.dispatchMouseUp(x, y)
-
         } catch (e: Throwable) {
-            println("全局mouseup事件出错--$e")
+            println("全局mouseUp事件出错--$e")
         }
     }
 
     fun mouseMove(x: Float, y: Float) {
         try {
-            register.dispatchMouseMove(x,y)
+            val nodeWithPosition = hitest(x, y)
+            register.moveHitest = nodeWithPosition
+            register.requestCursor(cursorOf(nodeWithPosition))
+            if (nodeWithPosition != null) {
+                mouseEventOf(nodeWithPosition, MouseEventEnum.move)
+            }
+            register.dispatchMouseMove(x, y)
         } catch (e: Throwable) {
-            println("全局mouseup事件出错--$e")
+            println("全局mouseMove事件出错--$e")
         }
+    }
+
+    fun mouseExit() {
+        register.pressed = false
+        register.moveHitest = null
+        register.requestCursor(CursorType.DEFAULT)
     }
 
     fun mouseWheel(x: Float, y: Float, delta: Float) {
         try {
-            register.dispatchMouseWheel(x,y,delta)
+            register.dispatchMouseWheel(x, y, delta)
         } catch (e: Throwable) {
-            println("全局mouseup事件出错--$e")
+            println("全局mouseWheel事件出错--$e")
         }
     }
 
-    fun keyPress(key: Char, code: KeyCode, ctrl: Boolean, shift: Boolean, alt: Boolean) {
+    fun keyPress(
+        key: Char, code: KeyCode,
+        ctrl: Boolean,
+        shift: Boolean,
+        alt: Boolean,
+        meta: Boolean = false
+    ) {
         try {
-            val e = KeyEvent(key, code, ctrl, shift, alt)
+            if (!alt && !meta && !ctrl && code == KeyCode.Tab) {
+                moveFocus(!shift)
+                return
+            }
+            val e = KeyEvent(key, code, ctrl, shift, alt, meta)
             register.dispatchKeyPress(e)
         } catch (e: Throwable) {
             println("键盘事件出错--$e")
@@ -234,7 +342,7 @@ open class Renderer private constructor(
 
     fun composingText(text: String, cursorPosition: Int) {
         try {
-            register.dispatchComposingText(text,cursorPosition)
+            register.dispatchComposingText(text, cursorPosition)
         } catch (e: Throwable) {
             println("输入法事件出错--$e")
         }
@@ -250,5 +358,52 @@ private fun <K> register(map: MutableMap<K, EmptyFun>, key: K): EmptyFun {
 }
 
 private enum class MouseEventEnum {
-    click, down, up
+    click, down, up, move
+}
+
+private fun mouseEventOf(nodeWithPosition: NodeWithPosition, type: MouseEventEnum) {
+    val root = nodeWithPosition
+    var nodeWithPosition: NodeWithPosition? = nodeWithPosition
+    val list = mutableListOf<NodeWithPosition>()
+    //这里检查时，如果直接事件发生，造成状态改变，再向上查询时会出错。
+    while (nodeWithPosition != null) {
+        //捕获
+        val e = MouseEvent(nodeWithPosition.x, nodeWithPosition.y, root.x, root.y)
+        sendMouseEvent(nodeWithPosition.node, type, e, true)
+        if (e.stoppedProgression) {
+            return
+        }
+        list.add(nodeWithPosition)
+        nodeWithPosition = nodeWithPosition.next
+    }
+    list.asReversed().forEach {
+        //冒泡
+        val e = MouseEvent(it.x, it.y, root.x, root.y)
+        sendMouseEvent(it.node, type, e, false)
+        if (e.stoppedProgression) {
+            return
+        }
+    }
+}
+
+private fun sendMouseEvent(node: Node, type: MouseEventEnum, e: MouseEvent, capture: Boolean) {
+    when (type) {
+        MouseEventEnum.click -> if (capture) node.mouseClickCapture(e) else node.mouseClick(e)
+        MouseEventEnum.down -> if (capture) node.mouseDownCapture(e) else node.mouseDown(e)
+        MouseEventEnum.up -> if (capture) node.mouseUpCapture(e) else node.mouseUp(e)
+        MouseEventEnum.move -> if (capture) node.mouseMoveCapture(e) else node.mouseMove(e)
+    }
+}
+
+private fun cursorOf(chain: NodeWithPosition?): CursorType {
+    var pointer = false
+    var n: NodeWithPosition? = chain
+    while (n != null) {
+        when {
+            n.node is EditableTextNode -> return CursorType.TEXT
+            n.node.focusable -> pointer = true
+        }
+        n = n.next
+    }
+    return if (pointer) CursorType.POINTER else CursorType.DEFAULT
 }

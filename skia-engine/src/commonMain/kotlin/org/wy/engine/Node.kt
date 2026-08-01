@@ -21,10 +21,38 @@ data class NodeWithPosition(
     val next: NodeWithPosition?
 )
 
+fun NodeWithPosition.include(node: Node): Boolean {
+    var n: NodeWithPosition? = this
+    while (n != null) {
+        if (n.node == node) {
+            return true
+        }
+        n = n.next
+    }
+    return false
+}
+
+val NodeWithPosition.last: NodeWithPosition
+    get() {
+        var it: NodeWithPosition = this
+        while (it.next != null) {
+            it = it.next
+        }
+        return it
+    }
+
+fun Node.contains(node: Node): Boolean {
+    if (node == this) {
+        return true
+
+    }
+    return children.find { it == node } != null
+}
 
 open class Node(
     val context: StateHolder<Node>?
 ) {
+    open val hide = false
     val parent: Node?
 
     init {
@@ -45,7 +73,7 @@ open class Node(
 
     open fun StateHolderWithNode<Node, List<Node>>.argChildren() {}
 
-    var getChildren: GetValue<List<Node>> = context?.renderListNode(this, ::collectIndex) {
+    var getChildren: GetValue<List<Node>> = context?.renderListNode(this) {
         argChildren()
     } ?: { emptyList() }
         protected set
@@ -57,6 +85,9 @@ open class Node(
     var index = 0
         internal set
         get() {
+            if (hide) {
+                throw Error("已经隐藏不再显示")
+            }
             parent?.children
             return field
         }
@@ -80,15 +111,55 @@ open class Node(
     open fun mouseUp(e: MouseEvent) {}
     open fun mouseUpCapture(e: MouseEvent) {}
 
+    open fun mouseMove(e: MouseEvent) {}
+    open fun mouseMoveCapture(e: MouseEvent) {}
+
+    /**
+     * 是否可被 Tab 焦点遍历拾取（相当于 web 的 `tabindex >= 0`）。
+     */
+    open val focusable: Boolean = false
+
+    /**
+     * Tab 遍历的显式顺序（相当于 web 的 `tabindex` 正数、Compose 的 `focusOrder`、
+     * Flutter 的 `FocusTraversalOrder`）。值越小越先被遍历；`null` 表示不指定，
+     * 排在所有显式顺序之后，按文档顺序。
+     */
+    open val focusOrder: Int? = null
+
+    /**
+     * 当前是否持有焦点（等价于 `EngineGlobal.focused === this`）。
+     * `focused` 是信号，在 `draw` / `memo` 里读取即为响应式，焦点变化会自动触发重绘。
+     */
+    val isFocused: Boolean
+        get() = engineGlobal?.focused === this
+
+    /**
+     * 请求获得焦点（等价于 `EngineGlobal.focused = this`）。
+     */
+    fun requestFocus() {
+        engineGlobal?.focused = this
+    }
+
     open fun draw(canvas: PlatformCanvas) {
         drawChildren(canvas)
     }
+
+    private val engineGlobal: EngineGlobal? = context?.consume(engineGlobalContext)
 }
 
-fun Node.drawChildren(canvas: PlatformCanvas) {
+private fun Node.drawChildren(canvas: PlatformCanvas) {
     children.forEach {
         canvas.save()
-        canvas.translate(it.x, it.y)
+        if (it is ScrollContent) {
+            val p = it.layoutParent!!
+            canvas.clipRect(
+                p.padding(Direction.x, StartEnd.start),
+                p.padding(Direction.y, StartEnd.start),
+                p.innerSize(Direction.x),
+                p.innerSize(Direction.y)
+            )
+        }
+        canvas.translate(it.position(Direction.x), it.position(Direction.y))
         it.draw(canvas)
         canvas.restore()
     }

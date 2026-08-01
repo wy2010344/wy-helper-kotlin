@@ -8,17 +8,26 @@ import kotlin.math.max
 import kotlin.math.min
 
 private var activeEditor: EditableTextNode? = null
-private var wasEditorClicked = false
+private var keyRouterRegistered = false
 open class EditableTextNode(
     context: StateHolder<Node>,
     private val maxHistorySize: Int = 100
 ) : WrappedTextNode(context) {
     override var text  by createSignal("")
 
+    override val focusable: Boolean get() = true
+
     open val cursorColor: ColorInt = rgba(0, 0, 0)
     open val cursorWidth: Float = 2f
+
+    open val composingBackgroundColor=rgba(200,200,255,50)
+    open val composingUnderlineColor=rgba(0,0,0,140)
     private var cursorVisible by createSignal(true)
 
+
+    private var composingStart by createSignal(0)
+    private var composingLength by createSignal(0)
+    private var compositionBase:Pair<Int,String>?=null
     private var composingText by createSignal("")
     private var composingCursorPos by createSignal(0)
 
@@ -26,7 +35,6 @@ open class EditableTextNode(
     val canUndo: Boolean get() = undoRedo.canUndo
     val canRedo: Boolean get() = undoRedo.canRedo
 
-    private var focused by createSignal(false)
     private var preferredX = Float.NaN
     private var lastOverlayX = Float.NaN
     private var lastOverlayY = Float.NaN
@@ -51,7 +59,11 @@ open class EditableTextNode(
         focusIndex = end.coerceIn(0, text.length)
     }
 
+    private val inComposing: Boolean
+        get() = composingLength > 0
+
     fun undo() {
+        if(inComposing)return
         val current = TextState(text, cursor())
         undoRedo.undo(current)?.let { applyState(it) }
     }
@@ -138,9 +150,9 @@ open class EditableTextNode(
     private fun cursorRect(): List<TextRect> {
         val p = paragraph ?: return emptyList()
         val pos = cursor()
-        val list = p.getRectsForRange(pos, pos + 1)
+        val list = p.getRectsForRange(pos, pos + 1, RectStyle.TIGHT)
         if (list.isNotEmpty()) return list
-        if (pos > 0) return p.getRectsForRange(pos - 1, pos)
+        if (pos > 0) return p.getRectsForRange(pos - 1, pos, RectStyle.TIGHT)
         return emptyList()
     }
 
@@ -150,7 +162,8 @@ open class EditableTextNode(
         if (rects.isEmpty()) return setCursor(0)
         val r = rects[0]
         if (preferredX.isNaN()) preferredX = r.left + r.width / 2f
-        val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.top - 1f)
+        val step = r.bottom - r.top
+        val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.top - step)
         setCursor(newPos.coerceIn(0, text.length))
     }
 
@@ -160,7 +173,8 @@ open class EditableTextNode(
         if (rects.isEmpty()) return setCursor(text.length)
         val r = rects[0]
         if (preferredX.isNaN()) preferredX = r.left + r.width / 2f
-        val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.bottom + 1f)
+        val step = r.bottom - r.top
+        val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.bottom + step)
         setCursor(newPos.coerceIn(0, text.length))
     }
 
@@ -171,7 +185,8 @@ open class EditableTextNode(
         val r = rects[0]
         if (preferredX.isNaN()) preferredX = r.left + r.width / 2f
         val a = if (anchorIndex >= 0) anchorIndex else cursor()
-        val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.top - 1f)
+        val step = r.bottom - r.top
+        val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.top - step)
         anchorIndex = a
         focusIndex = newPos.coerceIn(0, text.length)
     }
@@ -183,7 +198,8 @@ open class EditableTextNode(
         val r = rects[0]
         if (preferredX.isNaN()) preferredX = r.left + r.width / 2f
         val a = if (anchorIndex >= 0) anchorIndex else cursor()
-        val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.bottom + 1f)
+        val step = r.bottom - r.top
+        val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.bottom + step)
         anchorIndex = a
         focusIndex = newPos.coerceIn(0, text.length)
     }
@@ -197,28 +213,28 @@ open class EditableTextNode(
 
     init {
         g = context.consume(engineGlobalContext)!!
-        val d0 = g.registerMouseDown { wasEditorClicked = false }
-        val d3 = g.registerKeyPress { handleKey(it) }
-        val d4 = g.registerComposingText { t, p ->
-            composingText = t
-            composingCursorPos = p
-        }
-        val d5 = g.registerMouseUp {
-            if (!wasEditorClicked && activeEditor != null) {
-                activeEditor?.focused = false
-                activeEditor?.hideOverlay()
-                activeEditor = null
+        if (!keyRouterRegistered) {
+            keyRouterRegistered = true
+            g.registerKeyPress { (g.focused as? EditableTextNode)?.handleKey(it) }
+            g.registerComposingText { t, p ->
+                val ed = g.focused as? EditableTextNode
+                if (ed != null) {
+                    ed.composingText = t
+                    ed.composingCursorPos = p
+                }
             }
         }
-        context.addDestroy { d0(); d3(); d4(); d5(); hideOverlay() }
+        context.addDestroy { hideOverlay() }
     }
 
     private fun handleKey(e: KeyEvent) {
-        focused = true
         when {
             e.ctrl && e.key == 'z' -> undo()
             e.ctrl && e.key == 'y' -> redo()
             e.ctrl && e.key == 'a' -> selectAll()
+            e.ctrl && e.key == 'c' -> copy()
+            e.ctrl && e.key == 'v' -> paste()
+            e.ctrl && e.key == 'x' -> cut()
             e.code == KeyCode.Backspace -> backspace().also { preferredX = Float.NaN }
             e.code == KeyCode.Delete -> delete().also { preferredX = Float.NaN }
             e.code == KeyCode.Left -> if (e.shift) selectLeft().also { preferredX = Float.NaN } else moveLeft().also { preferredX = Float.NaN }
@@ -237,6 +253,25 @@ open class EditableTextNode(
                 insertText(e.key.toString())
             }
         }
+    }
+
+    private fun copy() {
+        if (!hasSel) return
+        clipboardSetText(text.substring(selStart, selEnd))
+    }
+
+    private fun cut() {
+        if (!hasSel) return
+        clipboardSetText(text.substring(selStart, selEnd))
+        delSel()
+    }
+
+    private fun paste() {
+        val t = clipboardGetText() ?: return
+        if (t.isEmpty()) return
+        preferredX = Float.NaN
+        composingText = ""
+        insertText(t)
     }
 
     fun selectLeft() {
@@ -258,49 +293,35 @@ open class EditableTextNode(
     override fun mouseDownCapture(e: MouseEvent) {
         super.mouseDownCapture(e)
         preferredX = Float.NaN
-        wasEditorClicked = true
-        val prev = activeEditor
-        if (prev != null && prev != this) {
-            prev.focused = false
-            prev.hideOverlay()
-        }
-        activeEditor = this
-        focused = true
         showOverlay()
     }
 
-    private fun showOverlay() {
-        val p = paragraph ?: return
+    private fun overlayOrigin(): Pair<Float, Float> {
         val pos = cursor()
-        val list = p.getRectsForRange(pos, pos + 1)
-        val (ox, oy) = if (list.isNotEmpty()) {
-            (absoluteX + list[0].left) to (absoluteY + list[0].top)
-        } else if (pos > 0) {
-            val r = p.getRectsForRange(pos - 1, pos)
-            if (r.isNotEmpty()) (absoluteX + r[0].right) to (absoluteY + r[0].top)
-            else absoluteX to absoluteY
-        } else {
-            absoluteX to absoluteY
+        val p = paragraph
+        if (p != null) {
+            val list = p.getRectsForRange(pos, pos + 1, RectStyle.TIGHT)
+            if (list.isNotEmpty()) {
+                return (absoluteX + list[0].left) to (absoluteY + list[0].top)
+            }
+            if (pos > 0) {
+                val r = p.getRectsForRange(pos - 1, pos, RectStyle.TIGHT)
+                if (r.isNotEmpty()) return (absoluteX + r[0].right) to (absoluteY + r[0].top)
+            }
         }
+        return absoluteX to absoluteY
+    }
+
+    private fun showOverlay() {
+        val (ox, oy) = overlayOrigin()
         lastOverlayX = ox
         lastOverlayY = oy
         g.requestInputOverlay(ox, oy, 1f, 1f, fontSize)
     }
 
     private fun updateOverlayPosition() {
-        if (!focused) return
-        val p = paragraph ?: return
-        val pos = cursor()
-        val list = p.getRectsForRange(pos, pos + 1)
-        val (ox, oy) = if (list.isNotEmpty()) {
-            (absoluteX + list[0].left) to (absoluteY + list[0].top)
-        } else if (pos > 0) {
-            val r = p.getRectsForRange(pos - 1, pos)
-            if (r.isNotEmpty()) (absoluteX + r[0].right) to (absoluteY + r[0].top)
-            else absoluteX to absoluteY
-        } else {
-            absoluteX to absoluteY
-        }
+        if (!isFocused) return
+        val (ox, oy) = overlayOrigin()
         if (ox != lastOverlayX || oy != lastOverlayY) {
             lastOverlayX = ox
             lastOverlayY = oy
@@ -315,23 +336,24 @@ open class EditableTextNode(
         }
     }
 
-    override fun draw(canvas: PlatformCanvas) {
-        val p = paragraph ?: return
-
-        if (hasSel) {
-            val s = min(anchorIndex, focusIndex)
-            val e = max(anchorIndex, focusIndex)
-            for (rect in p.getRectsForRange(s, e)) {
-                canvas.fillRect(rect.left, rect.top, rect.width, rect.height, selectionColor)
+    private fun updateFocusOverlay() {
+        if (isFocused) {
+            if (activeEditor != this) {
+                activeEditor = this
+                showOverlay()
             }
+        } else if (activeEditor == this) {
+            hideOverlay()
         }
+    }
 
-        canvas.drawParagraph(p, 0f, 0f)
+    override fun draw(canvas: PlatformCanvas) {
+        updateFocusOverlay()
         super.draw(canvas)
 
         updateOverlayPosition()
 
-        if (!hasSel && cursorVisible && focused) {
+        if (!hasSel && cursorVisible && isFocused) {
             drawCursor(canvas, cursor())
         }
 
@@ -341,47 +363,100 @@ open class EditableTextNode(
     }
 
     private fun drawCursor(canvas: PlatformCanvas, pos: Int) {
-        val p = paragraph ?: return
-        val list = p.getRectsForRange(pos, pos + 1)
+        val p = paragraph
+        if (p == null) {
+            // 空文本时没有段落，光标固定绘制在首行起始处
+            canvas.fillRect(
+                paddingInlineStart,
+                paddingBlockStart,
+                cursorWidth,
+                max(fontSize * 1.4f, 8f),
+                cursorColor
+            )
+            return
+        }
+        val px = paddingInlineStart
+        val py = paddingBlockStart
+        val list = p.getRectsForRange(pos, pos + 1, RectStyle.TIGHT)
         if (list.isNotEmpty()) {
             val r = list[0]
-            canvas.fillRect(r.left, r.top, cursorWidth, r.height, cursorColor)
+            canvas.fillRect(r.left + px, r.top + py, cursorWidth, r.height, cursorColor)
         } else if (pos > 0) {
-            val list2 = p.getRectsForRange(pos - 1, pos)
+            val list2 = p.getRectsForRange(pos - 1, pos, RectStyle.TIGHT)
             if (list2.isNotEmpty()) {
                 val r = list2[0]
-                canvas.fillRect(r.right - cursorWidth, r.top, cursorWidth, r.height, cursorColor)
+                canvas.fillRect(r.right - cursorWidth + px, r.top + py, cursorWidth, r.height, cursorColor)
             }
         }
     }
 
     private fun drawComposing(canvas: PlatformCanvas) {
+        if (composingLength <= 0) return
         val p = paragraph ?: return
-        val pos = cursor()
-        val list = p.getRectsForRange(pos, pos + 1)
-        val x: Float
-        val y: Float
-        val h: Float
-        if (list.isNotEmpty()) {
-            x = list[0].left
-            y = list[0].top
-            h = list[0].height
-        } else {
-            x = 0f
-            y = 0f
-            h = lineHeight
+        val px = paddingInlineStart
+        val py = paddingBlockStart
+        val s = composingStart
+        val e = s + composingLength
+        for (rect in p.getRectsForRange(s, e, RectStyle.TIGHT)) {
+            canvas.fillRect(rect.left + px, rect.top + py, rect.width, rect.height, composingBackgroundColor)
+            canvas.fillRect(rect.left + px, rect.bottom - 2f + py, rect.width, 2f, composingUnderlineColor)
         }
+    }
 
-        val cp = buildParagraph(
-            text = composingText,
-            fontFamily = fontFamily,
-            fontWeight = fontWeight,
-            fontSize = fontSize,
-            fontColor = color,
-            lineHeight = lineHeight,
-            maxWidth = Float.MAX_VALUE,
-            wordBreak = wordBreak
-        )
-        canvas.drawParagraph(cp, x, y + h - cp.height)
+    fun cancelComposition() {
+        val start = composingStart
+        val len = composingLength
+        val base = compositionBase
+        if (base != null && len > 0) {
+            val restored = text.substring(0, start) + base.second + text.substring(start + len)
+            if (restored != text) text = restored
+            setCursor(base.first.coerceIn(0, restored.length))
+        }
+        composingStart = 0
+        composingLength = 0
+        compositionBase = null
+        composingText = ""
+        composingCursorPos = 0
+        preferredX = Float.NaN
+    }
+
+    fun commitComposition() {
+        composingStart = 0
+        composingLength = 0
+        compositionBase = null
+        composingText = ""
+        composingCursorPos = 0
+    }
+    protected open fun onComposing(committed: String,composing: String,cursorInComposing:Int){
+        if(committed.isEmpty() && composing.isEmpty()){
+            cancelComposition()
+            return
+        }
+        if(compositionBase==null){
+            val (start,oldLen)=when{
+                hasSel -> selStart to (selEnd-selStart)
+                else -> cursor().coerceIn(0,text.length) to 0
+            }
+            compositionBase=start to text.substring(start,start+oldLen)
+            composingStart=start
+        }
+        val inserted=committed+composing
+        val start=composingStart
+        val oldLen=composingLength
+        if(inserted.isNotEmpty() || oldLen>0){
+            val newText=text.substring(0,start)+inserted+text.substring(start+oldLen)
+            if(newText!=text){
+                text=newText
+            }
+        }
+        composingStart=start+committed.length
+        composingLength=composing.length
+        val caret=composingStart+cursorInComposing.coerceIn(0,composing.length)
+        anchorIndex=caret
+        focusIndex=caret
+        preferredX= Float.NaN
+        if(composing.isEmpty()){
+            commitComposition()
+        }
     }
 }
