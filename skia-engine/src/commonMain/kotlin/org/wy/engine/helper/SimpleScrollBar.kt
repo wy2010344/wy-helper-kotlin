@@ -24,7 +24,7 @@ import org.wy.engine.strokeInnerRect
  * 纵向时轨道宽度固定 10f，滑块沿 y 移动；横向时轨道高度固定 10f，滑块沿 x 移动。
  */
 abstract class SimpleScrollBar(
-    context: StateHolder<Node>,
+    context: StateHolder<Node,List<Node>>,
     val direction: Direction = Direction.y
 ) {
     abstract val scroll: Scroll

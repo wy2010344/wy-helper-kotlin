@@ -14,7 +14,7 @@ enum class WordBreak {
 }
 
 open class WrappedTextNode(
-    context: StateHolder<Node>
+    context: StateHolder<Node,List<Node>>
 ) : RichTextNode(context) {
     open val text: String = ""
     open val fontFamily: String? = null

@@ -10,7 +10,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 open class RichTextNode(
-    context: StateHolder<Node>
+    context: StateHolder<Node,List<Node>>
 ) : RectNode(context) {
 
     open val spans: List<RichTextSpan> = emptyList()

@@ -18,7 +18,7 @@ import org.wy.signal.setValue
 // ════════════════════════════════════════════════════
 // 交互控件
 // ════════════════════════════════════════════════════
-internal fun <T> StateHolder<Node>.dNavItem(
+internal fun <T> StateHolder<Node,List<Node>>.dNavItem(
     iconColor: ColorInt,
     label: String,
     badge: Int?,
@@ -106,7 +106,7 @@ internal fun <T> StateHolder<Node>.dNavItem(
     }
 }
 
-internal fun StateHolder<Node>.dToggleRow(
+internal fun StateHolder<Node,List<Node>>.dToggleRow(
     label: String,
     checked: StoreRef<Boolean>,
     focusOrder: Int? = null
@@ -157,7 +157,7 @@ internal fun StateHolder<Node>.dToggleRow(
     }
 }
 
-internal fun StateHolder<Node>.dSlider(
+internal fun StateHolder<Node,List<Node>>.dSlider(
     label: String,
     value: StoreRef<Float>,
     focusOrder: Int? = null,
@@ -221,7 +221,7 @@ internal fun StateHolder<Node>.dSlider(
     }
 }
 
-internal fun <T> StateHolder<Node>.dSegTabs(active: StoreRef<T>, items: List<Pair<T, String>>): RectNode =
+internal fun <T> StateHolder<Node,List<Node>>.dSegTabs(active: StoreRef<T>, items: List<Pair<T, String>>): RectNode =
     object : RectNode(this), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)
         override val direction: Direction get() = Direction.x

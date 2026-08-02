@@ -3,12 +3,12 @@ package com.wy.mve
 import org.wy.lib.GetValue
 
 
-internal open class EachValue<Node, T, O>(
-    config: ShareConfig<Node>,
+internal open class EachValue<Node,Target, T, O>(
+    config: ShareConfig<Node,Target>,
     val getSignal: GetValue<*>,
-    parent: StateHolderI<Node>,
+    parent: StateHolderI<Node,*>,
     parentContextIndex: Int
-) : StateHolderI<Node>(
+) : StateHolderI<Node,Target>(
     config,
     parent,
     parentContextIndex

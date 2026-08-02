@@ -16,7 +16,7 @@ import org.wy.signal.setValue
 // ════════════════════════════════════════════════════
 // 基础控件
 // ════════════════════════════════════════════════════
-internal fun StateHolder<Node>.dLabel(
+internal fun StateHolder<Node,List<Node>>.dLabel(
     text: () -> String,
     size: Float = 13f,
     color: ColorInt = TEXT,
@@ -31,7 +31,7 @@ internal fun StateHolder<Node>.dLabel(
     override val argWidth: LayoutSize get() = width?.let { LayoutSize(it, false) } ?: super.argWidth
 }
 
-internal fun StateHolder<Node>.dButton(
+internal fun StateHolder<Node,List<Node>>.dButton(
     label: String,
     onClick: () -> Unit,
     primary: Boolean = true,
@@ -83,7 +83,7 @@ internal fun StateHolder<Node>.dButton(
     }
 }
 
-internal fun StateHolder<Node>.dTextField(value: StoreRef<String>, focusOrder: Int): EditableTextNode =
+internal fun StateHolder<Node,List<Node>>.dTextField(value: StoreRef<String>, focusOrder: Int): EditableTextNode =
     object : EditableTextNode(this) {
         override var text: String
             get() = value.value

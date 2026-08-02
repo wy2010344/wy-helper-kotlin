@@ -38,7 +38,7 @@ fun main() {
     }
 }
 
-fun StateHolder<Node>.demoTitle() {
+fun StateHolder<Node,List<Node>>.demoTitle() {
     object : WrappedTextNode(this) {
         override val autoWidth: Boolean get() = true
         override val text: String get() = "wy-helper engine demo"
@@ -47,7 +47,7 @@ fun StateHolder<Node>.demoTitle() {
     }
 }
 
-fun StateHolder<Node>.demoEditable() {
+fun StateHolder<Node,List<Node>>.demoEditable() {
     object : RectNode(this), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)
         override val argWidth: LayoutSize get() = LayoutSize(420f, true)
@@ -78,7 +78,7 @@ fun StateHolder<Node>.demoEditable() {
     }
 }
 
-fun StateHolder<Node>.demoImage() {
+fun StateHolder<Node,List<Node>>.demoImage() {
     object : RectNode(this), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)
         override val alignItem: AlignItem get() = AlignItem.center
@@ -115,7 +115,7 @@ fun StateHolder<Node>.demoImage() {
     }
 }
 
-fun StateHolder<Node>.demoGraphics() {
+fun StateHolder<Node,List<Node>>.demoGraphics() {
     object : RectNode(this), FlexParam {
         override val direction: Direction = Direction.y
         override val layout: LayoutDirection = FlexObject(this)
@@ -168,7 +168,7 @@ private class RowModal(val key: Long) {
     var hide by createSignal(false)
 }
 
-fun StateHolder<Node>.demoList() {
+fun StateHolder<Node,List<Node>>.demoList() {
     object : RectNode(this), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)
         override val argWidth: LayoutSize get() = LayoutSize(420f, false)

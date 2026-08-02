@@ -10,7 +10,7 @@ import kotlin.math.min
 private var activeEditor: EditableTextNode? = null
 private var keyRouterRegistered = false
 open class EditableTextNode(
-    context: StateHolder<Node>,
+    context: StateHolder<Node,List<Node>>,
     private val maxHistorySize: Int = 100
 ) : WrappedTextNode(context) {
     override var text  by createSignal("")

@@ -2,14 +2,17 @@ package org.wy.engine
 
 import com.wy.layout.Layout
 import com.wy.mve.StateHolder
+import org.jetbrains.skia.Canvas
 import org.jetbrains.skiko.SkiaLayer
 import org.jetbrains.skiko.SkikoRenderDelegate
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.lib.EmptyFun
 import org.wy.lib.GetValue
+import org.wy.lib.kanren.any
 import org.wy.signal.TrackSignal
 import org.wy.signal.createSignal
+import org.wy.signal.memo
 import java.awt.Color
 import java.awt.Cursor
 import java.awt.Dimension
@@ -37,7 +40,7 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
  */
 
 @OptIn(ExperimentalAtomicApi::class)
-open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Node>? = null) :
+open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Node,List<Node>>? = null) :
     Renderer(context) {
     open var title = "Skia Engine"
     private val w = createSignal(width)

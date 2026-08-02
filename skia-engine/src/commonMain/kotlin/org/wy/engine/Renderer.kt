@@ -2,17 +2,17 @@ package org.wy.engine
 
 import com.wy.mve.ShareConfig
 import com.wy.mve.StateHolder
-import com.wy.mve.renderListRoot
-import org.wy.engine.hitest
+import com.wy.mve.ValueOrGetList
+import com.wy.mve.purifyList
+import com.wy.mve.renderRoot
 import org.wy.lib.EmptyFun
-import org.wy.lib.left
 import org.wy.signal.TrackSignal
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
+import org.wy.signal.memo
 import org.wy.signal.setValue
-import kotlin.collections.set
 
-private class Register(context: StateHolder<Node>?) {
+private class Register(context: StateHolder<Node, List<Node>>?) {
     init {
         if (context != null) {
             provide(context)
@@ -63,7 +63,7 @@ private class Register(context: StateHolder<Node>?) {
         cursorHandler?.invoke(type)
     }
 
-    fun provide(context: StateHolder<Node>) {
+    fun provide(context: StateHolder<Node, List<Node>>) {
         context.provide(engineGlobalContext, object : EngineGlobal {
             override fun registerMouseDown(callback: MouseCallback): EmptyFun {
                 return register(downList, callback)
@@ -147,23 +147,29 @@ private class Register(context: StateHolder<Node>?) {
     }
 }
 
-private val nodeConfig = object : ShareConfig<Node> {
-    override fun ignore(node: Node): Boolean {
+private val nodeConfig = object : ShareConfig<Node, List<Node>> {
+    fun ignore(node: Node): Boolean {
         return node.hide
     }
 
     override fun after(list: List<Node>) {
         collectIndex(list)
     }
+
+    override fun purifyList(nodes: List<ValueOrGetList<Node>>): List<Node> {
+        val newList = mutableListOf<Node>()
+        purifyList(nodes, newList, ::ignore)
+        return newList
+    }
 }
 
 open class Renderer private constructor(
-    context: StateHolder<Node>?,
+    context: StateHolder<Node, List<Node>>?,
     private val register: Register
 ) : LayoutNode(context) {
-    constructor(context: StateHolder<Node>?) : this(context, Register(context)) {
+    constructor(context: StateHolder<Node, List<Node>>?) : this(context, Register(context)) {
         if (context == null) {
-            val state = renderListRoot<Node>(this@Renderer, nodeConfig) {
+            val state = renderRoot(this@Renderer, nodeConfig) {
                 register.provide(this)
                 argChildren()
             }
@@ -198,15 +204,18 @@ open class Renderer private constructor(
             frameCallback()
         }
     }
+    val didDraw = memo {
+        recordPicture(outerWidth, outerHeight) {
+            draw(it)
+        }
+    }
 
     fun render(canvas: PlatformCanvas) {
         scheduled = true
         try {
             canvas.clear(rgba(255, 255, 255))
             signal.collect {
-                outerSize(Direction.x)
-                outerSize(Direction.y)
-                draw(canvas)
+                didDraw().draw(canvas, 0f, 0f)
             }
         } catch (err: Throwable) {
             println("渲染出错--$err")

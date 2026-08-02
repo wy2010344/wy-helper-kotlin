@@ -5,19 +5,20 @@ import org.wy.lib.GetValue
 import org.wy.lib.SetValue
 import org.wy.signal.Memo
 
-typealias Creater<Node, T, K, O> = StateHolder<Node>.(K, EachTime<T>) -> O
+typealias Creater<Node, Target, T, K, O> = StateHolder<Node, Target>.(K, EachTime<T>) -> O
 
 
-interface ShareConfig<Node>{
-    fun ignore(node:Node): Boolean
-    fun after(list:List<Node>): Unit
+interface ShareConfig<Node,Target> {
+    fun purifyList(nodes:List<ValueOrGetList<Node>>):Target
+    fun after(list: Target): Unit
 }
+
 enum class DuplicateInfo { IGNORE, WARN, THROW }
-interface StateHolder<Node> {
+interface StateHolder<Node, Target> {
     fun <T> provide(context: Context<T>, value: T)
 
 
-    fun addNode(n:Node)
+    fun addNode(n: Node)
     fun <T> consume(context: Context<T>): T
 
     fun addDestroy(destroy: EmptyFun)
@@ -27,18 +28,18 @@ interface StateHolder<Node> {
     fun <T, K, O> renderForEach(
         forEach: (callback: (K, T) -> GetValue<O>) -> Unit,
         duplicateInfo: DuplicateInfo = DuplicateInfo.IGNORE,
-        creater: Creater<Node, T, K, O>,
+        creater: Creater<Node, Target, T, K, O>,
     ): Memo<*>
 
-    fun renderListNode(
+    fun renderNode(
         node: Node,
-        callback: StateHolderWithNode<Node,List<Node>>.() -> Unit
-    ): GetValue<List<Node>>
+        callback: StateHolderWithNode<Node, Target>.() -> Unit
+    ): GetValue<Target>
 
     fun getParent(): Any?
 }
 
-interface StateHolderWithNode<T,F>: StateHolder<T>{
-    val node:T
+interface StateHolderWithNode<T, F> : StateHolder<T, F> {
+    val node: T
     val target: GetValue<F>
 }

@@ -15,7 +15,7 @@ import org.wy.signal.setValue
 // ════════════════════════════════════════════════════
 // 笔记页
 // ════════════════════════════════════════════════════
-internal fun StateHolder<Node>.dNotesPage(active: StoreRef<DemoTab>, notes: StoreRef<String>): RectNode =
+internal fun StateHolder<Node,List<Node>>.dNotesPage(active: StoreRef<DemoTab>, notes: StoreRef<String>): RectNode =
     object : RectNode(this), FlexParam, GrowChild {
         override val hide: Boolean get() = active.value != DemoTab.NOTES
 

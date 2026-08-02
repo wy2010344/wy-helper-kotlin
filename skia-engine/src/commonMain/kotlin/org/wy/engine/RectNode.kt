@@ -11,7 +11,7 @@ import org.wy.lib.GetValue
 import org.wy.signal.memo
 
 abstract class RectNode(
-    context: StateHolder<Node>
+    context: StateHolder<Node,List<Node>>
 ) : LayoutNode(context){
 
 

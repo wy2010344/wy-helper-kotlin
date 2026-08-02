@@ -4,27 +4,25 @@ import org.wy.lib.GetValue
 import org.wy.lib.SetValue
 import org.wy.signal.Memo
 
-interface RootReturn<Node> {
+interface RootReturn<Target> {
     fun destroy()
-    val target: GetValue<List<Node>>
+    val target: GetValue<Target>
 }
 
-internal open class TargetStateHolder<Node>(
+internal open class TargetStateHolder<Node,Target>(
     override val node: Node,
-    config: ShareConfig<Node>,
-    private val callback: StateHolderWithNode<Node,List<Node>>.() -> Unit,
-    parent: StateHolderI<Node>?=null
-) : StateHolderI<Node>(config,parent), RootReturn<Node>, StateHolderWithNode<Node,List<Node>> {
+    config: ShareConfig<Node,Target>,
+    private val callback: StateHolderWithNode<Node,Target>.() -> Unit,
+    parent: StateHolderI<Node,*>?=null
+) : StateHolderI<Node,Target>(config,parent), RootReturn<Target>, StateHolderWithNode<Node,Target> {
     override fun buildChildren() {
         provide<Node>(parentContext as Context<Node>, node)
         callback()
     }
 
-    override val target = object : Memo<List<Node>>() {
-        override fun get(old: List<Node>?, inited: Boolean): List<Node> {
-            val newList = mutableListOf<Node>()
-            purifyList(nodes, newList,config::ignore)
-           return newList
+    override val target = object : Memo<Target>() {
+        override fun get(old: Target?, inited: Boolean): Target {
+            return config.purifyList(nodes)
         }
 
         override fun toString(): String {
@@ -43,11 +41,11 @@ internal open class TargetStateHolder<Node>(
 internal val parentContext = Context<Any?>(null)
 
 
-fun <Node> renderListRoot(
+fun <Node,Target> renderRoot(
     node: Node,
-    config: ShareConfig<Node>,
-    callback: StateHolderWithNode<Node,List<Node>>.() -> Unit
-): RootReturn<Node> {
+    config: ShareConfig<Node,Target>,
+    callback: StateHolderWithNode<Node,Target>.() -> Unit
+): RootReturn<Target> {
     val node= TargetStateHolder(node, config, callback)
     node.create()
     return  node

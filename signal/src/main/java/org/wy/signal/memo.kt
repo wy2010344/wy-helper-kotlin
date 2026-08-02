@@ -44,7 +44,10 @@ abstract class Memo<T> : GetValue<T> {
             val cf = G.currentFun
             if (cf != null && listenerVersion != cf) {
                 listenerVersion = cf
+                val oldRelay=G.currentRelay
+                G.currentRelay=null
                 for ((k, _) in relays) k()
+                G.currentRelay=oldRelay
             }
             G.currentRelay?.let { relay -> relay[this] = lastValue }
             checkLeave()

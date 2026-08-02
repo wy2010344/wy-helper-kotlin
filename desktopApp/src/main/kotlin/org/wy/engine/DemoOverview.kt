@@ -17,7 +17,7 @@ import org.wy.signal.setValue
 // ════════════════════════════════════════════════════
 // 概览页
 // ════════════════════════════════════════════════════
-internal fun StateHolder<Node>.dStatCard(
+internal fun StateHolder<Node,List<Node>>.dStatCard(
     label: String,
     valueText: () -> String,
     sub: String,
@@ -75,7 +75,7 @@ internal fun StateHolder<Node>.dStatCard(
     }
 }
 
-internal fun StateHolder<Node>.dChartPanel(): RectNode {
+internal fun StateHolder<Node,List<Node>>.dChartPanel(): RectNode {
     return object : RectNode(this), FlexParam, GrowChild {
         override fun argGrow(direction: Direction): Float = if (direction == Direction.x) 1.5f else 0f
         override val layout: LayoutDirection = FlexObject(this)
@@ -189,7 +189,7 @@ internal fun StateHolder<Node>.dChartPanel(): RectNode {
     }
 }
 
-internal fun StateHolder<Node>.dOverviewPage(
+internal fun StateHolder<Node,List<Node>>.dOverviewPage(
     active: StoreRef<DemoTab>,
     activities: StoreRef<List<Activity>>,
     onAdd: () -> Unit

@@ -46,7 +46,7 @@ private fun findLayoutList(n: Node, list: MutableList<LayoutNode>) {
     }
 }
 
-open class LayoutNode(context: StateHolder<Node>?) : Node(context) {
+open class LayoutNode(context: StateHolder<Node,List<Node>>?) : Node(context) {
     open val layout: LayoutDirection
         get() = absoluteLayoutDirection
 

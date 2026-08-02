@@ -32,7 +32,7 @@ import org.wy.signal.memo
  * ```
  */
 open class ImageNode(
-    context: StateHolder<Node>
+    context: StateHolder<Node,List<Node>>
 ) : RectNode(context) {
 
     /** 图片（动态属性，可重载，如信号驱动或延迟解码）。null 时节点无尺寸、不绘制 */

@@ -16,7 +16,7 @@ import org.wy.signal.setValue
 // ════════════════════════════════════════════════════
 // 设置页
 // ════════════════════════════════════════════════════
-internal fun StateHolder<Node>.dSettingsPage(active: StoreRef<DemoTab>, toast: StoreRef<String>): RectNode {
+internal fun StateHolder<Node,List<Node>>.dSettingsPage(active: StoreRef<DemoTab>, toast: StoreRef<String>): RectNode {
     val name = createSignal("Ada")
     val email = createSignal("ada@wy.helper")
     val notify = createSignal(true)

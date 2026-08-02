@@ -6,7 +6,7 @@ import org.wy.engine.Node
 import org.wy.engine.engineGlobalContext
 
 
-fun StateHolder<Node>.drag(
+fun StateHolder<Node,List<Node>>.drag(
     change: (e: GlobalMouseEvent) -> Unit
 ) {
     val g = consume(engineGlobalContext)!!

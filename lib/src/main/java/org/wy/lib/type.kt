@@ -7,6 +7,7 @@ typealias GetValue<T> = () -> T
 typealias QuoteValue<T> = (v: T) -> T
 typealias SetValue<T> = (v: T) -> Unit
 typealias EmptyFun = () -> Unit
+typealias Fun<Arg,R> = (Arg)->R
 
 fun <T> simpleNotEqual(a: T, b: T) = a != b
 fun <T> simpleEqual(a: T, b: T) = a == b

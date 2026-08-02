@@ -18,7 +18,7 @@ import org.wy.signal.setValue
 // ════════════════════════════════════════════════════
 // 动态面板
 // ════════════════════════════════════════════════════
-internal fun StateHolder<Node>.dActivityPanel(
+internal fun StateHolder<Node,List<Node>>.dActivityPanel(
     activities: StoreRef<List<Activity>>,
     onAdd: () -> Unit
 ): RectNode = object : RectNode(this), FlexParam, GrowChild {

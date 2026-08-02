@@ -28,7 +28,7 @@ class Scroll(
     }
 }
 
-fun StateHolder<Node>.registerScroll(scroll: Scroll) {
+fun StateHolder<Node,List<Node>>.registerScroll(scroll: Scroll) {
     val engineGlobal = consume(engineGlobalContext)!!
     val d0 = engineGlobal.registerMouseWheel {
         if (scroll.container.absoluteInInner(it.x, it.y)) {
@@ -97,7 +97,7 @@ class ScrollBarCalculate(
     }
 }
 
-open class ScrollContent(context: StateHolder<Node>) : RectNode(context) {
+open class ScrollContent(context: StateHolder<Node,List<Node>>) : RectNode(context) {
     override fun acceptClip(x: Float, y: Float): Boolean {
         val sn = layoutParent!!
         val left = sn.paddingInlineStart

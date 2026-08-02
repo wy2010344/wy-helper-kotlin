@@ -46,7 +46,7 @@ fun main() {
  * - Home / End 跳转行首/行尾
  * - Ctrl+A 全选
  */
-fun StateHolder<Node>.demoEditableText() {
+fun StateHolder<Node,List<Node>>.demoEditableText() {
     var infoText by createSignal("Type something below. Ctrl+Z=Undo, Ctrl+Y=Redo")
     object : WrappedTextNode(this) {
         override val text: String get() = infoText
@@ -66,7 +66,7 @@ fun StateHolder<Node>.demoEditableText() {
  * 带状态标签的可编辑文本组件。
  * 实时显示当前文本长度和光标位置。
  */
-fun demoEditableTextWithStatus(context: StateHolder<Node>) {
+fun demoEditableTextWithStatus(context: StateHolder<Node,List<Node>>) {
     object : RectNode(context), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)
         override val argWidth: LayoutSize
@@ -97,7 +97,7 @@ fun demoEditableTextWithStatus(context: StateHolder<Node>) {
 /**
  * 演示多个可编辑文本框共存。
  */
-fun demoMultipleEditableText(context: StateHolder<Node>) {
+fun demoMultipleEditableText(context: StateHolder<Node,List<Node>>) {
 
     object : RectNode(context), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)

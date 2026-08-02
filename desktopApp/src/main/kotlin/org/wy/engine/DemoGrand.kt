@@ -27,7 +27,7 @@ enum class DemoTab(val label: String) {
     SETTINGS("设置")
 }
 
-internal fun StateHolder<Node>.dStatusBar(active: StoreRef<DemoTab>, toast: StoreRef<String>): RectNode =
+internal fun StateHolder<Node,List<Node>>.dStatusBar(active: StoreRef<DemoTab>, toast: StoreRef<String>): RectNode =
     object : RectNode(this), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)
         override val direction: Direction get() = Direction.x
@@ -88,7 +88,7 @@ private fun makeLogo(): PlatformImage? {
 
 private val logo = makeLogo()
 
-private fun StateHolder<Node>.buildGrandDemo() {
+private fun StateHolder<Node,List<Node>>.buildGrandDemo() {
     val active = createSignal(DemoTab.OVERVIEW)
     val activities = createSignal(defaultActivities())
     val notes = createSignal(defaultNotes())

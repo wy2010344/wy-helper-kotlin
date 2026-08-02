@@ -50,7 +50,7 @@ fun Node.contains(node: Node): Boolean {
 }
 
 open class Node(
-    val context: StateHolder<Node>?
+    val context: StateHolder<Node,List<Node>>?
 ) {
     open val hide = false
     val parent: Node?
@@ -73,7 +73,7 @@ open class Node(
 
     open fun StateHolderWithNode<Node, List<Node>>.argChildren() {}
 
-    var getChildren: GetValue<List<Node>> = context?.renderListNode(this) {
+    var getChildren: GetValue<List<Node>> = context?.renderNode(this) {
         argChildren()
     } ?: { emptyList() }
         protected set
