@@ -10,18 +10,18 @@ import kotlin.collections.isNullOrEmpty
 /**
  * 固定不变的如parent/parentContextIndex，必须从参数传入，如果使用重载，可能还没有初始化而出问题。
  */
-internal open class StateHolderI<Node,Target>(
-    val config: ShareConfig<Node,Target>,
-    val parent: StateHolderI<Node,*>? = null,
+internal open class StateHolderI<Node, Target>(
+    val config: ShareConfig<Node, Target>,
+    val parent: StateHolderI<*, *>? = null,
     val parentContextIndex: Int = parent?.contexts?.size ?: 0
-) : StateHolder<Node,Target> {
+) : StateHolder<Node, Target> {
     internal val nodes: MutableList<ValueOrGetList<Node>> = mutableListOf()
 
     init {
         this.parent?.children?.add(this)
     }
 
-    override  fun addNode(n: Node) {
+    override fun addNode(n: Node) {
         if (destroyed) {
             throw Error("已经结构构建，无法再继续添加")
         }
@@ -39,7 +39,7 @@ internal open class StateHolderI<Node,Target>(
     }
 
     internal open fun buildChildren() {}
-    private val children = mutableSetOf<StateHolderI<Node,*>>()
+    private val children = mutableSetOf<StateHolderI<*, *>>()
 
 
     private val destroyList = mutableListOf<EmptyFun>()
@@ -73,23 +73,28 @@ internal open class StateHolderI<Node,Target>(
             throw Error("已经初始化过了")
         }
         val contextIndex = contexts.size
-        val forEachSignal = object : Memo<ForEachModal<Node,Target, T, K, O>>() {
+        val forEachSignal = object : Memo<ForEachModal<Node, Target, T, K, O>>() {
             override fun get(
-                old: ForEachModal<Node,Target, T, K, O>?,
+                old: ForEachModal<Node, Target, T, K, O>?,
                 inited: Boolean
-            ): ForEachModal<Node,Target, T, K, O> {
+            ): ForEachModal<Node, Target, T, K, O> {
                 val cacheMap = old?.newMap ?: mutableMapOf()
-                val newMap = mutableMapOf<K, MutableList<EachValue<Node,Target, T, O>>>()
-                val thisTimeAdd = mutableListOf<EachValue<Node,Target, T, O>>()
-                val thisChildren = mutableListOf<EachValue<Node,Target, T, O>>()
+                val newMap = mutableMapOf<K, MutableList<EachValue<Node, Target, T, O>>>()
+                val thisTimeAdd = mutableListOf<EachValue<Node, Target, T, O>>()
+                val thisChildren = mutableListOf<EachValue<Node, Target, T, O>>()
                 var index = 0
                 val getSignal = this
                 forEach { key, value ->
                     val holders = cacheMap[key]
-                    val ev: EachValue<Node,Target, T, O>
+                    val ev: EachValue<Node, Target, T, O>
                     if (holders.isNullOrEmpty()) {
                         ev = object :
-                            EachValue<Node,Target, T, O>(this@StateHolderI.config, getSignal, this@StateHolderI, contextIndex) {
+                            EachValue<Node, Target, T, O>(
+                                this@StateHolderI.config,
+                                getSignal,
+                                this@StateHolderI,
+                                contextIndex
+                            ) {
                             override fun buildChildren() {
                                 creater(key, this)
                             }
@@ -134,16 +139,16 @@ internal open class StateHolderI<Node,Target>(
 
     private companion object All {
 
-        private fun <Node> getNodes(item: StateHolderI<Node,*>): List<ValueOrGetList<Node>> {
+        private fun <Node> getNodes(item: StateHolderI<Node, *>): List<ValueOrGetList<Node>> {
             return item.nodes
         }
 
 
         private fun <T, Node> findProvider(
-            who: StateHolderI<Node,*>,
+            who: StateHolderI<Node, *>,
             context: Context<T>
         ): Pair<Context<T>, T>? {
-            var holder: StateHolderI<Node,*>? = who
+            var holder: StateHolderI<*, *>? = who
             var begin = holder?.contexts?.size ?: 0
             while (holder != null) {
                 var i = begin - 1
@@ -165,7 +170,7 @@ internal open class StateHolderI<Node,Target>(
     private val contexts = mutableListOf<Pair<Context<*>, *>>()
 
     override fun <T> provide(context: Context<T>, value: T) {
-        if(endBuild){
+        if (endBuild) {
             throw Error("已经初始化后不希望再provide")
         }
         contexts.add(Pair(context, value))
@@ -184,7 +189,25 @@ internal open class StateHolderI<Node,Target>(
         callback: StateHolderWithNode<Node, Target>.() -> Unit
     ): GetValue<Target> {
 //        addNode(node)
-        val a = object : TargetStateHolder<Node,Target>(node, config, callback,this@StateHolderI) {
+        val a =
+            object : TargetStateHolder<Node, Target>(node, config, callback, this@StateHolderI) {
+                override fun toString(): String {
+                    return "render-node-target"
+                }
+            }
+        a.create()
+        return a.target
+    }
+
+    override fun <Node, Target> renderNode(
+        node: Node,
+        config: ShareConfig<Node, Target>,
+        callback: StateHolderWithNode<Node, Target>.() -> Unit
+    ): GetValue<Target> {
+        val a = object : TargetStateHolder<Node, Target>(
+            node, config, callback,
+            this@StateHolderI as StateHolderI<Node, *>
+        ) {
             override fun toString(): String {
                 return "render-node-target"
             }
@@ -198,13 +221,13 @@ internal open class StateHolderI<Node,Target>(
     }
 }
 
-private fun <Node> destroyHolder(stateHolder: StateHolderI<Node,*>) {
+private fun destroyHolder(stateHolder: StateHolderI<*, *>) {
     stateHolder.destroy()
 }
 
-private data class ForEachModal<Node,Target, T, K, O>(
-    val cacheMap: MutableMap<K, MutableList<EachValue<Node,Target, T, O>>>,
-    val newMap: MutableMap<K, MutableList<EachValue<Node,Target, T, O>>>,
-    val thisTimeAdd: MutableList<EachValue<Node,Target, T, O>>,
-    val thisChildren: MutableList<EachValue<Node,Target, T, O>>
+private data class ForEachModal<Node, Target, T, K, O>(
+    val cacheMap: MutableMap<K, MutableList<EachValue<Node, Target, T, O>>>,
+    val newMap: MutableMap<K, MutableList<EachValue<Node, Target, T, O>>>,
+    val thisTimeAdd: MutableList<EachValue<Node, Target, T, O>>,
+    val thisChildren: MutableList<EachValue<Node, Target, T, O>>
 )

@@ -12,7 +12,7 @@ import org.wy.signal.getValue
 import org.wy.signal.memo
 import org.wy.signal.setValue
 
-private class Register(context: StateHolder<Node, List<Node>>?) {
+private class Register(context: StateHolder<*, *>?) {
     init {
         if (context != null) {
             provide(context)
@@ -63,7 +63,7 @@ private class Register(context: StateHolder<Node, List<Node>>?) {
         cursorHandler?.invoke(type)
     }
 
-    fun provide(context: StateHolder<Node, List<Node>>) {
+    fun provide(context: StateHolder<*, *>) {
         context.provide(engineGlobalContext, object : EngineGlobal {
             override fun registerMouseDown(callback: MouseCallback): EmptyFun {
                 return register(downList, callback)
@@ -146,28 +146,11 @@ private class Register(context: StateHolder<Node, List<Node>>?) {
         composingList.forEach { it.key(text, cursorPosition) }
     }
 }
-
-private val nodeConfig = object : ShareConfig<Node, List<Node>> {
-    fun ignore(node: Node): Boolean {
-        return node.hide
-    }
-
-    override fun after(list: List<Node>) {
-        collectIndex(list)
-    }
-
-    override fun purifyList(nodes: List<ValueOrGetList<Node>>): List<Node> {
-        val newList = mutableListOf<Node>()
-        purifyList(nodes, newList, ::ignore)
-        return newList
-    }
-}
-
 open class Renderer private constructor(
-    context: StateHolder<Node, List<Node>>?,
+    context: StateHolder<*, *>?,
     private val register: Register
 ) : LayoutNode(context) {
-    constructor(context: StateHolder<Node, List<Node>>?) : this(context, Register(context)) {
+    constructor(context: StateHolder<*, *>?) : this(context, Register(context)) {
         if (context == null) {
             val state = renderRoot(this@Renderer, nodeConfig) {
                 register.provide(this)

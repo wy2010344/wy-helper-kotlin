@@ -1,7 +1,9 @@
 package org.wy.engine
 
+import com.wy.mve.ShareConfig
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
+import com.wy.mve.ValueOrGetList
 import org.wy.lib.GetValue
 
 enum class Direction {
@@ -49,8 +51,25 @@ fun Node.contains(node: Node): Boolean {
     return children.find { it == node } != null
 }
 
+
+internal val nodeConfig = object : ShareConfig<Node, List<Node>> {
+    fun ignore(node: Node): Boolean {
+        return node.hide
+    }
+
+    override fun after(list: List<Node>) {
+        collectIndex(list)
+    }
+
+    override fun purifyList(nodes: List<ValueOrGetList<Node>>): List<Node> {
+        val newList = mutableListOf<Node>()
+        com.wy.mve.purifyList(nodes, newList, ::ignore)
+        return newList
+    }
+}
+
 open class Node(
-    val context: StateHolder<Node,List<Node>>?
+    val context: StateHolder<*, *>?
 ) {
     open val hide = false
     val parent: Node?
@@ -62,7 +81,7 @@ open class Node(
             val p = context.getParent()
             if (p is Node) {
                 parent = p
-                context.addNode(this)
+                (context as StateHolder<Node, *>).addNode(this)
             } else if (p != null) {
                 parent = null
             } else {
@@ -73,7 +92,7 @@ open class Node(
 
     open fun StateHolderWithNode<Node, List<Node>>.argChildren() {}
 
-    var getChildren: GetValue<List<Node>> = context?.renderNode(this) {
+    var getChildren: GetValue<List<Node>> = context?.renderNode(this, nodeConfig) {
         argChildren()
     } ?: { emptyList() }
         protected set

@@ -13,7 +13,7 @@ internal open class TargetStateHolder<Node,Target>(
     override val node: Node,
     config: ShareConfig<Node,Target>,
     private val callback: StateHolderWithNode<Node,Target>.() -> Unit,
-    parent: StateHolderI<Node,*>?=null
+    parent: StateHolderI<*,*>?=null
 ) : StateHolderI<Node,Target>(config,parent), RootReturn<Target>, StateHolderWithNode<Node,Target> {
     override fun buildChildren() {
         provide<Node>(parentContext as Context<Node>, node)

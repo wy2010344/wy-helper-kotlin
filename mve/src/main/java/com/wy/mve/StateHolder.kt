@@ -36,6 +36,12 @@ interface StateHolder<Node, Target> {
         callback: StateHolderWithNode<Node, Target>.() -> Unit
     ): GetValue<Target>
 
+    fun <Node,Target> renderNode(
+        node: Node,
+        config: ShareConfig<Node,Target>,
+        callback: StateHolderWithNode<Node, Target>.() -> Unit
+    ): GetValue<Target>
+
     fun getParent(): Any?
 }
 

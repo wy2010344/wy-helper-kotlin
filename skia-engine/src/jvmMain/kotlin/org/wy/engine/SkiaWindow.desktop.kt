@@ -40,7 +40,7 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
  */
 
 @OptIn(ExperimentalAtomicApi::class)
-open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<Node,List<Node>>? = null) :
+open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*>? = null) :
     Renderer(context) {
     open var title = "Skia Engine"
     private val w = createSignal(width)
