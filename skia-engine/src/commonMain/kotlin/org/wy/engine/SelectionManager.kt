@@ -9,20 +9,25 @@ import org.wy.signal.setValue
 class SelectionManager {
     private val registered = mutableMapOf<Int, Selectable>()
     private var nextId = 0
+    private var version by createSignal(0)
 
     fun register(s: Selectable): Int {
         val id = nextId++
         registered[id] = s
+        version++
         return id
     }
 
-    fun unregister(id: Int) { registered.remove(id) }
+    fun unregister(id: Int) {
+        registered.remove(id)
+        version++
+    }
 
     private var anchor by createSignal<Pair<Int, Int>?>(null)
     private var focus by createSignal<Pair<Int, Int>?>(null)
     private var dragging by createSignal(false)
 
-    private val ordered by memo { registered.values.sortedBy { it.selectionOrder } }
+    private val ordered by memo { version; registered.values.sortedBy { it.selectionOrder } }
 
     val hasSelection: Boolean get() = anchor != null && anchor != focus
 

@@ -316,7 +316,8 @@ open class Renderer private constructor(
             keyboardModifiers = Modifiers(ctrl, shift, alt, meta)
             if (!alt && !meta && !ctrl && code == KeyCode.Tab) { moveFocus(!shift); return }
             val e = KeyEvent(key, code, ctrl, shift, alt, meta)
-            (register.focused as? KeyHandler)?.handleKey(e) ?: register.dispatchKeyPress(e)
+            val handled = (register.focused as? KeyHandler)?.handleKey(e) ?: false
+            if (!handled) register.dispatchKeyPress(e)
         } catch (e: Throwable) { println("keyboard error--$e") }
     }
 

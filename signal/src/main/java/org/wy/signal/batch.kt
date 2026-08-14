@@ -30,26 +30,39 @@ fun batchSignalEnd() {
             val listeners = currentBatch.listeners
 
             G.onWorkBatch = currentBatch
-            listeners.forEach { it.addFun() }
-            listeners.clear()
+            try {
+                listeners.forEach { it.addFun() }
+                listeners.clear()
 
-            while (deps.isNotEmpty()) {
-                deps.removeFirst().addFun()
+                while (deps.isNotEmpty()) {
+                    deps.removeFirst().addFun()
+                }
+            } finally {
+                G.onWorkBatch = null
             }
-            G.onWorkBatch = null
 
             G.onEffectRun = true
-            val keys = effects.keys.sortedDescending().toMutableList()
-            G.onEffectKeys = keys
-            while (keys.isNotEmpty()) {
-                val key = keys.removeLast()
-                G.onEffectLevel = key
-                effects[key]?.forEach { it() }
+            try {
+                val keys = effects.keys.sortedDescending().toMutableList()
+                G.onEffectKeys = keys
+                while (keys.isNotEmpty()) {
+                    val key = keys.removeLast()
+                    G.onEffectLevel = key
+                    effects[key]?.forEach { it() }
+                }
+                effects.clear()
+            } finally {
+                G.onEffectRun = false
+                G.onEffectKeys = mutableListOf()
+                G.onEffectLevel = 0
             }
-            effects.clear()
-            G.onEffectRun = false
         }
     }catch (err: Throwable){
-        println("出错了---$err")
+        println("batchSignalEnd error---$err")
+        G.onWorkBatch = null
+        G.onEffectRun = false
+        G.onEffectKeys = mutableListOf()
+        G.onEffectLevel = 0
+        G.beginBatch = false
     }
 }

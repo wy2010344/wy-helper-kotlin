@@ -52,7 +52,6 @@ open class ClipNode(
     }
 
     override fun acceptHit(x: Float, y: Float): Boolean {
-        if (!super.acceptHit(x, y)) return false
         return when {
             clipPath != null -> clipPath!!.contains(x, y)
             clipRect != null -> {

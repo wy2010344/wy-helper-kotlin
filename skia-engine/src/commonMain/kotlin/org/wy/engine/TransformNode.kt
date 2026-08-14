@@ -26,6 +26,7 @@ open class TransformNode(
         canvas.translate(translation.first, translation.second)
         if (rotation != 0f) canvas.rotate(rotation)
         if (scale.first != 1f || scale.second != 1f) canvas.scale(scale.first, scale.second)
+        // Note: skew not applied to canvas yet (requires matrix API extension)
         drawChildren(canvas)
         canvas.restore()
     }
@@ -34,6 +35,6 @@ open class TransformNode(
         val inv = matrix.inverted()
         val lx = inv.mapX(x, y)
         val ly = inv.mapY(x, y)
-        return super.acceptHit(lx, ly)
+        return lx >= 0f && ly >= 0f
     }
 }
