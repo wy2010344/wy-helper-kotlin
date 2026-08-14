@@ -14,7 +14,11 @@ interface MouseListener {
     fun mouseDown(e: MouseEvent)
     fun mouseDownCapture(e: MouseEvent)
     fun mouseUp(e: MouseEvent)
+    fun mouseUpCapture(e: MouseEvent)
     fun mouseMove(e: MouseEvent)
+    fun mouseMoveCapture(e: MouseEvent)
+    fun mouseClick(e: MouseEvent)
+    fun mouseClickCapture(e: MouseEvent)
 }
 
 enum class Direction {
@@ -57,11 +61,9 @@ val NodeWithPosition.last: NodeWithPosition
 fun Node.contains(node: Node): Boolean {
     if (node == this) {
         return true
-
     }
     return children.find { it == node } != null
 }
-
 
 internal val nodeConfig = object : ShareConfig<Node, List<Node>> {
     fun ignore(node: Node): Boolean {
@@ -134,15 +136,14 @@ open class Node(
 
     open fun acceptClip(x: Float, y: Float): Boolean = true
 
-    open fun mouseClick(e: MouseEvent) {}
-    open fun mouseClickCapture(e: MouseEvent) {}
-    open fun mouseDown(e: MouseEvent) {}
-    open fun mouseDownCapture(e: MouseEvent) {}
-    open fun mouseUp(e: MouseEvent) {}
-    open fun mouseUpCapture(e: MouseEvent) {}
-
-    open fun mouseMove(e: MouseEvent) {}
-    open fun mouseMoveCapture(e: MouseEvent) {}
+    override fun mouseClick(e: MouseEvent) {}
+    override fun mouseClickCapture(e: MouseEvent) {}
+    override fun mouseDown(e: MouseEvent) {}
+    override fun mouseDownCapture(e: MouseEvent) {}
+    override fun mouseUp(e: MouseEvent) {}
+    override fun mouseUpCapture(e: MouseEvent) {}
+    override fun mouseMove(e: MouseEvent) {}
+    override fun mouseMoveCapture(e: MouseEvent) {}
 
     override fun handleKey(e: KeyEvent): Boolean = false
 
@@ -166,19 +167,18 @@ open class Node(
     private val engineGlobal: EngineGlobal? = context?.consume(engineGlobalContext)
 }
 
-private fun Node.drawChildren(canvas: PlatformCanvas) {
+internal fun Node.drawChildren(canvas: PlatformCanvas) {
     children.forEach {
         canvas.save()
         val clipRect = it.clipRect()
         if (clipRect != null) {
-            canvas.clipRect(clipRect.left, clipRect.top, clipRect.right, clipRect.bottom)
+            canvas.clipRect(clipRect.left, clipRect.top, clipRect.right - clipRect.left, clipRect.bottom - clipRect.top)
         }
         canvas.translate(it.position(Direction.x), it.position(Direction.y))
         it.draw(canvas)
         canvas.restore()
     }
 }
-
 
 fun Node.hitTest(x: Float, y: Float): NodeWithPosition? {
     val rx = x - this.x

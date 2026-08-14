@@ -1,6 +1,8 @@
 package org.wy.engine
 
 import com.wy.mve.Context
+import kotlin.math.abs
+import kotlin.math.max
 
 abstract class GestureRecognizer {
     open val eagerness: Int = 0
@@ -24,40 +26,48 @@ class GestureArena {
     }
 
     fun dispatchDown(e: GlobalMouseEvent) {
-        recognizers.forEach { it.onPointerDown(e) }
+        recognizers.toList().forEach { it.onPointerDown(e) }
     }
 
     fun dispatchMove(e: GlobalMouseEvent) {
-        recognizers.forEach { it.onPointerMove(e) }
+        if (winner != null) {
+            winner!!.onPointerMove(e)
+        } else {
+            recognizers.toList().forEach { it.onPointerMove(e) }
+        }
     }
 
     fun dispatchUp(e: GlobalMouseEvent) {
-        recognizers.forEach { it.onPointerUp(e) }
-        sweep()
+        if (winner != null) {
+            winner!!.onPointerUp(e)
+        } else {
+            recognizers.toList().forEach { it.onPointerUp(e) }
+            sweep()
+        }
     }
 
     fun dispatchExit() {
-        recognizers.forEach { it.onPointerExit() }
+        recognizers.toList().forEach { it.onPointerExit() }
+        clear()
     }
 
     fun accept(r: GestureRecognizer) {
         if (winner != null) return
         winner = r
-        recognizers.filter { it !== r }.forEach { it.reject() }
+        recognizers.filter { it !== r }.toList().forEach { it.reject() }
     }
 
     fun reject(r: GestureRecognizer) {
         recognizers.remove(r)
         if (recognizers.size == 1 && winner == null) {
             winner = recognizers.first()
-            recognizers.filter { it !== winner }.forEach { it.reject() }
         }
     }
 
     private fun sweep() {
         if (winner == null && recognizers.isNotEmpty()) {
             winner = recognizers.maxByOrNull { it.eagerness }
-            recognizers.filter { it !== winner }.forEach { it.reject() }
+            recognizers.filter { it !== winner }.toList().forEach { it.reject() }
         }
     }
 
@@ -109,7 +119,7 @@ open class DragRecognizer(
     override fun onPointerMove(e: GlobalMouseEvent) {
         val dx = e.x - startX
         val dy = e.y - startY
-        val dist = maxOf(abs(dx), abs(dy))
+        val dist = max(abs(dx), abs(dy))
         if (!started && dist > 5f) {
             val (primary, secondary) = when (axis) {
                 Axis.X -> abs(dx) to abs(dy)

@@ -17,18 +17,13 @@ private class Register(context: StateHolder<*, *>?) {
     val gestureArena = GestureArena()
 
     init {
-        if (context != null) {
-            provide(context)
-        }
+        if (context != null) provide(context)
     }
 
     fun destroy() {
-        moveList.clear()
-        upList.clear()
-        downList.clear()
-        wheelList.clear()
-        keyPressList.clear()
-        composingList.clear()
+        moveList.clear(); upList.clear(); downList.clear(); wheelList.clear()
+        keyPressList.clear(); composingList.clear()
+        gestureRecognizers.clear()
     }
 
     var pressed by createSignal(false)
@@ -42,118 +37,75 @@ private class Register(context: StateHolder<*, *>?) {
     private val keyPressList = mutableMapOf<KeyPressCallback, EmptyFun>()
     private val composingList = mutableMapOf<ComposingTextCallback, EmptyFun>()
 
-    private var overlayShow: ((x: Float, y: Float, w: Float, h: Float, fontSize: Float) -> Unit)? =
-        null
+    private val gestureRecognizers = mutableListOf<GestureRecognizer>()
+
+    fun registerGestureRecognizer(r: GestureRecognizer) {
+        gestureRecognizers.add(r)
+    }
+
+    fun unregisterGestureRecognizer(r: GestureRecognizer) {
+        gestureRecognizers.remove(r)
+    }
+
+    fun syncGestureRecognizers() {
+        gestureRecognizers.forEach { gestureArena.add(it) }
+    }
+
+    private var overlayShow: ((x: Float, y: Float, w: Float, h: Float, fontSize: Float) -> Unit)? = null
     private var overlayHide: (() -> Unit)? = null
     private var cursorHandler: ((CursorType) -> Unit)? = null
     private var lastCursor: CursorType? = null
 
-    fun setOverlayHandler(
-        show: (x: Float, y: Float, w: Float, h: Float, fontSize: Float) -> Unit,
-        hide: () -> Unit
-    ) {
-        overlayShow = show
-        overlayHide = hide
+    fun setOverlayHandler(show: (x: Float, y: Float, w: Float, h: Float, fontSize: Float) -> Unit, hide: () -> Unit) {
+        overlayShow = show; overlayHide = hide
     }
 
-    fun setCursorHandler(handler: (CursorType) -> Unit) {
-        cursorHandler = handler
-    }
+    fun setCursorHandler(handler: (CursorType) -> Unit) { cursorHandler = handler }
 
     fun requestCursor(type: CursorType) {
         if (lastCursor == type) return
-        lastCursor = type
-        cursorHandler?.invoke(type)
+        lastCursor = type; cursorHandler?.invoke(type)
     }
 
     fun provide(context: StateHolder<*, *>) {
+        context.provide(selectionManagerContext, selectionManager)
+        context.provide(gestureArenaContext, gestureArena)
         context.provide(engineGlobalContext, object : EngineGlobal {
-            override fun registerMouseDown(callback: MouseCallback): EmptyFun {
-                return register(downList, callback)
-            }
+            override fun registerMouseDown(callback: MouseCallback): EmptyFun = register(downList, callback)
+            override fun registerMouseMove(callback: MouseCallback): EmptyFun = register(moveList, callback)
+            override fun registerMouseUp(callback: MouseCallback): EmptyFun = register(upList, callback)
+            override fun registerMouseWheel(callback: WheelCallback): EmptyFun = register(wheelList, callback)
+            override fun registerKeyPress(callback: KeyPressCallback): EmptyFun = register(keyPressList, callback)
+            override fun registerComposingText(callback: ComposingTextCallback): EmptyFun = register(composingList, callback)
 
-            override fun registerMouseMove(callback: MouseCallback): EmptyFun {
-                return register(moveList, callback)
-            }
+            override fun registerGestureRecognizer(r: GestureRecognizer) = this@Register.registerGestureRecognizer(r)
+            override fun unregisterGestureRecognizer(r: GestureRecognizer) = this@Register.unregisterGestureRecognizer(r)
 
-            override fun registerMouseUp(callback: MouseCallback): EmptyFun {
-                return register(upList, callback)
-            }
-
-            override fun registerMouseWheel(callback: WheelCallback): EmptyFun {
-                return register(wheelList, callback)
-            }
-
-            override fun registerKeyPress(callback: KeyPressCallback): EmptyFun {
-                return register(keyPressList, callback)
-            }
-
-            override fun registerComposingText(callback: ComposingTextCallback): EmptyFun {
-                return register(composingList, callback)
-            }
-
-            override val pressed: Boolean
-                get() = this@Register.pressed
-
-            override val moveHitest: NodeWithPosition?
-                get() = this@Register.moveHitest
-
+            override val pressed: Boolean get() = this@Register.pressed
+            override val moveHitest: NodeWithPosition? get() = this@Register.moveHitest
             override var focused: Node?
                 get() = this@Register.focused
-                set(value) {
-                    this@Register.focused = value
-                }
+                set(value) { this@Register.focused = value }
 
-            override val selectionManager: SelectionManager
-                get() = this@Register.selectionManager
-            override val gestureArena: GestureArena
-                get() = this@Register.gestureArena
+            override val selectionManager: SelectionManager get() = this@Register.selectionManager
+            override val gestureArena: GestureArena get() = this@Register.gestureArena
 
-            override fun requestInputOverlay(
-                x: Float,
-                y: Float,
-                w: Float,
-                h: Float,
-                fontSize: Float
-            ) {
+            override fun requestInputOverlay(x: Float, y: Float, w: Float, h: Float, fontSize: Float) {
                 overlayShow?.invoke(x, y, w, h, fontSize)
             }
-
-            override fun hideInputOverlay() {
-                overlayHide?.invoke()
-            }
-
-            override fun requestCursor(type: CursorType) {
-                this@Register.requestCursor(type)
-            }
+            override fun hideInputOverlay() { overlayHide?.invoke() }
+            override fun requestCursor(type: CursorType) { this@Register.requestCursor(type) }
         })
     }
 
-    fun dispatchMouseUp(x: Float, y: Float) {
-        upList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) }
-    }
-
-    fun dispatchMouseDown(x: Float, y: Float) {
-        downList.forEach { it.key(GlobalMouseEvent(x, y, {})) }
-    }
-
-    fun dispatchMouseMove(x: Float, y: Float) {
-
-        moveList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) }
-    }
-
-    fun dispatchMouseWheel(x: Float, y: Float, delta: Float) {
-        wheelList.forEach { it.key(GlobalWheelEvent(x, y, delta, it.value)) }
-    }
-
-    fun dispatchKeyPress(e: KeyEvent) {
-        keyPressList.forEach { it.key(e) }
-    }
-
-    fun dispatchComposingText(text: String, cursorPosition: Int) {
-        composingList.forEach { it.key(text, cursorPosition) }
-    }
+    fun dispatchMouseUp(x: Float, y: Float) { upList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) } }
+    fun dispatchMouseDown(x: Float, y: Float) { downList.forEach { it.key(GlobalMouseEvent(x, y, {})) } }
+    fun dispatchMouseMove(x: Float, y: Float) { moveList.forEach { it.key(GlobalMouseEvent(x, y, it.value)) } }
+    fun dispatchMouseWheel(x: Float, y: Float, delta: Float) { wheelList.forEach { it.key(GlobalWheelEvent(x, y, delta, it.value)) } }
+    fun dispatchKeyPress(e: KeyEvent) { keyPressList.forEach { it.key(e) } }
+    fun dispatchComposingText(text: String, cursorPosition: Int) { composingList.forEach { it.key(text, cursorPosition) } }
 }
+
 open class Renderer private constructor(
     context: StateHolder<*, *>?,
     private val register: Register
@@ -168,6 +120,10 @@ open class Renderer private constructor(
     var hitNode: NodeWithPosition? = null
     var globalMoveHitest: NodeWithPosition? = null
 
+    private var downX = 0f
+    private var downY = 0f
+    private var downTime = 0L
+
     constructor(context: StateHolder<*, *>?) : this(context, Register(context)) {
         if (context == null) {
             val state = renderRoot(this@Renderer, nodeConfig) {
@@ -179,76 +135,32 @@ open class Renderer private constructor(
         }
     }
 
-
-    fun setInputOverlayHandler(
-        show: (x: Float, y: Float, w: Float, h: Float, fontSize: Float) -> Unit,
-        hide: () -> Unit
-    ) {
+    fun setInputOverlayHandler(show: (x: Float, y: Float, w: Float, h: Float, fontSize: Float) -> Unit, hide: () -> Unit) {
         register.setOverlayHandler(show, hide)
     }
 
-    fun setCursorHandler(handler: (CursorType) -> Unit) {
-        register.setCursorHandler(handler)
-    }
+    fun setCursorHandler(handler: (CursorType) -> Unit) { register.setCursorHandler(handler) }
 
-    fun destroy() {
-        register.destroy()
-        destroyFun()
-    }
+    fun destroy() { register.destroy(); destroyFun() }
 
     open fun frameCallback() {}
 
     private var destroyFun = {}
     var scheduled = false
     private val signal = object : TrackSignal<Unit>() {
-        override fun get(old: Unit?, inited: Boolean) {
-            frameCallback()
-        }
+        override fun get(old: Unit?, inited: Boolean) { frameCallback() }
     }
     val didDraw = memo {
-        recordPicture(outerWidth, outerHeight) {
-            draw(it)
-        }
+        recordPicture(outerWidth, outerHeight) { draw(it) }
     }
 
     fun render(canvas: PlatformCanvas) {
         scheduled = true
         try {
             canvas.clear(rgba(255, 255, 255))
-            signal.collect {
-                didDraw().draw(canvas, 0f, 0f)
-            }
-        } catch (err: Throwable) {
-            println("渲染出错--$err")
-        }
+            signal.collect { didDraw().draw(canvas, 0f, 0f) }
+        } catch (err: Throwable) { println("render error--$err") }
         scheduled = false
-    }
-
-
-    fun mouseClick(x: Float, y: Float) {
-        try {
-            val hit = hitTest(x, y)
-            if (hit == null) return
-        } catch (e: Throwable) {
-            println("全局mouseClick事件出错--$e")
-        }
-    }
-
-    fun mouseDown(x: Float, y: Float) {
-        try {
-            mouseButtons = 1
-            register.pressed = true
-            hitTest(x, y)?.let {
-                setFocused(it.last.node)
-                mouseEventOf(x, y, down = true)
-            } ?: run {
-                setFocused(null)
-            }
-            register.dispatchMouseDown(x, y)
-            gestureArena.dispatchDown(GlobalMouseEvent(x, y) {})
-        } catch (e: Throwable) {
-            println("全局mouseDown事件出错--$e")
-        }
     }
 
     private fun setFocused(node: Node?) {
@@ -260,15 +172,11 @@ open class Renderer private constructor(
     private fun focusableNodes(): List<Node> {
         val result = mutableListOf<Node>()
         fun collect(node: Node) {
-            if (node.focusable && !node.hide) {
-                result.add(node)
-            }
+            if (node.focusable && !node.hide) result.add(node)
             node.children.forEach(::collect)
         }
         children.forEach(::collect)
-        if (result.any { it.focusOrder != null }) {
-            result.sortBy { it.focusOrder ?: Int.MAX_VALUE }
-        }
+        if (result.any { it.focusOrder != null }) result.sortBy { it.focusOrder ?: Int.MAX_VALUE }
         return result
     }
 
@@ -285,114 +193,131 @@ open class Renderer private constructor(
         setFocused(nodes[targetIndex])
     }
 
+    private fun buildEventPath(hit: NodeWithPosition): List<NodeWithPosition> {
+        val path = mutableListOf<NodeWithPosition>()
+        var cur: NodeWithPosition? = hit
+        while (cur != null) {
+            path.add(cur)
+            cur = cur.next
+        }
+        return path
+    }
+
+    fun mouseDown(x: Float, y: Float) {
+        try {
+            mouseButtons = 1
+            register.pressed = true
+            downX = x; downY = y; downTime = System.currentTimeMillis()
+            gestureArena.clear()
+            register.syncGestureRecognizers()
+            val hit = hitTest(x, y)
+            hitNode = hit
+            globalMoveHitest = hit
+            if (hit != null) {
+                setFocused(hit.last.node)
+                dispatchMouseEvent(hit, x, y, down = true)
+            } else {
+                setFocused(null)
+            }
+            register.dispatchMouseDown(x, y)
+            gestureArena.dispatchDown(GlobalMouseEvent(x, y) {})
+        } catch (e: Throwable) { println("mouseDown error--$e") }
+    }
+
     fun mouseUp(x: Float, y: Float) {
         try {
             mouseButtons = 0
             register.pressed = false
-            hitTest(x, y)?.let {
-                mouseEventOf(x, y, up = true)
+            val hit = hitTest(x, y)
+            hitNode = hit
+            globalMoveHitest = hit
+            if (hit != null) {
+                dispatchMouseEvent(hit, x, y, up = true)
+                val dx = x - downX; val dy = y - downY
+                val dist = kotlin.math.sqrt(dx * dx + dy * dy)
+                val dt = System.currentTimeMillis() - downTime
+                if (dist < 5f && dt < 500L) {
+                    dispatchClickEvent(hit, x, y)
+                }
             }
             register.dispatchMouseUp(x, y)
             selectionManager.handleMouseUp()
             gestureArena.dispatchUp(GlobalMouseEvent(x, y) {})
-        } catch (e: Throwable) {
-            println("全局mouseUp事件出错--$e")
-        }
+        } catch (e: Throwable) { println("mouseUp error--$e") }
     }
 
     fun mouseMove(x: Float, y: Float) {
         try {
-            val nodeWithPosition = hitTest(x, y)
-            register.moveHitest = nodeWithPosition
-            register.requestCursor(cursorOf(nodeWithPosition))
-            if (nodeWithPosition != null) {
-                mouseEventOf(x, y, move = true)
+            val hit = hitTest(x, y)
+            register.moveHitest = hit
+            register.requestCursor(cursorOf(hit))
+            if (hit != null) {
+                dispatchMouseEvent(hit, x, y, move = true)
             }
             register.dispatchMouseMove(x, y)
             selectionManager.handleMouseMove(x, y)
             gestureArena.dispatchMove(GlobalMouseEvent(x, y) {})
-        } catch (e: Throwable) {
-            println("全局mouseMove事件出错--$e")
-        }
+        } catch (e: Throwable) { println("mouseMove error--$e") }
     }
 
     fun mouseExit() {
         register.pressed = false
         register.moveHitest = null
         register.requestCursor(CursorType.DEFAULT)
+        gestureArena.dispatchExit()
     }
 
-    private fun mouseEventOf(rootX: Float, rootY: Float, down: Boolean = false, up: Boolean = false, move: Boolean = false, wheel: Float? = null) {
-        val hit = hitTest(rootX, rootY)
-        if (hit == null) return
-        hitNode = hit
-        globalMoveHitest = hit
-
-        val capturePath = mutableListOf<NodeWithPosition>()
-        var cur: NodeWithPosition? = hit
-        while (cur != null) {
-            capturePath.add(cur)
-            cur = cur.node.parent?.let { p ->
-                NodeWithPosition(p, cur!!.x, cur!!.y, cur)
-            }
-        }
-
-        val bubblePath = mutableListOf<NodeWithPosition>()
-        cur = hit
-        while (cur != null) {
-            bubblePath.add(cur)
-            cur = cur.node.parent?.let { p ->
-                NodeWithPosition(p, cur!!.x, cur!!.y, cur)
-            }
-        }
-
+    private fun dispatchMouseEvent(hit: NodeWithPosition, rootX: Float, rootY: Float, down: Boolean = false, up: Boolean = false, move: Boolean = false, wheel: Float? = null) {
+        val path = buildEventPath(hit)
         try {
-            capturePath.asReversed().forEach { nodeWithPos ->
-                val e = MouseEvent(nodeWithPos, this, down, up, move, wheel)
-                (nodeWithPos.node as? MouseListener)?.mouseDownCapture(e)
+            path.asReversed().forEach { nodeWithPos ->
+                val e = MouseEvent(nodeWithPos, this, down, up, move, wheel, rootX, rootY)
+                when {
+                    down -> (nodeWithPos.node as? MouseListener)?.mouseDownCapture(e)
+                    up -> (nodeWithPos.node as? MouseListener)?.mouseUpCapture(e)
+                    move -> (nodeWithPos.node as? MouseListener)?.mouseMoveCapture(e)
+                }
                 if (e.stoppedProgression) return@forEach
             }
-            bubblePath.forEach { nodeWithPos ->
-                val e = MouseEvent(nodeWithPos, this, down, up, move, wheel)
+            path.forEach { nodeWithPos ->
+                val e = MouseEvent(nodeWithPos, this, down, up, move, wheel, rootX, rootY)
                 when {
                     down -> (nodeWithPos.node as? MouseListener)?.mouseDown(e)
                     up -> (nodeWithPos.node as? MouseListener)?.mouseUp(e)
                     move -> (nodeWithPos.node as? MouseListener)?.mouseMove(e)
                 }
             }
-        } catch (err: Error) {
-            println("事件处理出错--$err")
-        }
+        } catch (err: Error) { println("event error--$err") }
+    }
+
+    private fun dispatchClickEvent(hit: NodeWithPosition, rootX: Float, rootY: Float) {
+        val path = buildEventPath(hit)
+        try {
+            path.asReversed().forEach { nodeWithPos ->
+                val e = MouseEvent(nodeWithPos, this, down = false, up = false, move = false, wheel = null, rootX = rootX, rootY = rootY)
+                (nodeWithPos.node as? MouseListener)?.mouseClickCapture(e)
+                if (e.stoppedProgression) return
+            }
+            path.forEach { nodeWithPos ->
+                val e = MouseEvent(nodeWithPos, this, down = false, up = false, move = false, wheel = null, rootX = rootX, rootY = rootY)
+                (nodeWithPos.node as? MouseListener)?.mouseClick(e)
+            }
+        } catch (err: Error) { println("click error--$err") }
     }
 
     fun mouseWheel(x: Float, y: Float, delta: Float) {
         try {
             register.dispatchMouseWheel(x, y, delta)
-        } catch (e: Throwable) {
-            println("全局mouseWheel事件出错--$e")
-        }
+        } catch (e: Throwable) { println("mouseWheel error--$e") }
     }
 
-    fun keyPress(
-        key: Char, code: KeyCode,
-        ctrl: Boolean,
-        shift: Boolean,
-        alt: Boolean,
-        meta: Boolean = false
-    ) {
+    fun keyPress(key: Char, code: KeyCode, ctrl: Boolean, shift: Boolean, alt: Boolean, meta: Boolean = false) {
         try {
             keyboardModifiers = Modifiers(ctrl, shift, alt, meta)
-            if (!alt && !meta && !ctrl && code == KeyCode.Tab) {
-                moveFocus(!shift)
-                return
-            }
+            if (!alt && !meta && !ctrl && code == KeyCode.Tab) { moveFocus(!shift); return }
             val e = KeyEvent(key, code, ctrl, shift, alt, meta)
-            (focused as? KeyHandler)?.handleKey(e) ?: run {
-                register.dispatchKeyPress(e)
-            }
-        } catch (e: Throwable) {
-            println("键盘事件出错--$e")
-        }
+            (register.focused as? KeyHandler)?.handleKey(e) ?: register.dispatchKeyPress(e)
+        } catch (e: Throwable) { println("keyboard error--$e") }
     }
 
     fun composingText(text: String, cursorPosition: Int) {
@@ -404,16 +329,12 @@ open class Renderer private constructor(
             } else {
                 register.dispatchComposingText(text, cursorPosition)
             }
-        } catch (e: Throwable) {
-            println("输入法事件出错--$e")
-        }
+        } catch (e: Throwable) { println("IME error--$e") }
     }
 }
 
 private fun <K> register(map: MutableMap<K, EmptyFun>, key: K): EmptyFun {
-    val destroy: EmptyFun = {
-        map.remove(key)
-    }
+    val destroy: EmptyFun = { map.remove(key) }
     map[key] = destroy
     return destroy
 }

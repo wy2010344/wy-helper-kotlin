@@ -9,7 +9,7 @@ open class OpacityNode(
 
     override fun draw(canvas: PlatformCanvas) {
         canvas.save()
-        canvas.saveLayerAlpha(0, 0, width(), height(), (opacity.coerceIn(0f, 1f) * 255).toInt())
+        canvas.saveLayerAlpha(opacity.coerceIn(0f, 1f))
         drawChildren(canvas)
         canvas.restore()
     }

@@ -2,17 +2,23 @@ package org.wy.engine.helper
 
 import com.wy.mve.StateHolder
 import org.wy.engine.GlobalMouseEvent
-import org.wy.engine.Node
+import org.wy.engine.GestureRecognizer
 import org.wy.engine.engineGlobalContext
+import org.wy.lib.EmptyFun
 
-
-fun StateHolder<*,*>.drag(change: (e: GlobalMouseEvent) -> Unit) {
+/**
+ * 基于全局鼠标回调的拖拽辅助函数。
+ * 当鼠标按下并移动时持续触发 [change]，鼠标松开或离开时自动清理。
+ */
+fun StateHolder<*, *>.drag(change: (e: GlobalMouseEvent) -> Unit) {
     val g = consume(engineGlobalContext)!!
     var destroyed = false
-    val d1 = g.registerMouseMove {
+    var d1: EmptyFun = {}
+    var d2: EmptyFun = {}
+    d1 = g.registerMouseMove {
         if (!destroyed) change(it)
     }
-    val d2 = g.registerMouseUp {
+    d2 = g.registerMouseUp {
         if (!destroyed) {
             try {
                 change(it)
@@ -20,7 +26,6 @@ fun StateHolder<*,*>.drag(change: (e: GlobalMouseEvent) -> Unit) {
                 destroyed = true
                 d1()
                 d2()
-                it.destroy()
             }
         }
     }
@@ -30,5 +35,19 @@ fun StateHolder<*,*>.drag(change: (e: GlobalMouseEvent) -> Unit) {
             d1()
             d2()
         }
+    }
+}
+
+/**
+ * 基于 GestureArena 的手势识别辅助函数。
+ * 注册的 [recognizers] 会在每次鼠标按下时自动加入手势竞技场，
+ * 用于竞争手势的识别（tap / drag / scroll 等）。
+ * 当节点销毁时自动注销。
+ */
+fun StateHolder<*, *>.gesture(vararg recognizers: GestureRecognizer) {
+    val g = consume(engineGlobalContext)!!
+    recognizers.forEach { g.registerGestureRecognizer(it) }
+    addDestroy {
+        recognizers.forEach { g.unregisterGestureRecognizer(it) }
     }
 }

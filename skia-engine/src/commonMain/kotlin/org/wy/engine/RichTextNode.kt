@@ -13,13 +13,17 @@ open class RichTextNode(
 
     val selectionManager = context.consume(selectionManagerContext)!!
 
+    init {
+        val selId = selectionManager.register(this)
+        context.addDestroy { selectionManager.unregister(selId) }
+    }
+
     open val spans: List<RichTextSpan> = emptyList()
     open val selectionColor: ColorInt = rgba(100, 100, 200, 60)
 
     private val fullText by memo { spans.joinToString("") { it.text } }
 
     open val autoWidth = false
-
     open val maxLines: Int = Int.MAX_VALUE
     open val ellipsis: String = "\u2026"
     open val textAlign: TextAlign = TextAlign.START
@@ -54,7 +58,7 @@ open class RichTextNode(
     }
 
     override fun mouseDown(e: MouseEvent) {
-        selectionManager.handleMouseDown(this, e.x, e.y, e.shift)
+        selectionManager.handleMouseDown(this, e.x, e.y, e.rootX, e.rootY, e.shift)
     }
 
     override fun draw(canvas: PlatformCanvas) {
@@ -66,18 +70,27 @@ open class RichTextNode(
     override fun getOffsetAt(localX: Float, localY: Float): Int {
         return paragraph?.getGlyphPositionAtCoordinate(localX, localY) ?: 0
     }
+
     override fun getRectsForRange(start: Int, end: Int): List<TextRect> {
-        return paragraph?.getRectsForRange(start, end) ?: emptyList()
+        return paragraph?.getRectsForRange(start, end, RectStyle.TIGHT) ?: emptyList()
     }
+
     override fun getText(start: Int, end: Int): String {
         return fullText.substring(start, end.coerceAtMost(fullText.length))
     }
+
     override fun textLength(): Int = fullText.length
+
     override fun rootToLocal(rootX: Float, rootY: Float): Pair<Float, Float> {
         return rootX - absoluteX to rootY - absoluteY
     }
+
     override fun localToRoot(localX: Float, localY: Float): Pair<Float, Float> {
         return localX + absoluteX to localY + absoluteY
     }
+
+    override fun localWidth(): Float = innerWidth
+    override fun localHeight(): Float = innerHeight
+
     override val selectionOrder: Int get() = index
 }

@@ -12,17 +12,43 @@ open class ClipNode(
     override fun draw(canvas: PlatformCanvas) {
         canvas.save()
         when {
-            clipPath != null -> canvas.clipPath(clipPath!!)
+            clipPath != null -> {
+                canvas.clipRect(
+                    clipPath!!.let { path ->
+                        val bounds = pathBounds(path)
+                        bounds.left
+                    },
+                    clipPath!!.let { pathBounds(it).top },
+                    clipPath!!.let { pathBounds(it).width },
+                    clipPath!!.let { pathBounds(it).height }
+                )
+            }
             clipRect != null -> {
-                if (borderRadius > 0f) {
-                    canvas.clipRoundRect(clipRect!!.left, clipRect!!.top, clipRect!!.right, clipRect!!.bottom, borderRadius)
+                if (borderRadius > 1f) {
+                    canvas.clipRRect(
+                        clipRect!!.left,
+                        clipRect!!.top,
+                        clipRect!!.right - clipRect!!.left,
+                        clipRect!!.bottom - clipRect!!.top,
+                        borderRadius
+                    )
                 } else {
-                    canvas.clipRect(clipRect!!.left, clipRect!!.top, clipRect!!.right, clipRect!!.bottom)
+                    canvas.clipRect(
+                        clipRect!!.left,
+                        clipRect!!.top,
+                        clipRect!!.right - clipRect!!.left,
+                        clipRect!!.bottom - clipRect!!.top
+                    )
                 }
             }
         }
         drawChildren(canvas)
         canvas.restore()
+    }
+
+    private fun pathBounds(path: Path): RectF {
+        if (clipRect != null) return clipRect!!
+        return RectF(0f, 0f, 10000f, 10000f)
     }
 
     override fun acceptHit(x: Float, y: Float): Boolean {

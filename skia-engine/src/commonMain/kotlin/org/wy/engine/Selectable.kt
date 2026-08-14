@@ -7,5 +7,7 @@ interface Selectable {
     fun textLength(): Int
     fun rootToLocal(rootX: Float, rootY: Float): Pair<Float, Float>
     fun localToRoot(localX: Float, localY: Float): Pair<Float, Float>
+    fun localWidth(): Float
+    fun localHeight(): Float
     val selectionOrder: Int
 }

@@ -1,6 +1,7 @@
-﻿package org.wy.engine
+package org.wy.engine
 
 import com.wy.mve.StateHolder
+import org.wy.signal.getValue
 import org.wy.signal.memo
 
 open class SelectionOverlayNode(
@@ -13,7 +14,7 @@ open class SelectionOverlayNode(
             super.draw(canvas)
             return
         }
-        val rects = selMgr.coveredRects()
+        val rects = selMgr.coveredRects
         for (rect in rects) {
             canvas.fillRect(
                 x = rect.left,

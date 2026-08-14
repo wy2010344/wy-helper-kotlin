@@ -18,6 +18,7 @@ import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.LayoutDirection
 import org.wy.engine.scrollBarSize
 import org.wy.engine.strokeInnerRect
+import org.wy.lib.EmptyFun
 
 /**
  * 方向由 [direction] 指定：Direction.y 为纵向（默认），Direction.x 为横向。
@@ -80,13 +81,15 @@ abstract class SimpleScrollBar(
                                 val startValue = scroll.value
                                 val startPointer = if (direction == Direction.y) e.globalY else e.globalX
                                 var destroyed = false
-                                val d1 = g.registerMouseMove { me ->
+                                var d1: EmptyFun = {}
+                                var d2: EmptyFun = {}
+                                d1 = g.registerMouseMove { me ->
                                     if (!destroyed) {
                                         val pointer = if (direction == Direction.y) me.y else me.x
                                         scroll.value = startValue + calc.moveToScroll(pointer - startPointer)
                                     }
                                 }
-                                val d2 = g.registerMouseUp {
+                                d2 = g.registerMouseUp {
                                     if (!destroyed) {
                                         try {
                                             val pointer = if (direction == Direction.y) it.y else it.x

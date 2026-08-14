@@ -5,6 +5,8 @@ import kotlin.collections.iterator
 import org.wy.lib.*
 import kotlin.reflect.KProperty
 
+operator fun <T> Memo<T>.getValue(thisRef: Any?, prop: KProperty<*>): T = this()
+
 private val stackMemos = mutableListOf<Memo<*>>()
 
 internal fun checkMemoStack(){

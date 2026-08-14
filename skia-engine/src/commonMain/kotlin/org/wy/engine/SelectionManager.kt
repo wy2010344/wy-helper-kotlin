@@ -1,5 +1,6 @@
 package org.wy.engine
 
+import com.wy.mve.Context
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.memo
@@ -15,24 +16,19 @@ class SelectionManager {
         return id
     }
 
-    fun unregister(id: Int) {
-        registered.remove(id)
-    }
+    fun unregister(id: Int) { registered.remove(id) }
 
-    private val anchor by createSignal<Pair<Int, Int>?>(null)
-    private val focus by createSignal<Pair<Int, Int>?>(null)
-    private val dragging by createSignal(false)
+    private var anchor by createSignal<Pair<Int, Int>?>(null)
+    private var focus by createSignal<Pair<Int, Int>?>(null)
+    private var dragging by createSignal(false)
 
-    private val ordered by memo {
-        registered.values.sortedBy { it.selectionOrder }
-    }
+    private val ordered by memo { registered.values.sortedBy { it.selectionOrder } }
 
-    val hasSelection: Boolean
-        get() = anchor() != null && anchor() != focus()
+    val hasSelection: Boolean get() = anchor != null && anchor != focus
 
-    fun handleMouseDown(target: Selectable, localX: Float, localY: Float, shift: Boolean) {
+    fun handleMouseDown(target: Selectable, localX: Float, localY: Float, rootX: Float, rootY: Float, shift: Boolean) {
         val offset = target.getOffsetAt(localX, localY)
-        if (shift && anchor() != null) {
+        if (shift && anchor != null) {
             focus = target.selectionOrder to offset
         } else {
             anchor = target.selectionOrder to offset
@@ -51,14 +47,9 @@ class SelectionManager {
         }
     }
 
-    fun handleMouseUp() {
-        dragging = false
-    }
+    fun handleMouseUp() { dragging = false }
 
-    fun clearSelection() {
-        anchor = null
-        focus = null
-    }
+    fun clearSelection() { anchor = null; focus = null }
 
     fun selectAll(scope: Selectable) {
         anchor = scope.selectionOrder to 0
@@ -66,31 +57,31 @@ class SelectionManager {
     }
 
     val selectedText by memo {
-        val a = anchor() ?: return@memo null
-        val f = focus() ?: return@memo null
+        val a = anchor ?: return@memo null
+        val f = focus ?: return@memo null
         if (a == f) return@memo null
         buildString {
-            val rangeStart = if (a.first <= f.first) a else f
-            val rangeEnd = if (a.first <= f.first) f else a
+            val rs = if (a.first <= f.first) a else f
+            val re = if (a.first <= f.first) f else a
             ordered.forEach { sel ->
-                if (sel.selectionOrder < rangeStart.first || sel.selectionOrder > rangeEnd.first) return@forEach
-                val s = if (sel.selectionOrder == rangeStart.first) rangeStart.second else 0
-                val e = if (sel.selectionOrder == rangeEnd.first) rangeEnd.second else sel.textLength()
+                if (sel.selectionOrder < rs.first || sel.selectionOrder > re.first) return@forEach
+                val s = if (sel.selectionOrder == rs.first) rs.second else 0
+                val e = if (sel.selectionOrder == re.first) re.second else sel.textLength()
                 if (s < e) append(sel.getText(s, e))
             }
         }
     }
 
     val coveredRects by memo {
-        val a = anchor() ?: return@memo emptyList()
-        val f = focus() ?: return@memo emptyList()
+        val a = anchor ?: return@memo emptyList()
+        val f = focus ?: return@memo emptyList()
         if (a == f) return@memo emptyList()
-        val rangeStart = if (a.first <= f.first) a else f
-        val rangeEnd = if (a.first <= f.first) f else a
+        val rs = if (a.first <= f.first) a else f
+        val re = if (a.first <= f.first) f else a
         ordered.flatMap { sel ->
-            if (sel.selectionOrder < rangeStart.first || sel.selectionOrder > rangeEnd.first) return@flatMap emptyList()
-            val s = if (sel.selectionOrder == rangeStart.first) rangeStart.second else 0
-            val e = if (sel.selectionOrder == rangeEnd.first) rangeEnd.second else sel.textLength()
+            if (sel.selectionOrder < rs.first || sel.selectionOrder > re.first) return@flatMap emptyList()
+            val s = if (sel.selectionOrder == rs.first) rs.second else 0
+            val e = if (sel.selectionOrder == re.first) re.second else sel.textLength()
             if (s >= e) return@flatMap emptyList()
             sel.getRectsForRange(s, e).map { rect ->
                 val (rx, ry) = sel.localToRoot(rect.left, rect.top)
@@ -102,11 +93,7 @@ class SelectionManager {
     private fun findSelectableAt(rootX: Float, rootY: Float): Selectable? {
         for (sel in ordered) {
             val (lx, ly) = sel.rootToLocal(rootX, rootY)
-            if (lx >= 0 && ly >= 0) {
-                val maxW = sel.localToRoot(Float.MAX_VALUE, 0f).first
-                val maxH = sel.localToRoot(0f, Float.MAX_VALUE).second
-                if (rootX <= maxW && rootY <= maxH) return sel
-            }
+            if (lx >= 0 && ly >= 0 && lx <= sel.localWidth() && ly <= sel.localHeight()) return sel
         }
         return null
     }

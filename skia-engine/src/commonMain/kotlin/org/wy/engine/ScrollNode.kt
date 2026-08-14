@@ -1,4 +1,4 @@
-package org.wy.engine
+﻿package org.wy.engine
 
 import com.wy.mve.StateHolder
 import org.wy.signal.OneSetStoreRef
@@ -112,4 +112,11 @@ open class ScrollContent(context: StateHolder<Node,List<Node>>) : RectNode(conte
         val bottom = top + sn.innerSize(Direction.y)
         return x > left && x < right && y > top && y < bottom
     }
+}
+open class ScrollNode(
+    context: StateHolder<Node,List<Node>>,
+    val direction: Direction = Direction.y
+) : LayoutNode(context) {
+    val scroll = Scroll(this, direction)
+    fun scroll(delta: Float): Float = scroll.scroll(delta)
 }

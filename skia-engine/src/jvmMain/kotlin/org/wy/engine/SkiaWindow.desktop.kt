@@ -82,8 +82,7 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*
             })
             skiaLayer.addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent?) {
-                    if (e == null) return
-                    this@SkiaApp.mouseClick(e.x.toFloat(), e.y.toFloat())
+                    // 点击由 mouseUp 内部处理，此处不需要额外操作
                 }
 
                 override fun mousePressed(e: MouseEvent?) {

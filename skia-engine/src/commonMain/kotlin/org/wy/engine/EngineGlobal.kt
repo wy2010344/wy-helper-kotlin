@@ -1,4 +1,4 @@
-﻿package org.wy.engine
+package org.wy.engine
 
 import com.wy.mve.Context
 import org.wy.lib.EmptyFun
@@ -57,6 +57,9 @@ interface EngineGlobal {
     fun registerMouseWheel(callback: WheelCallback): EmptyFun
     fun registerKeyPress(callback: KeyPressCallback): EmptyFun
     fun registerComposingText(callback: ComposingTextCallback): EmptyFun
+
+    fun registerGestureRecognizer(r: GestureRecognizer)
+    fun unregisterGestureRecognizer(r: GestureRecognizer)
 
     val pressed: Boolean
     val moveHitest: NodeWithPosition?

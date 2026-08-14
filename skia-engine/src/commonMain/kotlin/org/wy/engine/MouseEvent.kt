@@ -1,4 +1,4 @@
-package org.wy.engine
+﻿package org.wy.engine
 
 class MouseEvent(
     val nodeWithPosition: NodeWithPosition,
@@ -23,7 +23,5 @@ class MouseEvent(
     var stoppedProgression = false
         private set
 
-    fun stopPropagation() {
-        stoppedProgression = true
-    }
+    fun stopPropagation() { stoppedProgression = true }
 }

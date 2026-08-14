@@ -148,7 +148,7 @@ open class EditableTextNode(
     fun selectAll() {
         anchorIndex = 0
         focusIndex = text.length
-        val selMgr = context.consume(selectionManagerContext)
+        val selMgr = context?.consume(selectionManagerContext)
         selMgr?.selectAll(this)
     }
     private fun cursorRect(): List<TextRect> {
@@ -287,9 +287,6 @@ open class EditableTextNode(
         super.mouseDownCapture(e)
         preferredX = Float.NaN
         showOverlay()
-        val offset = cursor()
-        val selMgr = context.consume(selectionManagerContext)
-        selMgr?.handleMouseDown(this, e.x, e.y, e.shift)
     }
     private fun overlayOrigin(): Pair<Float, Float> {
         val pos = cursor()
