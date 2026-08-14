@@ -298,18 +298,18 @@ open class EditableTextNode(
         }
     }
 
-    internal fun copy() {
+    override fun copy() {
         if (!hasSel) return
         clipboardSetText(text.substring(selStart, selEnd))
     }
 
-    internal fun cut() {
+    override fun cut() {
         if (!hasSel) return
         clipboardSetText(text.substring(selStart, selEnd))
         delSel()
     }
 
-    internal fun paste() {
+    override fun paste() {
         val t = clipboardGetText() ?: return
         if (t.isEmpty()) return
         preferredX = Float.NaN
@@ -338,8 +338,8 @@ open class EditableTextNode(
         preferredX = Float.NaN
         val p = paragraph
         if (p != null) {
-            val localX = e.x - absoluteX - paddingInlineStart
-            val localY = e.y - absoluteY - paddingBlockStart
+            val localX = e.x - paddingInlineStart
+            val localY = e.y - paddingBlockStart
             val pos = p.getGlyphPositionAtCoordinate(localX, localY)
             if (e.shift && anchorIndex >= 0) {
                 focusIndex = pos.coerceIn(0, text.length)

@@ -26,6 +26,9 @@ interface Selectable {
     val hasSelection: Boolean
     fun setSelected(selected: Boolean)
     fun selectAll()
+    fun cut() {}
+    fun copy() {}
+    fun paste() {}
 }
 
 /**

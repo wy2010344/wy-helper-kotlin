@@ -14,7 +14,6 @@ import org.wy.signal.setValue
 
 private class Register(context: StateHolder<*, *>?) {
     val gestureArena = GestureArena()
-    val popoverManager = PopoverManager()
     val selectionManager = SelectionManager()
 
     init {
@@ -70,7 +69,6 @@ private class Register(context: StateHolder<*, *>?) {
 
     fun provide(context: StateHolder<*, *>) {
         context.provide(gestureArenaContext, gestureArena)
-        context.provide(popoverManagerContext, popoverManager)
         context.provide(selectionManagerContext, selectionManager)
         context.provide(engineGlobalContext, object : EngineGlobal {
             override fun registerMouseDown(callback: MouseCallback): EmptyFun = register(downList, callback)
@@ -117,7 +115,6 @@ open class Renderer private constructor(
     var mouseButtons: Int = 0
 
     val gestureArena: GestureArena get() = register.gestureArena
-    val popoverManager: PopoverManager get() = register.popoverManager
     val selectionManager: SelectionManager get() = register.selectionManager
 
     var hitNode: NodeWithPosition? = null
@@ -169,13 +166,10 @@ open class Renderer private constructor(
             canvas.clear(rgba(255, 255, 255))
             signal.collect {
                 didDraw().draw(canvas, 0f, 0f)
-                renderOverlay(canvas)
             }
         } catch (err: Throwable) { println("render error--$err") }
         scheduled = false
     }
-
-    protected open fun renderOverlay(canvas: PlatformCanvas) {}
 
     private fun setFocused(node: Node?) {
         val old = register.focused
@@ -351,14 +345,14 @@ open class Renderer private constructor(
                         }
                     }
                     'x' -> {
-                        val current = register.selectionManager.current as? EditableTextNode
+                        val current = register.selectionManager.current
                         if (current != null && current.hasSelection) {
                             current.cut()
                             return
                         }
                     }
                     'v' -> {
-                        val current = register.selectionManager.current as? EditableTextNode
+                        val current = register.selectionManager.current
                         if (current != null) {
                             current.paste()
                             return

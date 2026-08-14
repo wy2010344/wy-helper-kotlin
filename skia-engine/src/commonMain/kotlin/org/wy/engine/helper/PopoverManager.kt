@@ -1,30 +1,17 @@
-package org.wy.engine
+package org.wy.engine.helper
 
 import com.wy.mve.Context
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
+import org.wy.engine.ColorInt
+import org.wy.engine.Node
+import org.wy.engine.RectF
+import org.wy.engine.rgba
 import org.wy.lib.EmptyFun
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.memo
 import org.wy.signal.setValue
-
-/**
- * Popover 请求：节点通过此对象向 PopoverManager 注册浮动面板。
- * 注册后，popover 会在顶层 Renderer 中渲染，不受父节点裁剪限制。
- */
-data class PopoverRequest(
-    val id: Int,
-    var content: (StateHolderWithNode<Node, List<Node>>) -> Unit,
-    var position: PopoverPosition,
-    var style: PopoverStyle = PopoverStyle(),
-    var dismissed: Boolean = false
-)
-
-/** 弹窗定位：基于锚点矩形计算最终位置 */
-fun interface PopoverPosition {
-    fun resolve(anchorRect: RectF, popoverSize: Size): PointF
-}
 
 data class Size(val width: Float, val height: Float)
 data class PointF(val x: Float, val y: Float)
@@ -43,9 +30,22 @@ data class PopoverStyle(
     val defaultHeight: Float = 200f
 )
 
+/** 弹窗定位：基于锚点矩形计算最终位置 */
+fun interface PopoverPosition {
+    fun resolve(anchorRect: RectF, popoverSize: Size): PointF
+}
+
+data class PopoverRequest(
+    val id: Int,
+    var content: (StateHolderWithNode<Node, List<Node>>) -> Unit,
+    var position: PopoverPosition,
+    var style: PopoverStyle = PopoverStyle(),
+    var dismissed: Boolean = false
+)
+
 /**
- * PopoverManager：顶层单例，管理所有活跃的 popover。
- * 使用信号列表驱动，Renderer 通过 popovers 信号渲染。
+ * PopoverManager：管理所有活跃的 popover 请求。
+ * 由业务层创建并通过 popoverManagerContext 提供给子树。
  */
 class PopoverManager {
     private var nextId = 0
@@ -97,7 +97,6 @@ class PopoverManager {
 
     fun getPosition(id: Int): PointF? = positions[id]
 
-    /** 获取或创建 PopoverNode 实例（首次调用时构建并缓存）*/
     fun getNode(id: Int, stateHolder: StateHolder<*, *>?): PopoverNode? {
         val req = requests[id] ?: return null
         if (req.dismissed) return null
@@ -106,7 +105,6 @@ class PopoverManager {
         }
     }
 
-    /** 首次渲染后更新 popover 实际位置（基于测量尺寸）*/
     fun updatePosition(id: Int, anchorRect: RectF, popoverSize: Size) {
         val req = requests[id] ?: return
         if (!req.dismissed) {
@@ -115,7 +113,7 @@ class PopoverManager {
     }
 
     companion object {
-        fun defaultPosition(): PopoverPosition = PopoverPosition { anchorRect, popoverSize ->
+        fun defaultPosition(): PopoverPosition = PopoverPosition { anchorRect, _ ->
             val x = anchorRect.left.coerceAtLeast(4f)
             val y = anchorRect.bottom + 4f
             PointF(x, y)

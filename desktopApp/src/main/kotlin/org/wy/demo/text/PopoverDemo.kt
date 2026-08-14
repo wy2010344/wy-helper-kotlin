@@ -5,6 +5,9 @@ import com.wy.layout.DirectionJustify
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import org.wy.engine.*
+import org.wy.engine.helper.PopoverManager
+import org.wy.engine.helper.PopoverStyle
+import org.wy.engine.helper.popoverManagerContext
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.LayoutDirection
@@ -22,19 +25,25 @@ fun main() {
         override val gap: Float get() = 8f
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+            provide(popoverManagerContext, PopoverManager())
             popoverDemo()
+            popoverOverlay()
         }
 
-        override fun renderOverlay(canvas: PlatformCanvas) {
-            val popovers = popoverManager.popovers
-            if (popovers.isEmpty()) return
-            popovers.forEach { req ->
-                val pos = popoverManager.getPosition(req.id) ?: return@forEach
-                val node = popoverManager.getNode(req.id, stateHolder) ?: return@forEach
-                canvas.save()
-                canvas.translate(pos.x, pos.y)
-                node.draw(canvas)
-                canvas.restore()
+        private fun StateHolderWithNode<Node, List<Node>>.popoverOverlay() {
+            val pm = consume(popoverManagerContext)!!
+            object : Node(this) {
+                override fun draw(canvas: PlatformCanvas) {
+                    val popovers = pm.popovers
+                    popovers.forEach { req ->
+                        val pos = pm.getPosition(req.id) ?: return@forEach
+                        val node = pm.getNode(req.id, context) ?: return@forEach
+                        canvas.save()
+                        canvas.translate(pos.x, pos.y)
+                        node.draw(canvas)
+                        canvas.restore()
+                    }
+                }
             }
         }
     }

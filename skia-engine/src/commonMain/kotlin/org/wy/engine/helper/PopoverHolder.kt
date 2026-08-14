@@ -1,9 +1,11 @@
-package org.wy.engine
+package org.wy.engine.helper
 
 import com.wy.mve.Context
 import com.wy.mve.DuplicateInfo
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
+import org.wy.engine.Node
+import org.wy.engine.PlatformCanvas
 import org.wy.lib.EmptyFun
 import org.wy.lib.GetValue
 import org.wy.signal.Memo
