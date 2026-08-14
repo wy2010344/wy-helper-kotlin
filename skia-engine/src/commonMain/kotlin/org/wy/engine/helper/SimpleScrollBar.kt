@@ -79,12 +79,31 @@ abstract class SimpleScrollBar(
                                 val calc = et.value ?: return
                                 val startValue = scroll.value
                                 val startPointer = if (direction == Direction.y) e.globalY else e.globalX
-                                val move = g.registerMouseMove { me ->
-                                    val pointer = if (direction == Direction.y) me.y else me.x
-                                    scroll.value = startValue + calc.moveToScroll(pointer - startPointer)
+                                var destroyed = false
+                                val d1 = g.registerMouseMove { me ->
+                                    if (!destroyed) {
+                                        val pointer = if (direction == Direction.y) me.y else me.x
+                                        scroll.value = startValue + calc.moveToScroll(pointer - startPointer)
+                                    }
                                 }
-                                g.registerMouseUp {
-                                    move()
+                                val d2 = g.registerMouseUp {
+                                    if (!destroyed) {
+                                        try {
+                                            val pointer = if (direction == Direction.y) it.y else it.x
+                                            scroll.value = startValue + calc.moveToScroll(pointer - startPointer)
+                                        } finally {
+                                            destroyed = true
+                                            d1()
+                                            d2()
+                                        }
+                                    }
+                                }
+                                addDestroy {
+                                    if (!destroyed) {
+                                        destroyed = true
+                                        d1()
+                                        d2()
+                                    }
                                 }
                             }
                         }

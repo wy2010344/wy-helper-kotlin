@@ -13,6 +13,9 @@ import org.wy.signal.memo
 import org.wy.signal.setValue
 
 private class Register(context: StateHolder<*, *>?) {
+    val selectionManager = SelectionManager()
+    val gestureArena = GestureArena()
+
     init {
         if (context != null) {
             provide(context)
@@ -101,6 +104,11 @@ private class Register(context: StateHolder<*, *>?) {
                     this@Register.focused = value
                 }
 
+            override val selectionManager: SelectionManager
+                get() = this@Register.selectionManager
+            override val gestureArena: GestureArena
+                get() = this@Register.gestureArena
+
             override fun requestInputOverlay(
                 x: Float,
                 y: Float,
@@ -150,6 +158,16 @@ open class Renderer private constructor(
     context: StateHolder<*, *>?,
     private val register: Register
 ) : LayoutNode(context) {
+
+    var keyboardModifiers: Modifiers = Modifiers.None
+    var mouseButtons: Int = 0
+
+    val selectionManager: SelectionManager get() = register.selectionManager
+    val gestureArena: GestureArena get() = register.gestureArena
+
+    var hitNode: NodeWithPosition? = null
+    var globalMoveHitest: NodeWithPosition? = null
+
     constructor(context: StateHolder<*, *>?) : this(context, Register(context)) {
         if (context == null) {
             val state = renderRoot(this@Renderer, nodeConfig) {
@@ -209,9 +227,8 @@ open class Renderer private constructor(
 
     fun mouseClick(x: Float, y: Float) {
         try {
-            hitest(x, y)?.let {
-                mouseEventOf(it, MouseEventEnum.click)
-            }
+            val hit = hitTest(x, y)
+            if (hit == null) return
         } catch (e: Throwable) {
             println("全局mouseClick事件出错--$e")
         }
@@ -219,14 +236,16 @@ open class Renderer private constructor(
 
     fun mouseDown(x: Float, y: Float) {
         try {
+            mouseButtons = 1
             register.pressed = true
-            hitest(x, y)?.let {
+            hitTest(x, y)?.let {
                 setFocused(it.last.node)
-                mouseEventOf(it, MouseEventEnum.down)
+                mouseEventOf(x, y, down = true)
             } ?: run {
                 setFocused(null)
             }
             register.dispatchMouseDown(x, y)
+            gestureArena.dispatchDown(GlobalMouseEvent(x, y) {})
         } catch (e: Throwable) {
             println("全局mouseDown事件出错--$e")
         }
@@ -238,10 +257,6 @@ open class Renderer private constructor(
         register.focused = node
     }
 
-    /**
-     * 收集整棵节点树中可聚焦的节点；有 `focusOrder` 的按值升序排在前面，
-     * 其余按文档顺序排在后面。
-     */
     private fun focusableNodes(): List<Node> {
         val result = mutableListOf<Node>()
         fun collect(node: Node) {
@@ -257,9 +272,6 @@ open class Renderer private constructor(
         return result
     }
 
-    /**
-     * Tab 移动到下一个可聚焦节点，Shift+Tab 移动到上一个；循环遍历。
-     */
     private fun moveFocus(next: Boolean) {
         val nodes = focusableNodes()
         if (nodes.isEmpty()) return
@@ -275,11 +287,14 @@ open class Renderer private constructor(
 
     fun mouseUp(x: Float, y: Float) {
         try {
+            mouseButtons = 0
             register.pressed = false
-            hitest(x, y)?.let {
-                mouseEventOf(it, MouseEventEnum.up)
+            hitTest(x, y)?.let {
+                mouseEventOf(x, y, up = true)
             }
             register.dispatchMouseUp(x, y)
+            selectionManager.handleMouseUp()
+            gestureArena.dispatchUp(GlobalMouseEvent(x, y) {})
         } catch (e: Throwable) {
             println("全局mouseUp事件出错--$e")
         }
@@ -287,13 +302,15 @@ open class Renderer private constructor(
 
     fun mouseMove(x: Float, y: Float) {
         try {
-            val nodeWithPosition = hitest(x, y)
+            val nodeWithPosition = hitTest(x, y)
             register.moveHitest = nodeWithPosition
             register.requestCursor(cursorOf(nodeWithPosition))
             if (nodeWithPosition != null) {
-                mouseEventOf(nodeWithPosition, MouseEventEnum.move)
+                mouseEventOf(x, y, move = true)
             }
             register.dispatchMouseMove(x, y)
+            selectionManager.handleMouseMove(x, y)
+            gestureArena.dispatchMove(GlobalMouseEvent(x, y) {})
         } catch (e: Throwable) {
             println("全局mouseMove事件出错--$e")
         }
@@ -303,6 +320,49 @@ open class Renderer private constructor(
         register.pressed = false
         register.moveHitest = null
         register.requestCursor(CursorType.DEFAULT)
+    }
+
+    private fun mouseEventOf(rootX: Float, rootY: Float, down: Boolean = false, up: Boolean = false, move: Boolean = false, wheel: Float? = null) {
+        val hit = hitTest(rootX, rootY)
+        if (hit == null) return
+        hitNode = hit
+        globalMoveHitest = hit
+
+        val capturePath = mutableListOf<NodeWithPosition>()
+        var cur: NodeWithPosition? = hit
+        while (cur != null) {
+            capturePath.add(cur)
+            cur = cur.node.parent?.let { p ->
+                NodeWithPosition(p, cur!!.x, cur!!.y, cur)
+            }
+        }
+
+        val bubblePath = mutableListOf<NodeWithPosition>()
+        cur = hit
+        while (cur != null) {
+            bubblePath.add(cur)
+            cur = cur.node.parent?.let { p ->
+                NodeWithPosition(p, cur!!.x, cur!!.y, cur)
+            }
+        }
+
+        try {
+            capturePath.asReversed().forEach { nodeWithPos ->
+                val e = MouseEvent(nodeWithPos, this, down, up, move, wheel)
+                (nodeWithPos.node as? MouseListener)?.mouseDownCapture(e)
+                if (e.stoppedProgression) return@forEach
+            }
+            bubblePath.forEach { nodeWithPos ->
+                val e = MouseEvent(nodeWithPos, this, down, up, move, wheel)
+                when {
+                    down -> (nodeWithPos.node as? MouseListener)?.mouseDown(e)
+                    up -> (nodeWithPos.node as? MouseListener)?.mouseUp(e)
+                    move -> (nodeWithPos.node as? MouseListener)?.mouseMove(e)
+                }
+            }
+        } catch (err: Error) {
+            println("事件处理出错--$err")
+        }
     }
 
     fun mouseWheel(x: Float, y: Float, delta: Float) {
@@ -321,12 +381,15 @@ open class Renderer private constructor(
         meta: Boolean = false
     ) {
         try {
+            keyboardModifiers = Modifiers(ctrl, shift, alt, meta)
             if (!alt && !meta && !ctrl && code == KeyCode.Tab) {
                 moveFocus(!shift)
                 return
             }
             val e = KeyEvent(key, code, ctrl, shift, alt, meta)
-            register.dispatchKeyPress(e)
+            (focused as? KeyHandler)?.handleKey(e) ?: run {
+                register.dispatchKeyPress(e)
+            }
         } catch (e: Throwable) {
             println("键盘事件出错--$e")
         }
@@ -334,7 +397,13 @@ open class Renderer private constructor(
 
     fun composingText(text: String, cursorPosition: Int) {
         try {
-            register.dispatchComposingText(text, cursorPosition)
+            val focusedNode = register.focused
+            if (focusedNode is EditableTextNode) {
+                focusedNode.composingText = text
+                focusedNode.composingCursorPos = cursorPosition
+            } else {
+                register.dispatchComposingText(text, cursorPosition)
+            }
         } catch (e: Throwable) {
             println("输入法事件出错--$e")
         }
@@ -347,44 +416,6 @@ private fun <K> register(map: MutableMap<K, EmptyFun>, key: K): EmptyFun {
     }
     map[key] = destroy
     return destroy
-}
-
-private enum class MouseEventEnum {
-    click, down, up, move
-}
-
-private fun mouseEventOf(nodeWithPosition: NodeWithPosition, type: MouseEventEnum) {
-    val root = nodeWithPosition
-    var nodeWithPosition: NodeWithPosition? = nodeWithPosition
-    val list = mutableListOf<NodeWithPosition>()
-    //这里检查时，如果直接事件发生，造成状态改变，再向上查询时会出错。
-    while (nodeWithPosition != null) {
-        //捕获
-        val e = MouseEvent(nodeWithPosition.x, nodeWithPosition.y, root.x, root.y)
-        sendMouseEvent(nodeWithPosition.node, type, e, true)
-        if (e.stoppedProgression) {
-            return
-        }
-        list.add(nodeWithPosition)
-        nodeWithPosition = nodeWithPosition.next
-    }
-    list.asReversed().forEach {
-        //冒泡
-        val e = MouseEvent(it.x, it.y, root.x, root.y)
-        sendMouseEvent(it.node, type, e, false)
-        if (e.stoppedProgression) {
-            return
-        }
-    }
-}
-
-private fun sendMouseEvent(node: Node, type: MouseEventEnum, e: MouseEvent, capture: Boolean) {
-    when (type) {
-        MouseEventEnum.click -> if (capture) node.mouseClickCapture(e) else node.mouseClick(e)
-        MouseEventEnum.down -> if (capture) node.mouseDownCapture(e) else node.mouseDown(e)
-        MouseEventEnum.up -> if (capture) node.mouseUpCapture(e) else node.mouseUp(e)
-        MouseEventEnum.move -> if (capture) node.mouseMoveCapture(e) else node.mouseMove(e)
-    }
 }
 
 private fun cursorOf(chain: NodeWithPosition?): CursorType {

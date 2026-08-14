@@ -7,12 +7,10 @@ import org.wy.signal.setValue
 import kotlin.math.max
 import kotlin.math.min
 
-private var activeEditor: EditableTextNode? = null
-private var keyRouterRegistered = false
 open class EditableTextNode(
     context: StateHolder<Node,List<Node>>,
     private val maxHistorySize: Int = 100
-) : WrappedTextNode(context) {
+) : WrappedTextNode(context), KeyHandler {
     override var text  by createSignal("")
 
     override val focusable: Boolean get() = true
@@ -24,12 +22,14 @@ open class EditableTextNode(
     open val composingUnderlineColor=rgba(0,0,0,140)
     private var cursorVisible by createSignal(true)
 
+    private var anchorIndex by createSignal(0)
+    private var focusIndex by createSignal(0)
 
     private var composingStart by createSignal(0)
     private var composingLength by createSignal(0)
     private var compositionBase:Pair<Int,String>?=null
-    private var composingText by createSignal("")
-    private var composingCursorPos by createSignal(0)
+    internal var composingText by createSignal("")
+    internal var composingCursorPos by createSignal(0)
 
     private val undoRedo = UndoRedo(maxHistorySize)
     val canUndo: Boolean get() = undoRedo.canUndo
@@ -72,7 +72,6 @@ open class EditableTextNode(
         val current = TextState(text, cursor())
         undoRedo.redo(current)?.let { applyState(it) }
     }
-
     fun insertText(inserted: String) {
         if (hasSel) {
             replaceSel(inserted)
@@ -145,8 +144,13 @@ open class EditableTextNode(
 
     fun moveHome() = setCursor(0).also { preferredX = Float.NaN }
     fun moveEnd() = setCursor(text.length).also { preferredX = Float.NaN }
-    fun selectAll() = selectRange(0, text.length)
 
+    fun selectAll() {
+        anchorIndex = 0
+        focusIndex = text.length
+        val selMgr = context.consume(selectionManagerContext)
+        selMgr?.selectAll(this)
+    }
     private fun cursorRect(): List<TextRect> {
         val p = paragraph ?: return emptyList()
         val pos = cursor()
@@ -213,44 +217,33 @@ open class EditableTextNode(
 
     init {
         g = context.consume(engineGlobalContext)!!
-        if (!keyRouterRegistered) {
-            keyRouterRegistered = true
-            g.registerKeyPress { (g.focused as? EditableTextNode)?.handleKey(it) }
-            g.registerComposingText { t, p ->
-                val ed = g.focused as? EditableTextNode
-                if (ed != null) {
-                    ed.composingText = t
-                    ed.composingCursorPos = p
-                }
-            }
-        }
         context.addDestroy { hideOverlay() }
     }
-
-    private fun handleKey(e: KeyEvent) {
+    override fun handleKey(e: KeyEvent): Boolean {
         when {
-            e.ctrl && e.key == 'z' -> undo()
-            e.ctrl && e.key == 'y' -> redo()
-            e.ctrl && e.key == 'a' -> selectAll()
-            e.ctrl && e.key == 'c' -> copy()
-            e.ctrl && e.key == 'v' -> paste()
-            e.ctrl && e.key == 'x' -> cut()
-            e.code == KeyCode.Backspace -> backspace().also { preferredX = Float.NaN }
-            e.code == KeyCode.Delete -> delete().also { preferredX = Float.NaN }
-            e.code == KeyCode.Left -> if (e.shift) selectLeft().also { preferredX = Float.NaN } else moveLeft().also { preferredX = Float.NaN }
-            e.code == KeyCode.Right -> if (e.shift) selectRight().also { preferredX = Float.NaN } else moveRight().also { preferredX = Float.NaN }
-            e.code == KeyCode.Up -> if (e.shift) selectUp() else moveUp()
-            e.code == KeyCode.Down -> if (e.shift) selectDown() else moveDown()
-            e.code == KeyCode.Home -> moveHome()
-            e.code == KeyCode.End -> moveEnd()
-            e.code == KeyCode.Enter -> insertText("\n").also { preferredX = Float.NaN }
-            e.code == KeyCode.Tab -> insertText("\t").also { preferredX = Float.NaN }
-            e.ctrl || e.alt -> {}
-            e.key.code < 0x20 || e.key.code == 0x7F -> {}
+            e.ctrl && e.key == 'z' -> { undo(); return true }
+            e.ctrl && e.key == 'y' -> { redo(); return true }
+            e.ctrl && e.key == 'a' -> { selectAll(); return true }
+            e.ctrl && e.key == 'c' -> { copy(); return true }
+            e.ctrl && e.key == 'v' -> { paste(); return true }
+            e.ctrl && e.key == 'x' -> { cut(); return true }
+            e.code == KeyCode.Backspace -> { backspace(); preferredX = Float.NaN; return true }
+            e.code == KeyCode.Delete -> { delete(); preferredX = Float.NaN; return true }
+            e.code == KeyCode.Left -> { if (e.shift) selectLeft() else moveLeft(); preferredX = Float.NaN; return true }
+            e.code == KeyCode.Right -> { if (e.shift) selectRight() else moveRight(); preferredX = Float.NaN; return true }
+            e.code == KeyCode.Up -> { if (e.shift) selectUp() else moveUp(); return true }
+            e.code == KeyCode.Down -> { if (e.shift) selectDown() else moveDown(); return true }
+            e.code == KeyCode.Home -> { moveHome(); return true }
+            e.code == KeyCode.End -> { moveEnd(); return true }
+            e.code == KeyCode.Enter -> { insertText("\n"); preferredX = Float.NaN; return true }
+            e.code == KeyCode.Tab -> { insertText("\t"); return true }
+            e.ctrl || e.alt -> return false
+            e.key.code < 0x20 || e.key.code == 0x7F -> return false
             else -> {
                 preferredX = Float.NaN
                 composingText = ""
                 insertText(e.key.toString())
+                return true
             }
         }
     }
@@ -294,8 +287,10 @@ open class EditableTextNode(
         super.mouseDownCapture(e)
         preferredX = Float.NaN
         showOverlay()
+        val offset = cursor()
+        val selMgr = context.consume(selectionManagerContext)
+        selMgr?.handleMouseDown(this, e.x, e.y, e.shift)
     }
-
     private fun overlayOrigin(): Pair<Float, Float> {
         val pos = cursor()
         val p = paragraph
@@ -330,19 +325,13 @@ open class EditableTextNode(
     }
 
     private fun hideOverlay() {
-        if (activeEditor == this) {
-            g.hideInputOverlay()
-            activeEditor = null
-        }
+        g.hideInputOverlay()
     }
 
     private fun updateFocusOverlay() {
         if (isFocused) {
-            if (activeEditor != this) {
-                activeEditor = this
-                showOverlay()
-            }
-        } else if (activeEditor == this) {
+            showOverlay()
+        } else {
             hideOverlay()
         }
     }
@@ -365,7 +354,6 @@ open class EditableTextNode(
     private fun drawCursor(canvas: PlatformCanvas, pos: Int) {
         val p = paragraph
         if (p == null) {
-            // 空文本时没有段落，光标固定绘制在首行起始处
             canvas.fillRect(
                 paddingInlineStart,
                 paddingBlockStart,
@@ -389,7 +377,6 @@ open class EditableTextNode(
             }
         }
     }
-
     private fun drawComposing(canvas: PlatformCanvas) {
         if (composingLength <= 0) return
         val p = paragraph ?: return

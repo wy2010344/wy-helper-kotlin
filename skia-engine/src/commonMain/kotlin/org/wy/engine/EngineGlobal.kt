@@ -1,4 +1,4 @@
-package org.wy.engine
+﻿package org.wy.engine
 
 import com.wy.mve.Context
 import org.wy.lib.EmptyFun
@@ -39,6 +39,17 @@ enum class CursorType {
     DEFAULT, POINTER, TEXT
 }
 
+data class Modifiers(
+    val ctrl: Boolean = false,
+    val shift: Boolean = false,
+    val alt: Boolean = false,
+    val meta: Boolean = false
+) {
+    companion object {
+        val None = Modifiers()
+    }
+}
+
 interface EngineGlobal {
     fun registerMouseDown(callback: MouseCallback): EmptyFun
     fun registerMouseMove(callback:MouseCallback): EmptyFun
@@ -51,17 +62,12 @@ interface EngineGlobal {
     val moveHitest: NodeWithPosition?
 
     var focused: Node?
-    /**
-     * 请求平台在指定屏幕位置显示原生输入控件（隐藏的 JTextField），
-     * 用于代理所有文本输入和 IME 组合。
-     * 平台实现应负责将 JTextField 定位到 (x, y) 并让它获得焦点。
-     */
+
+    val selectionManager: SelectionManager
+    val gestureArena: GestureArena
+
     fun requestInputOverlay(x: Float, y: Float, w: Float, h: Float, fontSize: Float)
-
-    /** 隐藏原生输入控件 */
     fun hideInputOverlay()
-
-    /** 请求平台切换鼠标光标（如悬停在可点击控件上时显示手型光标） */
     fun requestCursor(type: CursorType)
 }
 

@@ -32,7 +32,13 @@ fun StateHolder<Node,List<Node>>.registerScroll(scroll: Scroll) {
     val engineGlobal = consume(engineGlobalContext)!!
     val d0 = engineGlobal.registerMouseWheel {
         if (scroll.container.absoluteInInner(it.x, it.y)) {
-            scroll.scroll(it.delta)
+            val consumed = scroll.scroll(it.delta)
+            val remaining = it.delta - consumed
+            if (remaining != 0f) {
+                var p = scroll.container.parent
+                while (p != null && p !is ScrollNode) p = p.parent
+                (p as? ScrollNode)?.scroll(remaining)
+            }
         }
     }
     addDestroy(d0)

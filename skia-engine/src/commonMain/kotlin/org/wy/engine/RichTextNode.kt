@@ -2,16 +2,16 @@ package org.wy.engine
 
 import com.wy.mve.StateHolder
 import org.wy.lib.getValue
-import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.memo
-import org.wy.signal.setValue
 import kotlin.math.max
 import kotlin.math.min
 
 open class RichTextNode(
     context: StateHolder<Node,List<Node>>
-) : RectNode(context) {
+) : RectNode(context), Selectable {
+
+    val selectionManager = context.consume(selectionManagerContext)!!
 
     open val spans: List<RichTextSpan> = emptyList()
     open val selectionColor: ColorInt = rgba(100, 100, 200, 60)
@@ -53,63 +53,31 @@ open class RichTextNode(
         return max(maxFs, 1f)
     }
 
-    protected var anchorIndex by createSignal(-1)
-    protected var focusIndex by createSignal(-1)
-
-    val selectionText by memo {
-        if (anchorIndex < 0 || focusIndex < 0 || anchorIndex == focusIndex) return@memo null
-        val text = fullText
-        val s = min(anchorIndex, focusIndex)
-        val e = max(anchorIndex, focusIndex)
-        text.substring(s, e)
-    }
-
-    private var onMouseDown = false
-
     override fun mouseDown(e: MouseEvent) {
-        val p = paragraph ?: return
-        anchorIndex =
-            p.getGlyphPositionAtCoordinate(e.x - paddingInlineStart, e.y - paddingBlockStart)
-        focusIndex = anchorIndex
-        onMouseDown = true
-    }
-
-    init {
-        val engineGlobal = context.consume(engineGlobalContext)!!
-        val d1 = engineGlobal.registerMouseUp { onMouseDown = false }
-        val absoluteX by memo { absolutePosition(Direction.x) }
-        val absoluteY by memo { absolutePosition(Direction.y) }
-        val d2 = engineGlobal.registerMouseMove { e ->
-            if (onMouseDown) {
-                val p = paragraph ?: return@registerMouseMove
-                focusIndex = p.getGlyphPositionAtCoordinate(
-                    e.x - absoluteX - paddingInlineStart,
-                    e.y - absoluteY - paddingBlockStart
-                )
-            }
-        }
-        context.addDestroy { d1(); d2() }
+        selectionManager.handleMouseDown(this, e.x, e.y, e.shift)
     }
 
     override fun draw(canvas: PlatformCanvas) {
         val p = paragraph ?: return
-
-        if (anchorIndex >= 0 && focusIndex >= 0 && anchorIndex != focusIndex) {
-            val selStart = min(anchorIndex, focusIndex)
-            val selEnd = max(anchorIndex, focusIndex)
-            val rects = p.getRectsForRange(selStart, selEnd, RectStyle.TIGHT)
-            for (rect in rects) {
-                canvas.fillRect(
-                    x = rect.left+paddingInlineStart,
-                    y = rect.top+paddingBlockStart,
-                    w = rect.width,
-                    h = rect.height,
-                    color = selectionColor
-                )
-            }
-        }
-
         canvas.drawParagraph(p, paddingInlineStart, paddingBlockStart)
         super.draw(canvas)
     }
+
+    override fun getOffsetAt(localX: Float, localY: Float): Int {
+        return paragraph?.getGlyphPositionAtCoordinate(localX, localY) ?: 0
+    }
+    override fun getRectsForRange(start: Int, end: Int): List<TextRect> {
+        return paragraph?.getRectsForRange(start, end) ?: emptyList()
+    }
+    override fun getText(start: Int, end: Int): String {
+        return fullText.substring(start, end.coerceAtMost(fullText.length))
+    }
+    override fun textLength(): Int = fullText.length
+    override fun rootToLocal(rootX: Float, rootY: Float): Pair<Float, Float> {
+        return rootX - absoluteX to rootY - absoluteY
+    }
+    override fun localToRoot(localX: Float, localY: Float): Pair<Float, Float> {
+        return localX + absoluteX to localY + absoluteY
+    }
+    override val selectionOrder: Int get() = index
 }
