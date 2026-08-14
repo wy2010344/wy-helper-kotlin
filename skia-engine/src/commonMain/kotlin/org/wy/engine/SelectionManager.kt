@@ -49,7 +49,7 @@ class SelectionManager {
     val selectedRect: RectF? get() = active?.selectionRect()
 
     /** 是否存在选中 */
-    val hasSelection: Boolean get() = active?.hasSelection() == true
+    val hasSelection: Boolean get() = active?.hasSelection ?: false
 
     /**
      * 选中指定节点，自动清除上一个节点的选中态。

@@ -298,18 +298,18 @@ open class EditableTextNode(
         }
     }
 
-    private fun copy() {
+    internal fun copy() {
         if (!hasSel) return
         clipboardSetText(text.substring(selStart, selEnd))
     }
 
-    private fun cut() {
+    internal fun cut() {
         if (!hasSel) return
         clipboardSetText(text.substring(selStart, selEnd))
         delSel()
     }
 
-    private fun paste() {
+    internal fun paste() {
         val t = clipboardGetText() ?: return
         if (t.isEmpty()) return
         preferredX = Float.NaN
