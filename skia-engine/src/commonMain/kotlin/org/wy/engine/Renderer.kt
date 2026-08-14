@@ -308,16 +308,22 @@ open class Renderer private constructor(
     fun mouseWheel(x: Float, y: Float, delta: Float) {
         try {
             register.dispatchMouseWheel(x, y, delta)
+            register.gestureArena.dispatchWheel(delta)
         } catch (e: Throwable) { println("mouseWheel error--$e") }
     }
 
     fun keyPress(key: Char, code: KeyCode, ctrl: Boolean, shift: Boolean, alt: Boolean, meta: Boolean = false) {
         try {
             keyboardModifiers = Modifiers(ctrl, shift, alt, meta)
-            if (!alt && !meta && !ctrl && code == KeyCode.Tab) { moveFocus(!shift); return }
             val e = KeyEvent(key, code, ctrl, shift, alt, meta)
             val handled = (register.focused as? KeyHandler)?.handleKey(e) ?: false
-            if (!handled) register.dispatchKeyPress(e)
+            if (!handled) {
+                if (!alt && !meta && !ctrl && code == KeyCode.Tab) {
+                    moveFocus(!shift)
+                    return
+                }
+                register.dispatchKeyPress(e)
+            }
         } catch (e: Throwable) { println("keyboard error--$e") }
     }
 

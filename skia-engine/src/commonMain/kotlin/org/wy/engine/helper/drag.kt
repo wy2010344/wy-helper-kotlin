@@ -8,30 +8,39 @@ import org.wy.lib.EmptyFun
 
 /**
  * 基于全局鼠标回调的拖拽辅助函数。
- * 当鼠标按下并移动时持续触发 [change]，鼠标松开或离开时自动清理。
+ * 注册 mouseDown 回调，鼠标按下后自动注册 mouseMove / mouseUp，
+ * 鼠标松开时自动清理，形成完整的拖拽生命周期。
  */
 fun StateHolder<*, *>.drag(change: (e: GlobalMouseEvent) -> Unit) {
     val g = consume(engineGlobalContext)!!
     var destroyed = false
+    var d0: EmptyFun = {}
     var d1: EmptyFun = {}
     var d2: EmptyFun = {}
-    d1 = g.registerMouseMove {
-        if (!destroyed) change(it)
-    }
-    d2 = g.registerMouseUp {
-        if (!destroyed) {
-            try {
-                change(it)
-            } finally {
-                destroyed = true
-                d1()
-                d2()
+
+    d0 = g.registerMouseDown {
+        if (destroyed) return@registerMouseDown
+        d1()
+        d2()
+        d1 = g.registerMouseMove { me ->
+            if (!destroyed) change(me)
+        }
+        d2 = g.registerMouseUp {
+            if (!destroyed) {
+                try {
+                    change(it)
+                } finally {
+                    destroyed = true
+                    d1()
+                    d2()
+                }
             }
         }
     }
     addDestroy {
         if (!destroyed) {
             destroyed = true
+            d0()
             d1()
             d2()
         }

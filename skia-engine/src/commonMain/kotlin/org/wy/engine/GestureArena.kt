@@ -51,6 +51,14 @@ class GestureArena {
         clear()
     }
 
+    fun dispatchWheel(delta: Float): Float {
+        var remaining = delta
+        recognizers.filterIsInstance<ScrollRecognizer>().forEach {
+            remaining = it.handleWheel(remaining)
+        }
+        return remaining
+    }
+
     fun accept(r: GestureRecognizer) {
         if (winner != null) return
         winner = r

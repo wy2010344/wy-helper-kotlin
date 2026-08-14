@@ -1,4 +1,4 @@
-﻿package org.wy.engine
+package org.wy.engine
 
 import com.wy.mve.StateHolder
 import org.wy.signal.OneSetStoreRef
@@ -119,4 +119,11 @@ open class ScrollNode(
 ) : LayoutNode(context) {
     val scroll = Scroll(this, direction)
     fun scroll(delta: Float): Float = scroll.scroll(delta)
+
+    override fun draw(canvas: PlatformCanvas) {
+        canvas.save()
+        canvas.clipRect(paddingInlineStart, paddingBlockStart, innerWidth, innerHeight)
+        drawChildren(canvas)
+        canvas.restore()
+    }
 }

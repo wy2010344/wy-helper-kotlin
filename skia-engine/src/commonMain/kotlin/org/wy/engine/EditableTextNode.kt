@@ -22,6 +22,8 @@ open class EditableTextNode(
     open val composingUnderlineColor=rgba(0,0,0,140)
     private var cursorVisible by createSignal(true)
 
+    open val singleLine: Boolean get() = false
+
     private var anchorIndex by createSignal(0)
     private var focusIndex by createSignal(0)
 
@@ -73,14 +75,16 @@ open class EditableTextNode(
         undoRedo.redo(current)?.let { applyState(it) }
     }
     fun insertText(inserted: String) {
+        val textToInsert = if (singleLine) inserted.replace("\n", "").replace("\r", "") else inserted
+        if (textToInsert.isEmpty()) return
         if (hasSel) {
-            replaceSel(inserted)
+            replaceSel(textToInsert)
             return
         }
         val pos = cursor()
-        undoRedo.push(InsertTextAction(pos, inserted))
-        text = text.insert(pos, inserted)
-        setCursor(pos + inserted.length)
+        undoRedo.push(InsertTextAction(pos, textToInsert))
+        text = text.insert(pos, textToInsert)
+        setCursor(pos + textToInsert.length)
     }
 
     private fun replaceSel(replacement: String) {
@@ -221,8 +225,8 @@ open class EditableTextNode(
     }
     override fun handleKey(e: KeyEvent): Boolean {
         when {
-            e.ctrl && e.key == 'z' -> { undo(); return true }
-            e.ctrl && e.key == 'y' -> { redo(); return true }
+            e.ctrl && !e.shift && e.key == 'z' -> { undo(); return true }
+            (e.ctrl && e.key == 'y') || (e.ctrl && e.shift && e.key == 'z') -> { redo(); return true }
             e.ctrl && e.key == 'a' -> { selectAll(); return true }
             e.ctrl && e.key == 'c' -> { copy(); return true }
             e.ctrl && e.key == 'v' -> { paste(); return true }
@@ -235,8 +239,8 @@ open class EditableTextNode(
             e.code == KeyCode.Down -> { if (e.shift) selectDown() else moveDown(); return true }
             e.code == KeyCode.Home -> { moveHome(); return true }
             e.code == KeyCode.End -> { moveEnd(); return true }
-            e.code == KeyCode.Enter -> { insertText("\n"); preferredX = Float.NaN; return true }
-            e.code == KeyCode.Tab -> { insertText("\t"); return true }
+            e.code == KeyCode.Enter -> { if (!singleLine) insertText("\n"); preferredX = Float.NaN; return true }
+            e.code == KeyCode.Tab -> { if (!singleLine) insertText("\t"); return true }
             e.ctrl || e.alt -> return false
             e.key.code < 0x20 || e.key.code == 0x7F -> return false
             else -> {
@@ -286,6 +290,17 @@ open class EditableTextNode(
     override fun mouseDownCapture(e: MouseEvent) {
         super.mouseDownCapture(e)
         preferredX = Float.NaN
+        val p = paragraph
+        if (p != null) {
+            val localX = e.x - paddingInlineStart
+            val localY = e.y - paddingBlockStart
+            val pos = p.getGlyphPositionAtCoordinate(localX, localY)
+            if (e.shift && anchorIndex >= 0) {
+                focusIndex = pos.coerceIn(0, text.length)
+            } else {
+                setCursor(pos)
+            }
+        }
         showOverlay()
     }
     private fun overlayOrigin(): Pair<Float, Float> {
