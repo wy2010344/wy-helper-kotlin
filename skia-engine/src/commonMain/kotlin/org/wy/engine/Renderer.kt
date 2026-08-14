@@ -117,6 +117,8 @@ open class Renderer private constructor(
     var mouseButtons: Int = 0
 
     val gestureArena: GestureArena get() = register.gestureArena
+    val popoverManager: PopoverManager get() = register.popoverManager
+    val selectionManager: SelectionManager get() = register.selectionManager
 
     var hitNode: NodeWithPosition? = null
     var globalMoveHitest: NodeWithPosition? = null
@@ -125,14 +127,20 @@ open class Renderer private constructor(
     private var downY = 0f
     private var downTime = 0L
 
+    var stateHolder: StateHolder<*, *>? = null
+        private set
+
     constructor(context: StateHolder<*, *>?) : this(context, Register(context)) {
         if (context == null) {
             val state = renderRoot(this@Renderer, nodeConfig) {
                 register.provide(this)
                 argChildren()
             }
+            this.stateHolder = state as StateHolder<*, *>
             this.getChildren = state.target
             this.destroyFun = state::destroy
+        } else {
+            this.stateHolder = context
         }
     }
 

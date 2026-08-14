@@ -21,10 +21,6 @@ fun main() {
         override val alignItem: AlignItem get() = AlignItem.stretch
         override val gap: Float get() = 8f
 
-        private val popoverManager: PopoverManager by lazy {
-            (this as StateHolder<*, *>).consume(popoverManagerContext)!!
-        }
-
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
             popoverDemo()
         }
@@ -34,7 +30,7 @@ fun main() {
             if (popovers.isEmpty()) return
             popovers.forEach { req ->
                 val pos = popoverManager.getPosition(req.id) ?: return@forEach
-                val node = PopoverNode(this as StateHolder<*, *>, req)
+                val node = PopoverNode(stateHolder, req)
                 canvas.save()
                 canvas.translate(pos.x, pos.y)
                 node.draw(canvas)
