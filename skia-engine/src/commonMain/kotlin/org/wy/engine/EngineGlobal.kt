@@ -66,8 +66,8 @@ interface EngineGlobal {
 
     var focused: Node?
 
-    val selectionManager: SelectionManager
     val gestureArena: GestureArena
+    val selectionManager: SelectionManager
 
     fun requestInputOverlay(x: Float, y: Float, w: Float, h: Float, fontSize: Float)
     fun hideInputOverlay()

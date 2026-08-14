@@ -4,6 +4,7 @@ data class RichTextStyle(
     val fontFamily: String? = null,
     val fontSize: Float = 16f,
     val fontWeight: Int = 400,
+    val italic: Boolean = false,
     val color: ColorInt = rgba(0, 0, 0),
     val letterSpacing: Float = 0f,
     val wordSpacing: Float = 0f,

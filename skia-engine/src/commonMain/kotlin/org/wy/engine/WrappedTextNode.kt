@@ -25,6 +25,7 @@ open class WrappedTextNode(
 
     open val letterSpacing: Float=0f
     open val wordSpacing: Float=0f
+    open val italic: Boolean = false
 
     override val maxLines: Int = Int.MAX_VALUE
     override val ellipsis: String = "\u2026"
@@ -35,6 +36,7 @@ open class WrappedTextNode(
             fontFamily,
             fontSize,
             fontWeight,
+            italic,
             color,
             letterSpacing,
             wordSpacing,

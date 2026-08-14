@@ -9,14 +9,7 @@ import kotlin.math.min
 
 open class RichTextNode(
     context: StateHolder<Node,List<Node>>
-) : RectNode(context), Selectable {
-
-    val selectionManager = context.consume(selectionManagerContext)!!
-
-    init {
-        val selId = selectionManager.register(this)
-        context.addDestroy { selectionManager.unregister(selId) }
-    }
+) : RectNode(context) {
 
     open val spans: List<RichTextSpan> = emptyList()
     open val selectionColor: ColorInt = rgba(100, 100, 200, 60)
@@ -57,40 +50,9 @@ open class RichTextNode(
         return max(maxFs, 1f)
     }
 
-    override fun mouseDown(e: MouseEvent) {
-        selectionManager.handleMouseDown(this, e.x, e.y, e.rootX, e.rootY, e.shift)
-    }
-
     override fun draw(canvas: PlatformCanvas) {
         val p = paragraph ?: return
         canvas.drawParagraph(p, paddingInlineStart, paddingBlockStart)
         super.draw(canvas)
     }
-
-    override fun getOffsetAt(localX: Float, localY: Float): Int {
-        return paragraph?.getGlyphPositionAtCoordinate(localX, localY) ?: 0
-    }
-
-    override fun getRectsForRange(start: Int, end: Int): List<TextRect> {
-        return paragraph?.getRectsForRange(start, end, RectStyle.TIGHT) ?: emptyList()
-    }
-
-    override fun getText(start: Int, end: Int): String {
-        return fullText.substring(start, end.coerceAtMost(fullText.length))
-    }
-
-    override fun textLength(): Int = fullText.length
-
-    override fun rootToLocal(rootX: Float, rootY: Float): Pair<Float, Float> {
-        return rootX - absoluteX to rootY - absoluteY
-    }
-
-    override fun localToRoot(localX: Float, localY: Float): Pair<Float, Float> {
-        return localX + absoluteX to localY + absoluteY
-    }
-
-    override fun localWidth(): Float = innerWidth
-    override fun localHeight(): Float = innerHeight
-
-    override val selectionOrder: Int get() = index
 }

@@ -1,6 +1,7 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
+import org.wy.lib.EmptyFun
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.setValue
@@ -10,7 +11,7 @@ import kotlin.math.min
 open class EditableTextNode(
     context: StateHolder<Node,List<Node>>,
     private val maxHistorySize: Int = 100
-) : WrappedTextNode(context), KeyHandler {
+) : WrappedTextNode(context), KeyHandler, Selectable {
     override var text  by createSignal("")
 
     override val focusable: Boolean get() = true
@@ -49,6 +50,26 @@ open class EditableTextNode(
         get() = max(anchorIndex, focusIndex).coerceIn(0, text.length)
     private val hasSel: Boolean
         get() = anchorIndex >= 0 && focusIndex >= 0 && anchorIndex != focusIndex
+
+    override val hasSelection: Boolean get() = hasSel
+
+    val selectedText: String
+        get() = if (hasSel) text.substring(selStart, selEnd) else ""
+
+    val selectionRect: RectF?
+        get() {
+            if (!hasSel) return null
+            val p = paragraph ?: return null
+            val rects = p.getRectsForRange(selStart, selEnd, RectStyle.TIGHT)
+            if (rects.isEmpty()) return null
+            val first = rects.first()
+            val last = rects.last()
+            val left = paddingInlineStart + minOf(first.left, last.left)
+            val top = paddingBlockStart + minOf(first.top, last.top)
+            val right = paddingInlineStart + maxOf(first.right, last.right)
+            val bottom = paddingBlockStart + maxOf(first.bottom, last.bottom)
+            return RectF(left, top, right, bottom)
+        }
 
     private fun cursor(): Int = if (anchorIndex >= 0) anchorIndex.coerceIn(0, text.length) else 0
 
@@ -151,11 +172,9 @@ open class EditableTextNode(
     fun moveHome() = setCursor(0).also { preferredX = Float.NaN }
     fun moveEnd() = setCursor(text.length).also { preferredX = Float.NaN }
 
-    fun selectAll() {
+    override fun selectAll() {
         anchorIndex = 0
         focusIndex = text.length
-        val selMgr = context?.consume(selectionManagerContext)
-        selMgr?.selectAll(this)
     }
     private fun cursorRect(): List<TextRect> {
         val p = paragraph ?: return emptyList()
@@ -220,11 +239,36 @@ open class EditableTextNode(
     }
 
     private val g: EngineGlobal
+    private var dragMoveHandle: EmptyFun? = null
+    private var dragUpHandle: EmptyFun? = null
+    
+    private var selectionManager: SelectionManager? = null
 
     init {
         g = context.consume(engineGlobalContext)!!
-        context.addDestroy { hideOverlay() }
+        selectionManager = context.consume(selectionManagerContext)
+        context.addDestroy {
+            hideOverlay()
+            dragMoveHandle?.invoke()
+            dragUpHandle?.invoke()
+            selectionManager?.clear()
+        }
     }
+
+    // --- Selectable 接口实现 ---
+    override fun selectionText(): String? = selectedText.ifEmpty { null }
+
+    override fun selectionRect(): RectF? = this.selectionRect
+
+    // hasSelection 已由属性实现，无需额外 override 方法
+
+    override fun setSelected(selected: Boolean) {
+        if (!selected && hasSel) {
+            // 当被取消选中时，清空内部选中状态
+            setCursor(anchorIndex)
+        }
+    }
+    // ---------------------------
     override fun handleKey(e: KeyEvent): Boolean {
         when {
             e.ctrl && !e.shift && e.key == 'z' -> { undo(); return true }
@@ -242,7 +286,7 @@ open class EditableTextNode(
             e.code == KeyCode.Home -> { moveHome(); return true }
             e.code == KeyCode.End -> { moveEnd(); return true }
             e.code == KeyCode.Enter -> { if (!singleLine) insertText("\n"); preferredX = Float.NaN; return true }
-            e.code == KeyCode.Tab -> { if (!singleLine) insertText("\t"); return true }
+            e.code == KeyCode.Tab -> { if (!singleLine) { insertText("\t"); return true }; return false }
             e.ctrl || e.alt -> return false
             e.key.code < 0x20 || e.key.code == 0x7F -> return false
             else -> {
@@ -305,24 +349,36 @@ open class EditableTextNode(
         }
         dragging = true
         showOverlay()
+        
+        // 通知 SelectionManager 当前节点被选中
+        selectionManager?.select(this)
+
+        dragMoveHandle?.invoke()
+        dragUpHandle?.invoke()
+        dragMoveHandle = g.registerMouseMove { me ->
+            if (!dragging) return@registerMouseMove
+            val pp = paragraph ?: return@registerMouseMove
+            val localX = me.x - paddingInlineStart
+            val localY = me.y - paddingBlockStart
+            val pos = pp.getGlyphPositionAtCoordinate(localX, localY)
+            focusIndex = pos.coerceIn(0, text.length)
+            preferredX = Float.NaN
+        }
+        dragUpHandle = g.registerMouseUp {
+            dragging = false
+            dragMoveHandle?.invoke()
+            dragMoveHandle = null
+            dragUpHandle?.invoke()
+            dragUpHandle = null
+        }
     }
 
     override fun mouseMoveCapture(e: MouseEvent) {
         super.mouseMoveCapture(e)
-        if (!dragging) return
-        val p = paragraph
-        if (p != null) {
-            val localX = e.x - paddingInlineStart
-            val localY = e.y - paddingBlockStart
-            val pos = p.getGlyphPositionAtCoordinate(localX, localY)
-            focusIndex = pos.coerceIn(0, text.length)
-            preferredX = Float.NaN
-        }
     }
 
     override fun mouseUpCapture(e: MouseEvent) {
         super.mouseUpCapture(e)
-        dragging = false
     }
     private fun overlayOrigin(): Pair<Float, Float> {
         val pos = cursor()

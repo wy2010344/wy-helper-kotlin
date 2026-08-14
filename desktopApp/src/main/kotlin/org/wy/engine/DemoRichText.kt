@@ -93,8 +93,7 @@ fun main() {
                     )
 
                 override fun mouseUp(e: MouseEvent) {
-                    val sel = selectionManager.selectedText
-                    feedback.value = if (sel != null) "Selected: \"$sel\"" else ""
+                    feedback.value = ""
                 }
             }
 

@@ -50,8 +50,6 @@ open class LayoutNode(context: StateHolder<*,*>?) : Node(context) {
     open val layout: LayoutDirection
         get() = absoluteLayoutDirection
 
-    var scrollCtrl: Scroll? = null
-
     val layoutX: GetValue<Layout> = createLayout(Direction.x)
     val layoutY: GetValue<Layout> = createLayout(Direction.y)
 

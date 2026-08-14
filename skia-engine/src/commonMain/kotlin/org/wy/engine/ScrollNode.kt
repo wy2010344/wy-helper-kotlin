@@ -6,11 +6,19 @@ import org.wy.signal.OneSetStoreRef
 import org.wy.signal.createLateSignal
 import kotlin.math.max
 
-val scrollXContext = Context<Scroll?>(null)
-val scrollYContext = Context<Scroll?>(null)
+private val scrollXContext = Context<Scroll?>(null)
+private val scrollYContext = Context<Scroll?>(null)
 
 fun scrollContext(direction: Direction): Context<Scroll?> =
     if (direction == Direction.x) scrollXContext else scrollYContext
+
+fun StateHolder<*, *>.provideScroll(scroll: Scroll) {
+    provide(scrollContext(scroll.direction), scroll)
+}
+
+fun StateHolder<*, *>.consumeScroll(direction: Direction): Scroll? {
+    return consume(scrollContext(direction))
+}
 
 class Scroll(
     val container: LayoutNode,
@@ -35,21 +43,18 @@ class Scroll(
 }
 
 fun StateHolder<Node,List<Node>>.registerScroll(scroll: Scroll) {
-    scroll.container.scrollCtrl = scroll
+    val parentScroll = consumeScroll(scroll.direction)
+    provideScroll(scroll)
     val engineGlobal = consume(engineGlobalContext)!!
-    val d0 = engineGlobal.registerMouseWheel {
+    addDestroy(engineGlobal.registerMouseWheel {
         if (scroll.container.absoluteInInner(it.x, it.y)) {
             val consumed = scroll.scroll(it.delta)
             val remaining = it.delta - consumed
-            if (remaining != 0f) {
-                val parentScroll = consume(scrollContext(scroll.direction))
-                if (parentScroll != null && parentScroll != scroll) {
-                    parentScroll.scroll(remaining)
-                }
+            if (remaining != 0f && parentScroll != null && parentScroll != scroll) {
+                parentScroll.scroll(remaining)
             }
         }
-    }
-    addDestroy(d0)
+    })
 }
 
 fun LayoutNode.maxScroll(direction: Direction): Float {
@@ -98,13 +103,6 @@ class ScrollBarCalculate(
 }
 
 open class ScrollContent(context: StateHolder<Node,List<Node>>) : RectNode(context) {
-
-    init {
-        val scroll = layoutParent?.scrollCtrl
-        if (scroll != null && context != null) {
-            context.provide(scrollContext(scroll.direction), scroll)
-        }
-    }
 
     private fun visibleRect(): RectF? {
         val sn = layoutParent ?: return null

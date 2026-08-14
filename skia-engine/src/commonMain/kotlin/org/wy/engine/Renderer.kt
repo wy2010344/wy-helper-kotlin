@@ -13,8 +13,9 @@ import org.wy.signal.memo
 import org.wy.signal.setValue
 
 private class Register(context: StateHolder<*, *>?) {
-    val selectionManager = SelectionManager()
     val gestureArena = GestureArena()
+    val popoverManager = PopoverManager()
+    val selectionManager = SelectionManager()
 
     init {
         if (context != null) provide(context)
@@ -68,8 +69,9 @@ private class Register(context: StateHolder<*, *>?) {
     }
 
     fun provide(context: StateHolder<*, *>) {
-        context.provide(selectionManagerContext, selectionManager)
         context.provide(gestureArenaContext, gestureArena)
+        context.provide(popoverManagerContext, popoverManager)
+        context.provide(selectionManagerContext, selectionManager)
         context.provide(engineGlobalContext, object : EngineGlobal {
             override fun registerMouseDown(callback: MouseCallback): EmptyFun = register(downList, callback)
             override fun registerMouseMove(callback: MouseCallback): EmptyFun = register(moveList, callback)
@@ -87,8 +89,8 @@ private class Register(context: StateHolder<*, *>?) {
                 get() = this@Register.focused
                 set(value) { this@Register.focused = value }
 
-            override val selectionManager: SelectionManager get() = this@Register.selectionManager
             override val gestureArena: GestureArena get() = this@Register.gestureArena
+            override val selectionManager: SelectionManager get() = this@Register.selectionManager
 
             override fun requestInputOverlay(x: Float, y: Float, w: Float, h: Float, fontSize: Float) {
                 overlayShow?.invoke(x, y, w, h, fontSize)
@@ -114,7 +116,6 @@ open class Renderer private constructor(
     var keyboardModifiers: Modifiers = Modifiers.None
     var mouseButtons: Int = 0
 
-    val selectionManager: SelectionManager get() = register.selectionManager
     val gestureArena: GestureArena get() = register.gestureArena
 
     var hitNode: NodeWithPosition? = null
@@ -158,15 +159,27 @@ open class Renderer private constructor(
         scheduled = true
         try {
             canvas.clear(rgba(255, 255, 255))
-            signal.collect { didDraw().draw(canvas, 0f, 0f) }
+            signal.collect {
+                didDraw().draw(canvas, 0f, 0f)
+                renderOverlay(canvas)
+            }
         } catch (err: Throwable) { println("render error--$err") }
         scheduled = false
     }
+
+    protected open fun renderOverlay(canvas: PlatformCanvas) {}
 
     private fun setFocused(node: Node?) {
         val old = register.focused
         if (old === node) return
         register.focused = node
+        // 同步选中状态到 SelectionManager
+        val selectable = node as? Selectable
+        if (selectable != null) {
+            register.selectionManager.select(selectable)
+        } else if (old is Selectable) {
+            register.selectionManager.clear()
+        }
     }
 
     private fun focusableNodes(): List<Node> {
@@ -241,7 +254,6 @@ open class Renderer private constructor(
                 }
             }
             register.dispatchMouseUp(x, y)
-            selectionManager.handleMouseUp()
             gestureArena.dispatchUp(GlobalMouseEvent(x, y) {})
         } catch (e: Throwable) { println("mouseUp error--$e") }
     }
@@ -255,7 +267,6 @@ open class Renderer private constructor(
                 dispatchMouseEvent(hit, x, y, move = true)
             }
             register.dispatchMouseMove(x, y)
-            selectionManager.handleMouseMove(x, y)
             gestureArena.dispatchMove(GlobalMouseEvent(x, y) {})
         } catch (e: Throwable) { println("mouseMove error--$e") }
     }
@@ -316,6 +327,38 @@ open class Renderer private constructor(
         try {
             keyboardModifiers = Modifiers(ctrl, shift, alt, meta)
             val e = KeyEvent(key, code, ctrl, shift, alt, meta)
+            
+            // 检查是否是全局选择快捷键（Cmd+A/C/X/V）
+            if (ctrl && !shift && !alt && !meta) {
+                when (key) {
+                    'a' -> {
+                        register.selectionManager.selectAll()
+                        return
+                    }
+                    'c' -> {
+                        val text = register.selectionManager.selectedText
+                        if (text != null && text.isNotEmpty()) {
+                            clipboardSetText(text)
+                            return
+                        }
+                    }
+                    'x' -> {
+                        val current = register.selectionManager.current as? EditableTextNode
+                        if (current != null && current.hasSelection) {
+                            current.cut()
+                            return
+                        }
+                    }
+                    'v' -> {
+                        val current = register.selectionManager.current as? EditableTextNode
+                        if (current != null) {
+                            current.paste()
+                            return
+                        }
+                    }
+                }
+            }
+            
             val handled = (register.focused as? KeyHandler)?.handleKey(e) ?: false
             if (!handled) {
                 if (!alt && !meta && !ctrl && code == KeyCode.Tab) {
