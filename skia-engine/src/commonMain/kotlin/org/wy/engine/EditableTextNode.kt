@@ -17,6 +17,7 @@ open class EditableTextNode(
 
     open val cursorColor: ColorInt = rgba(0, 0, 0)
     open val cursorWidth: Float = 2f
+    override val selectionColor: ColorInt get() = rgba(80, 140, 255, 80)
 
     open val composingBackgroundColor=rgba(200,200,255,50)
     open val composingUnderlineColor=rgba(0,0,0,140)
@@ -26,6 +27,7 @@ open class EditableTextNode(
 
     private var anchorIndex by createSignal(0)
     private var focusIndex by createSignal(0)
+    private var dragging by createSignal(false)
 
     private var composingStart by createSignal(0)
     private var composingLength by createSignal(0)
@@ -301,7 +303,26 @@ open class EditableTextNode(
                 setCursor(pos)
             }
         }
+        dragging = true
         showOverlay()
+    }
+
+    override fun mouseMoveCapture(e: MouseEvent) {
+        super.mouseMoveCapture(e)
+        if (!dragging) return
+        val p = paragraph
+        if (p != null) {
+            val localX = e.x - paddingInlineStart
+            val localY = e.y - paddingBlockStart
+            val pos = p.getGlyphPositionAtCoordinate(localX, localY)
+            focusIndex = pos.coerceIn(0, text.length)
+            preferredX = Float.NaN
+        }
+    }
+
+    override fun mouseUpCapture(e: MouseEvent) {
+        super.mouseUpCapture(e)
+        dragging = false
     }
     private fun overlayOrigin(): Pair<Float, Float> {
         val pos = cursor()
@@ -354,12 +375,26 @@ open class EditableTextNode(
 
         updateOverlayPosition()
 
-        if (!hasSel && cursorVisible && isFocused) {
+        if (hasSel) {
+            drawSelection(canvas)
+        } else if (cursorVisible && isFocused) {
             drawCursor(canvas, cursor())
         }
 
         if (composingText.isNotEmpty()) {
             drawComposing(canvas)
+        }
+    }
+
+    private fun drawSelection(canvas: PlatformCanvas) {
+        val p = paragraph ?: return
+        val px = paddingInlineStart
+        val py = paddingBlockStart
+        val start = selStart
+        val end = selEnd
+        if (start >= end) return
+        for (rect in p.getRectsForRange(start, end, RectStyle.TIGHT)) {
+            canvas.fillRect(rect.left + px, rect.top + py, rect.width, rect.height, selectionColor)
         }
     }
 

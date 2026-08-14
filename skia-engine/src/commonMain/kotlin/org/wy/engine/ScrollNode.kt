@@ -1,18 +1,24 @@
 package org.wy.engine
 
+import com.wy.mve.Context
 import com.wy.mve.StateHolder
 import org.wy.signal.OneSetStoreRef
 import org.wy.signal.createLateSignal
 import kotlin.math.max
 
+val scrollXContext = Context<Scroll?>(null)
+val scrollYContext = Context<Scroll?>(null)
+
+fun scrollContext(direction: Direction): Context<Scroll?> =
+    if (direction == Direction.x) scrollXContext else scrollYContext
 
 class Scroll(
     val container: LayoutNode,
-    val direction: Direction = Direction.y,
-    value: OneSetStoreRef<Float> = createLateSignal(0f)
+    val direction: Direction = Direction.y
 ) {
-    private val setValue = value.getOnlySet()
-    private val getValue = value::get
+    private val ref: OneSetStoreRef<Float> = createLateSignal(0f)
+    private val setValue = ref.getOnlySet()
+    private val getValue = ref::get
 
     var value
         get() = getValue().coerceIn(0f, container.maxScroll(direction))
@@ -29,33 +35,27 @@ class Scroll(
 }
 
 fun StateHolder<Node,List<Node>>.registerScroll(scroll: Scroll) {
+    scroll.container.scrollCtrl = scroll
     val engineGlobal = consume(engineGlobalContext)!!
     val d0 = engineGlobal.registerMouseWheel {
         if (scroll.container.absoluteInInner(it.x, it.y)) {
             val consumed = scroll.scroll(it.delta)
             val remaining = it.delta - consumed
             if (remaining != 0f) {
-                var p = scroll.container.parent
-                while (p != null && p !is ScrollNode) p = p.parent
-                (p as? ScrollNode)?.scroll(remaining)
+                val parentScroll = consume(scrollContext(scroll.direction))
+                if (parentScroll != null && parentScroll != scroll) {
+                    parentScroll.scroll(remaining)
+                }
             }
         }
     }
     addDestroy(d0)
 }
 
-/**
- * 最大可滚动
- */
 fun LayoutNode.maxScroll(direction: Direction): Float {
     return max(0f, contentSize(direction) - innerSize(direction))
 }
 
-
-/**
- * length 滚动的长度
- * return <尺寸，位置>
- */
 fun Scroll.scrollBarSize(
     direction: Direction,
     length: Float = 0f
@@ -65,9 +65,7 @@ fun Scroll.scrollBarSize(
     val c = container.contentSize(direction)
     val m = container.maxScroll(direction)
     if (m > 0) {
-        //
         val thumb = max(20f, length * v / c)
-        //最大偏移*偏移比例
         val maxOffset = length - thumb
         val move = maxOffset * value / m
         return ScrollBarCalculate(thumb, move, m, maxOffset)
@@ -75,10 +73,6 @@ fun Scroll.scrollBarSize(
     return null
 }
 
-
-/**
- * 内容区尺寸
- */
 fun LayoutNode.contentSize(direction: Direction): Float {
     children.forEach {
         if (it is ScrollContent) {
@@ -104,26 +98,25 @@ class ScrollBarCalculate(
 }
 
 open class ScrollContent(context: StateHolder<Node,List<Node>>) : RectNode(context) {
-    override fun acceptClip(x: Float, y: Float): Boolean {
-        val sn = layoutParent!!
+
+    init {
+        val scroll = layoutParent?.scrollCtrl
+        if (scroll != null && context != null) {
+            context.provide(scrollContext(scroll.direction), scroll)
+        }
+    }
+
+    private fun visibleRect(): RectF? {
+        val sn = layoutParent ?: return null
         val left = sn.paddingInlineStart
         val top = sn.paddingBlockStart
-        val right = left + sn.innerSize(Direction.x)
-        val bottom = top + sn.innerSize(Direction.y)
-        return x > left && x < right && y > top && y < bottom
+        return RectF(left, top, left + sn.innerSize(Direction.x), top + sn.innerSize(Direction.y))
     }
-}
-open class ScrollNode(
-    context: StateHolder<Node,List<Node>>,
-    val direction: Direction = Direction.y
-) : LayoutNode(context) {
-    val scroll = Scroll(this, direction)
-    fun scroll(delta: Float): Float = scroll.scroll(delta)
 
-    override fun draw(canvas: PlatformCanvas) {
-        canvas.save()
-        canvas.clipRect(paddingInlineStart, paddingBlockStart, innerWidth, innerHeight)
-        drawChildren(canvas)
-        canvas.restore()
+    override fun clipRect(): RectF? = visibleRect()
+
+    override fun acceptClip(x: Float, y: Float): Boolean {
+        val r = visibleRect() ?: return true
+        return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
     }
 }
