@@ -74,10 +74,7 @@ open class LayoutNode(context: StateHolder<*,*>?) : Node(context) {
     var layoutIndex: Int = 0
         internal set
         get() {
-            if(hide){
-                throw Error("已经隐藏不再显示")
-            }
-            layoutParent?.layoutChildren
+            if(hide) return -1
             return field
         }
 
@@ -301,7 +298,7 @@ fun LayoutNode.sizeFromParent(direction: Direction): LayoutSize {
             false
         )
     }
-    throw Error("未找到父节点")
+    return layoutSize0
 }
 
 fun LayoutNode.sizeFromChildren(direction: Direction): LayoutSize {

@@ -64,10 +64,10 @@ open class EditableTextNode(
             if (rects.isEmpty()) return null
             val first = rects.first()
             val last = rects.last()
-            val left = paddingInlineStart + minOf(first.left, last.left)
-            val top = paddingBlockStart + minOf(first.top, last.top)
-            val right = paddingInlineStart + maxOf(first.right, last.right)
-            val bottom = paddingBlockStart + maxOf(first.bottom, last.bottom)
+            val left = absoluteX + paddingInlineStart + minOf(first.left, last.left)
+            val top = absoluteY + paddingBlockStart + minOf(first.top, last.top)
+            val right = absoluteX + paddingInlineStart + maxOf(first.right, last.right)
+            val bottom = absoluteY + paddingBlockStart + maxOf(first.bottom, last.bottom)
             return RectF(left, top, right, bottom)
         }
 
@@ -238,14 +238,14 @@ open class EditableTextNode(
         setCursor(state.cursor)
     }
 
-    private val g: EngineGlobal
+    private val g: EngineGlobal?
     private var dragMoveHandle: EmptyFun? = null
     private var dragUpHandle: EmptyFun? = null
     
     private var selectionManager: SelectionManager? = null
 
     init {
-        g = context.consume(engineGlobalContext)!!
+        g = context.consume(engineGlobalContext)
         selectionManager = context.consume(selectionManagerContext)
         context.addDestroy {
             hideOverlay()
@@ -338,8 +338,8 @@ open class EditableTextNode(
         preferredX = Float.NaN
         val p = paragraph
         if (p != null) {
-            val localX = e.x - paddingInlineStart
-            val localY = e.y - paddingBlockStart
+            val localX = e.x - absoluteX - paddingInlineStart
+            val localY = e.y - absoluteY - paddingBlockStart
             val pos = p.getGlyphPositionAtCoordinate(localX, localY)
             if (e.shift && anchorIndex >= 0) {
                 focusIndex = pos.coerceIn(0, text.length)
@@ -355,16 +355,16 @@ open class EditableTextNode(
 
         dragMoveHandle?.invoke()
         dragUpHandle?.invoke()
-        dragMoveHandle = g.registerMouseMove { me ->
+        dragMoveHandle = g?.registerMouseMove { me ->
             if (!dragging) return@registerMouseMove
             val pp = paragraph ?: return@registerMouseMove
-            val localX = me.x - paddingInlineStart
-            val localY = me.y - paddingBlockStart
+            val localX = me.x - absoluteX - paddingInlineStart
+            val localY = me.y - absoluteY - paddingBlockStart
             val pos = pp.getGlyphPositionAtCoordinate(localX, localY)
             focusIndex = pos.coerceIn(0, text.length)
             preferredX = Float.NaN
         }
-        dragUpHandle = g.registerMouseUp {
+        dragUpHandle = g?.registerMouseUp {
             dragging = false
             dragMoveHandle?.invoke()
             dragMoveHandle = null
@@ -386,21 +386,25 @@ open class EditableTextNode(
         if (p != null) {
             val list = p.getRectsForRange(pos, pos + 1, RectStyle.TIGHT)
             if (list.isNotEmpty()) {
-                return (absoluteX + list[0].left) to (absoluteY + list[0].top)
+                return (absoluteX + paddingInlineStart + list[0].left) to
+                       (absoluteY + paddingBlockStart + list[0].top)
             }
             if (pos > 0) {
                 val r = p.getRectsForRange(pos - 1, pos, RectStyle.TIGHT)
-                if (r.isNotEmpty()) return (absoluteX + r[0].right) to (absoluteY + r[0].top)
+                if (r.isNotEmpty()) {
+                    return (absoluteX + paddingInlineStart + r[0].right) to
+                           (absoluteY + paddingBlockStart + r[0].top)
+                }
             }
         }
-        return absoluteX to absoluteY
+        return absoluteX + paddingInlineStart to absoluteY + paddingBlockStart
     }
 
     private fun showOverlay() {
         val (ox, oy) = overlayOrigin()
         lastOverlayX = ox
         lastOverlayY = oy
-        g.requestInputOverlay(ox, oy, 1f, 1f, fontSize)
+        g?.requestInputOverlay(ox, oy, 1f, 1f, fontSize)
     }
 
     private fun updateOverlayPosition() {
@@ -409,12 +413,12 @@ open class EditableTextNode(
         if (ox != lastOverlayX || oy != lastOverlayY) {
             lastOverlayX = ox
             lastOverlayY = oy
-            g.requestInputOverlay(ox, oy, 1f, 1f, fontSize)
+            g?.requestInputOverlay(ox, oy, 1f, 1f, fontSize)
         }
     }
 
     private fun hideOverlay() {
-        g.hideInputOverlay()
+        g?.hideInputOverlay()
     }
 
     private fun updateFocusOverlay() {

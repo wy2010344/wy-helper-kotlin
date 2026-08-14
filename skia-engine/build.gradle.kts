@@ -27,8 +27,15 @@ kotlin {
                 freeCompilerArgs.add("-Xexpect-actual-classes")
             }
         }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
+        }
+        jvmTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlin.testJunit)
         }
         androidMain.dependencies {
             implementation(libs.androidx.core.ktx)

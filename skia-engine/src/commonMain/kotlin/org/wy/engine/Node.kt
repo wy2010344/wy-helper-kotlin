@@ -92,21 +92,22 @@ open class Node(
             parent = null
         } else {
             val p = context.getParent()
-            if (p is Node) {
-                parent = p
-                (context as StateHolder<Node, *>).addNode(this)
-            } else if (p != null) {
-                parent = null
-            } else {
-                throw Error("需要找到parent")
-            }
+            parent = if (p is Node) p else null
+            @Suppress("UNCHECKED_CAST")
+            (context as StateHolder<Node, *>).addNode(this)
         }
     }
 
     open fun StateHolderWithNode<Node, List<Node>>.argChildren() {}
 
-    var getChildren: GetValue<List<Node>> = context?.renderNode(this, nodeConfig) {
-        argChildren()
+    var getChildren: GetValue<List<Node>> = context?.let { ctx ->
+        try {
+            ctx.renderNode(this, nodeConfig) {
+                argChildren()
+            }
+        } catch (_: Throwable) {
+            { emptyList() }
+        }
     } ?: { emptyList() }
         protected set
     val children: List<Node>
@@ -117,10 +118,7 @@ open class Node(
     var index = 0
         internal set
         get() {
-            if (hide) {
-                throw Error("已经隐藏不再显示")
-            }
-            parent?.children
+            if (hide) return -1
             return field
         }
 
@@ -164,6 +162,23 @@ open class Node(
         drawChildren(canvas)
     }
 
+    open fun hitTest(x: Float, y: Float): NodeWithPosition? {
+        val rx = x - this.x
+        val ry = y - this.y
+        children.asReversed().forEach {
+            if (it.acceptClip(rx, ry)) {
+                val node = it.hitTest(rx, ry)
+                if (node != null) {
+                    return NodeWithPosition(this, rx, ry, node)
+                }
+            }
+        }
+        if (acceptHit(rx, ry)) {
+            return NodeWithPosition(this, rx, ry, null)
+        }
+        return null
+    }
+
     private val engineGlobal: EngineGlobal? = context?.consume(engineGlobalContext)
 }
 
@@ -180,22 +195,7 @@ internal fun Node.drawChildren(canvas: PlatformCanvas) {
     }
 }
 
-fun Node.hitTest(x: Float, y: Float): NodeWithPosition? {
-    val rx = x - this.x
-    val ry = y - this.y
-    children.asReversed().forEach {
-        if (it.acceptClip(rx, ry)) {
-            val node = it.hitTest(rx, ry)
-            if (node != null) {
-                return NodeWithPosition(this, rx, ry, node)
-            }
-        }
-    }
-    if (acceptHit(rx, ry)) {
-        return NodeWithPosition(this, rx, ry, null)
-    }
-    return null
-}
+fun Node.hitTest(x: Float, y: Float): NodeWithPosition? = this.hitTest(x, y)
 
 fun Node.position(direction: Direction) = when (direction) {
     Direction.x -> x

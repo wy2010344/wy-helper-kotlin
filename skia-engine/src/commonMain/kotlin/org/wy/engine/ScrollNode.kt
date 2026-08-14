@@ -104,6 +104,12 @@ class ScrollBarCalculate(
 
 open class ScrollContent(context: StateHolder<Node,List<Node>>) : RectNode(context) {
 
+    open val scrollDirection: Direction = Direction.y
+
+    private val scroll: Scroll? by lazy {
+        (context as? StateHolder<*, *>)?.consumeScroll(scrollDirection)
+    }
+
     private fun visibleRect(): RectF? {
         val sn = layoutParent ?: return null
         val left = sn.paddingInlineStart
@@ -116,5 +122,32 @@ open class ScrollContent(context: StateHolder<Node,List<Node>>) : RectNode(conte
     override fun acceptClip(x: Float, y: Float): Boolean {
         val r = visibleRect() ?: return true
         return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
+    }
+
+    override fun draw(canvas: PlatformCanvas) {
+        val s = scroll
+        if (s != null) {
+            canvas.save()
+            if (s.direction == Direction.x) {
+                canvas.translate(-s.value, 0f)
+            } else {
+                canvas.translate(0f, -s.value)
+            }
+            super.draw(canvas)
+            canvas.restore()
+        } else {
+            super.draw(canvas)
+        }
+    }
+
+    override fun hitTest(x: Float, y: Float): NodeWithPosition? {
+        val s = scroll
+        return if (s != null) {
+            val adjustedX = if (s.direction == Direction.x) x + s.value else x
+            val adjustedY = if (s.direction == Direction.y) y + s.value else y
+            super.hitTest(adjustedX, adjustedY)
+        } else {
+            super.hitTest(x, y)
+        }
     }
 }

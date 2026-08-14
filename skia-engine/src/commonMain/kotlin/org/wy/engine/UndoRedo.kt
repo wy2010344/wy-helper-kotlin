@@ -89,11 +89,11 @@ class UndoRedo(private val maxHistorySize: Int = 100) {
     private val redoStack = mutableListOf<TextEditAction>()
 
     fun push(action: TextEditAction) {
-        undoStack.add(action)
-        if (undoStack.size > maxHistorySize) {
-            undoStack.removeFirst()
-        }
         redoStack.clear()
+        redoStack.add(action)
+        if (redoStack.size > maxHistorySize) {
+            redoStack.removeFirst()
+        }
     }
 
     fun undo(currentState: TextState): TextState? {
@@ -107,6 +107,9 @@ class UndoRedo(private val maxHistorySize: Int = 100) {
         if (redoStack.isEmpty()) return null
         val action = redoStack.removeLast()
         undoStack.add(action)
+        if (undoStack.size > maxHistorySize) {
+            undoStack.removeFirst()
+        }
         return action.redo(currentState)
     }
 

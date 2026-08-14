@@ -32,7 +32,7 @@ fun StateHolder<Node, List<Node>>.nestedScrollDemo() {
             // 内容区
             object : ScrollContent(this), FlexParam {
                 override val layout: LayoutDirection = FlexObject(this)
-                override val direction: Direction = Direction.y
+                override val scrollDirection: Direction = Direction.y
                 override val alignFix: Boolean get() = true
                 override val alignItem: AlignItem get() = AlignItem.stretch
                 override val gap: Float get() = 8f
@@ -101,7 +101,7 @@ fun StateHolder<Node, List<Node>>.innerHorizontalScroll() {
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
             object : ScrollContent(this), FlexParam {
                 override val layout: LayoutDirection = FlexObject(this)
-                override val direction: Direction = Direction.x
+                override val scrollDirection: Direction = Direction.x
                 override val alignFix: Boolean get() = true
                 override val alignItem: AlignItem get() = AlignItem.stretch
                 override val gap: Float get() = 4f

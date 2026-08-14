@@ -53,6 +53,9 @@ class SelectionManager {
 
     /**
      * 选中指定节点，自动清除上一个节点的选中态。
+     * 注意：select 只设置焦点（focus），不自动创建选区。
+     * 真正的选区需要通过 selectAll() 或节点内部逻辑创建。
+     *
      * @param target 要选中的节点，传 null 则清空
      */
     fun select(target: Selectable?) {
@@ -60,7 +63,6 @@ class SelectionManager {
         if (old === target) return
         old?.setSelected(false)
         active = target
-        target?.setSelected(true)
     }
 
     /** 全选：委托给当前选中的节点 */

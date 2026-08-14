@@ -30,7 +30,7 @@ fun main() {
             if (popovers.isEmpty()) return
             popovers.forEach { req ->
                 val pos = popoverManager.getPosition(req.id) ?: return@forEach
-                val node = PopoverNode(stateHolder, req)
+                val node = popoverManager.getNode(req.id, stateHolder) ?: return@forEach
                 canvas.save()
                 canvas.translate(pos.x, pos.y)
                 node.draw(canvas)

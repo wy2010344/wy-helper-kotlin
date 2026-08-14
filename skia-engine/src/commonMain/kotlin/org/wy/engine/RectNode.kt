@@ -16,7 +16,7 @@ abstract class RectNode(
 
 
     override fun argPosition(direction: Direction): Float {
-        val lp = layoutParent!!
+        val lp = layoutParent ?: return 0f
         try {
             return lp.layoutValue(direction).childPosition(layoutIndex) + lp.padding(
                 direction,

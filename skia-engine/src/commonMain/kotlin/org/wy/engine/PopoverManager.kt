@@ -58,6 +58,7 @@ class PopoverManager {
     }
 
     private val positions = mutableMapOf<Int, PointF>()
+    private val nodes = mutableMapOf<Int, PopoverNode>()
 
     fun show(
         content: (StateHolderWithNode<Node, List<Node>>) -> Unit,
@@ -68,7 +69,8 @@ class PopoverManager {
         val id = nextId++
         val req = PopoverRequest(id, content, position, style)
         requests[id] = req
-        val pos = position.resolve(anchorRect, Size(0f, 0f))
+        val defaultSize = Size(style.defaultWidth, style.defaultHeight)
+        val pos = position.resolve(anchorRect, defaultSize)
         positions[id] = pos
         version++
         return { dismiss(id) }
@@ -78,6 +80,7 @@ class PopoverManager {
         val req = requests[id]
         if (req != null && !req.dismissed) {
             req.dismissed = true
+            nodes.remove(id)
             version++
         }
     }
@@ -87,12 +90,23 @@ class PopoverManager {
             requests.values.forEach { it.dismissed = true }
             requests.clear()
             positions.clear()
+            nodes.clear()
             version++
         }
     }
 
     fun getPosition(id: Int): PointF? = positions[id]
 
+    /** 获取或创建 PopoverNode 实例（首次调用时构建并缓存）*/
+    fun getNode(id: Int, stateHolder: StateHolder<*, *>?): PopoverNode? {
+        val req = requests[id] ?: return null
+        if (req.dismissed) return null
+        return nodes.getOrPut(id) {
+            PopoverNode(stateHolder, req)
+        }
+    }
+
+    /** 首次渲染后更新 popover 实际位置（基于测量尺寸）*/
     fun updatePosition(id: Int, anchorRect: RectF, popoverSize: Size) {
         val req = requests[id] ?: return
         if (!req.dismissed) {
