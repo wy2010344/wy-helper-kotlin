@@ -14,16 +14,18 @@ interface ShareConfig<Node,Target> {
 }
 
 enum class DuplicateInfo { IGNORE, WARN, THROW }
-interface StateHolder<Node, Target> {
+
+interface DestroyHolder{
+    fun addDestroy(destroy: EmptyFun)
+    val destroyed: Boolean
+}
+interface StateHolder<Node, Target>:DestroyHolder {
     fun <T> provide(context: Context<T>, value: T)
 
 
     fun addNode(n: Node)
     fun <T> consume(context: Context<T>): T
 
-    fun addDestroy(destroy: EmptyFun)
-
-    val destroyed: Boolean
 
     fun <T, K, O> renderForEach(
         forEach: (callback: (K, T) -> GetValue<O>) -> Unit,

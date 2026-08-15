@@ -33,11 +33,14 @@ fun main() {
         private fun StateHolderWithNode<Node, List<Node>>.popoverOverlay() {
             val pm = consume(popoverManagerContext)!!
             object : Node(this) {
+                override val x: Float get() = 0f
+                override val y: Float get() = 0f
+
                 override fun draw(canvas: PlatformCanvas) {
                     val popovers = pm.popovers
                     popovers.forEach { req ->
                         val pos = pm.getPosition(req.id) ?: return@forEach
-                        val node = pm.getNode(req.id, context) ?: return@forEach
+                        val node = pm.getNode(req.id, this@popoverOverlay) ?: return@forEach
                         canvas.save()
                         canvas.translate(pos.x, pos.y)
                         node.draw(canvas)
@@ -69,8 +72,6 @@ fun StateHolder<Node, List<Node>>.popoverDemo() {
 }
 
 fun StateHolder<Node, List<Node>>.dictionaryTextArea() {
-    val g = consume(engineGlobalContext)!!
-
     object : RectNode(this), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)
         override val argWidth: LayoutSize get() = LayoutSize(600f, false)
@@ -85,8 +86,53 @@ fun StateHolder<Node, List<Node>>.dictionaryTextArea() {
             super.draw(canvas)
         }
 
+        // 按下任意处关闭当前词典 popover
+        override fun onPointerDown(e: PointerEvent) {
+            super.onPointerDown(e)
+            if (currentDismiss != null) {
+                currentDismiss?.invoke()
+                currentDismiss = null
+            }
+        }
+
+        // 松手后若文本已有选区，则显示词典 popover
+        override fun onPointerUp(e: PointerEvent) {
+            super.onPointerUp(e)
+            if (textNode.hasSelection) {
+                val selectedText = textNode.selectedText
+                if (selectedText.isNotEmpty()) {
+                    val anchorRect = textNode.selectionRect ?: return
+                    currentDismiss?.invoke()
+                    currentDismiss = popoverManager.show(
+                        content = { holder ->
+                            buildDictionaryPopover(holder, selectedText, popoverManager)
+                        },
+                        anchorRect = anchorRect,
+                        position = PopoverManager.defaultPosition(),
+                        style = PopoverStyle(
+                            backgroundColor = rgba(255, 255, 255),
+                            borderColor = rgba(200, 200, 220),
+                            cornerRadius = 10f,
+                            shadowColor = rgba(0, 0, 0, 30),
+                            shadowOffsetY = 4f,
+                            shadowBlur = 12f,
+                            padding = 16f,
+                            defaultWidth = 280f,
+                            defaultHeight = 180f
+                        )
+                    )
+                }
+            } else {
+                currentDismiss?.invoke()
+                currentDismiss = null
+            }
+        }
+
+        lateinit var textNode: EditableTextNode
+        lateinit var popoverManager: PopoverManager
+
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-            val textNode = object : EditableTextNode(this) {
+            textNode = object : EditableTextNode(this) {
                 override var text by createSignal(
                     "The quick brown fox jumps over the lazy dog. " +
                     "Select any word to see its definition in a popover popup, just like macOS Dictionary app."
@@ -95,45 +141,7 @@ fun StateHolder<Node, List<Node>>.dictionaryTextArea() {
                 override val singleLine: Boolean get() = false
             }
 
-            val popoverManager = consume(popoverManagerContext)!!
-
-            g.registerMouseUp {
-                if (textNode.hasSelection) {
-                    val selectedText = textNode.selectedText
-                    if (selectedText.isNotEmpty()) {
-                        val anchorRect = textNode.selectionRect ?: return@registerMouseUp
-                        currentDismiss?.invoke()
-                        currentDismiss = popoverManager.show(
-                            content = { holder ->
-                                buildDictionaryPopover(holder, selectedText, popoverManager)
-                            },
-                            anchorRect = anchorRect,
-                            position = PopoverManager.defaultPosition(),
-                            style = PopoverStyle(
-                                backgroundColor = rgba(255, 255, 255),
-                                borderColor = rgba(200, 200, 220),
-                                cornerRadius = 10f,
-                                shadowColor = rgba(0, 0, 0, 30),
-                                shadowOffsetY = 4f,
-                                shadowBlur = 12f,
-                                padding = 16f,
-                                defaultWidth = 280f,
-                                defaultHeight = 180f
-                            )
-                        )
-                    }
-                } else {
-                    currentDismiss?.invoke()
-                    currentDismiss = null
-                }
-            }
-
-            g.registerMouseDown {
-                if (currentDismiss != null) {
-                    currentDismiss?.invoke()
-                    currentDismiss = null
-                }
-            }
+            popoverManager = consume(popoverManagerContext)!!
         }
     }
 }
@@ -191,7 +199,7 @@ fun buildDictionaryPopover(
                 fillOuterRoundRect(canvas, 6f, rgba(230, 230, 240))
                 super.draw(canvas)
             }
-            override fun mouseClick(e: MouseEvent) {
+            override fun onPointerClick(e: PointerEvent) {
                 popoverManager.dismissAll()
             }
             override fun StateHolderWithNode<Node, List<Node>>.argChildren() {

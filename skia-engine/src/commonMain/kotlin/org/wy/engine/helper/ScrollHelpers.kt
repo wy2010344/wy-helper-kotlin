@@ -65,10 +65,18 @@ private fun StateHolder<Node, List<Node>>.scrollContainer(
             scrollRef = it
         }
 
+        override fun onPointerWheel(e: PointerEvent) {
+            scrollRef.scroll(e.wheelDelta)
+        }
+
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
             object : ScrollContent(this@scrollContainer), FlexParam {
+                override val y: Float
+                    get() = if (direction == Direction.y) -scrollRef.value else 0f
+                override val x: Float
+                    get() = if (direction == Direction.x) -scrollRef.value else 0f
+                override val direction: Direction = direction
                 override val layout: LayoutDirection = FlexObject(this)
-                override val scrollDirection: Direction = direction
                 override val alignFix: Boolean get() = true
                 override val alignItem: AlignItem get() = AlignItem.stretch
 
@@ -78,7 +86,7 @@ private fun StateHolder<Node, List<Node>>.scrollContainer(
             }
 
             if (showScrollBar) {
-                object : SimpleScrollBar(this@scrollContainer, direction) {
+                object : SimpleScrollBar(this@scrollContainer) {
                     override val scroll: Scroll get() = scrollRef
                 }
             }

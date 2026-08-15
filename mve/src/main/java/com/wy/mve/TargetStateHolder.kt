@@ -1,10 +1,11 @@
 package com.wy.mve
 
+import org.wy.lib.EmptyFun
 import org.wy.lib.GetValue
 import org.wy.lib.SetValue
 import org.wy.signal.Memo
 
-interface RootReturn<Target> {
+interface RootReturn<Target>: DestroyHolder {
     fun destroy()
     val target: GetValue<Target>
 }

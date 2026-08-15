@@ -92,7 +92,7 @@ fun main() {
                         )
                     )
 
-                override fun mouseUp(e: MouseEvent) {
+                override fun onPointerUp(e: PointerEvent) {
                     feedback.value = ""
                 }
             }

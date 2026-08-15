@@ -46,7 +46,10 @@ private fun findLayoutList(n: Node, list: MutableList<LayoutNode>) {
     }
 }
 
-open class LayoutNode(context: StateHolder<*,*>?) : Node(context) {
+open class LayoutNode(
+    context: StateHolder<*,*>?,
+    engineGlobal: EngineGlobal? = context?.consume(engineGlobalContext)
+) : Node(context, engineGlobal) {
     open val layout: LayoutDirection
         get() = absoluteLayoutDirection
 
@@ -74,7 +77,10 @@ open class LayoutNode(context: StateHolder<*,*>?) : Node(context) {
     var layoutIndex: Int = 0
         internal set
         get() {
-            if(hide) return -1
+            if(hide){
+                throw Error("已经隐藏不再显示")
+            }
+            layoutParent?.layoutChildren
             return field
         }
 
@@ -298,7 +304,7 @@ fun LayoutNode.sizeFromParent(direction: Direction): LayoutSize {
             false
         )
     }
-    return layoutSize0
+    throw Error("未找到父节点")
 }
 
 fun LayoutNode.sizeFromChildren(direction: Direction): LayoutSize {

@@ -13,8 +13,6 @@ import org.wy.signal.memo
 abstract class RectNode(
     context: StateHolder<Node,List<Node>>
 ) : LayoutNode(context){
-
-
     override fun argPosition(direction: Direction): Float {
         val lp = layoutParent ?: return 0f
         try {

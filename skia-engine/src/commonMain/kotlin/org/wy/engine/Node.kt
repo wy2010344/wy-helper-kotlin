@@ -1,25 +1,11 @@
 package org.wy.engine
 
+import com.wy.mve.DestroyHolder
 import com.wy.mve.ShareConfig
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import com.wy.mve.ValueOrGetList
 import org.wy.lib.GetValue
-
-interface KeyHandler {
-    fun handleKey(e: KeyEvent): Boolean
-}
-
-interface MouseListener {
-    fun mouseDown(e: MouseEvent)
-    fun mouseDownCapture(e: MouseEvent)
-    fun mouseUp(e: MouseEvent)
-    fun mouseUpCapture(e: MouseEvent)
-    fun mouseMove(e: MouseEvent)
-    fun mouseMoveCapture(e: MouseEvent)
-    fun mouseClick(e: MouseEvent)
-    fun mouseClickCapture(e: MouseEvent)
-}
 
 enum class Direction {
     x, y
@@ -34,29 +20,23 @@ val Direction.opposite: Direction
 data class NodeWithPosition(
     val node: Node,
     val x: Float,
-    val y: Float,
-    val next: NodeWithPosition?
+    val y: Float
 )
 
-fun NodeWithPosition.include(node: Node): Boolean {
-    var n: NodeWithPosition? = this
-    while (n != null) {
-        if (n.node == node) {
-            return true
-        }
-        n = n.next
-    }
-    return false
+fun List<NodeWithPosition>.include(node: Node): Boolean {
+    return this.find { it.node == node } != null
 }
 
-val NodeWithPosition.last: NodeWithPosition
-    get() {
-        var it: NodeWithPosition = this
-        while (it.next != null) {
-            it = it.next
-        }
-        return it
-    }
+/** 命中链是否包含指定节点（供 hover / pressed 判断，链头为根容器）。 */
+fun HitestResult.include(node: Node): Boolean = chain.include(node)
+
+/** 命中点在窗口坐标系中的 X（= 链头根容器的绝对坐标 + 局部偏移）。 */
+val NodeWithPosition.windowX: Float
+    get() = node.absolutePosition(Direction.x) + x
+
+/** 命中点在窗口坐标系中的 Y。 */
+val NodeWithPosition.windowY: Float
+    get() = node.absolutePosition(Direction.y) + y
 
 fun Node.contains(node: Node): Boolean {
     if (node == this) {
@@ -81,33 +61,49 @@ internal val nodeConfig = object : ShareConfig<Node, List<Node>> {
     }
 }
 
+/**
+ * @todo，还是老实将context添加与构造分开，比如ooc中就没有构造，匿名类只是事件回调。
+ */
 open class Node(
-    val context: StateHolder<*, *>?
-) : MouseListener, KeyHandler {
+    context: StateHolder<*, *>?,
+    engineGlobal: EngineGlobal? = context?.consume(engineGlobalContext)
+) {
+    open fun cursorAt(x: Float, y: Float) = if (focusable) CursorType.POINTER else CursorType.DEFAULT
+
+    /**
+     * 声明式输入法输入框数据：默认 null 表示不需要 IME 输入框；
+     * 需要输入框的节点（如 [EditableTextNode]）override 返回当前光标位置等信息。
+     */
+    open fun inputOverlay(): InputOverlayData? = null
+    val engineGlobal: EngineGlobal
     open val hide = false
     val parent: Node?
 
     init {
+        if (engineGlobal == null) {
+            throw Error("未找到EngineGlobal")
+        }
+        this.engineGlobal = engineGlobal
         if (context == null) {
             parent = null
         } else {
             val p = context.getParent()
-            parent = if (p is Node) p else null
-            @Suppress("UNCHECKED_CAST")
-            (context as StateHolder<Node, *>).addNode(this)
+            if (p is Node) {
+                parent = p
+                @Suppress("UNCHECKED_CAST")
+                (context as StateHolder<Node, *>).addNode(this)
+            } else if (p != null) {
+                parent = null
+            } else {
+                throw Error("需要找到parent")
+            }
         }
     }
 
     open fun StateHolderWithNode<Node, List<Node>>.argChildren() {}
 
-    var getChildren: GetValue<List<Node>> = context?.let { ctx ->
-        try {
-            ctx.renderNode(this, nodeConfig) {
-                argChildren()
-            }
-        } catch (_: Throwable) {
-            { emptyList() }
-        }
+    var getChildren: GetValue<List<Node>> = context?.renderNode(this, nodeConfig) {
+        argChildren()
     } ?: { emptyList() }
         protected set
     val children: List<Node>
@@ -118,7 +114,10 @@ open class Node(
     var index = 0
         internal set
         get() {
-            if (hide) return -1
+            if (hide) {
+                throw Error("已经隐藏不再显示")
+            }
+            parent?.children
             return field
         }
 
@@ -134,68 +133,75 @@ open class Node(
 
     open fun acceptClip(x: Float, y: Float): Boolean = true
 
-    override fun mouseClick(e: MouseEvent) {}
-    override fun mouseClickCapture(e: MouseEvent) {}
-    override fun mouseDown(e: MouseEvent) {}
-    override fun mouseDownCapture(e: MouseEvent) {}
-    override fun mouseUp(e: MouseEvent) {}
-    override fun mouseUpCapture(e: MouseEvent) {}
-    override fun mouseMove(e: MouseEvent) {}
-    override fun mouseMoveCapture(e: MouseEvent) {}
+    // 指针 / 键盘事件：所有节点都有默认空实现，需要处理的子类 override
+    // 指针事件在命中链上先捕获（Capture，子→根）再冒泡（根→子），可 stopPropagation 中断。
+    open fun onPointerClick(e: PointerEvent) {}
+    open fun onPointerClickCapture(e: PointerEvent) {}
+    open fun onPointerDown(e: PointerEvent) {}
+    open fun onPointerDownCapture(e: PointerEvent) {}
+    open fun onPointerUp(e: PointerEvent) {}
+    open fun onPointerUpCapture(e: PointerEvent) {}
+    open fun onPointerMove(e: PointerEvent) {}
+    open fun onPointerMoveCapture(e: PointerEvent) {}
+    open fun onPointerWheel(e: PointerEvent) {}
+    open fun onPointerWheelCapture(e: PointerEvent) {}
+    open fun handleKey(e: KeyEvent): Boolean = false
 
-    override fun handleKey(e: KeyEvent): Boolean = false
-
+    /**
+     * 是否可被 Tab 焦点遍历拾取（相当于 web 的 `tabindex >= 0`）。
+     */
     open val focusable: Boolean = false
 
+    /**
+     * Tab 遍历的显式顺序（相当于 web 的 `tabindex` 正数、Compose 的 `focusOrder`、
+     * Flutter 的 `FocusTraversalOrder`）。值越小越先被遍历；`null` 表示不指定，
+     * 排在所有显式顺序之后，按文档顺序。
+     */
     open val focusOrder: Int? = null
-
-    val isFocused: Boolean
-        get() = engineGlobal?.focused === this
-
-    fun requestFocus() {
-        engineGlobal?.focused = this
-    }
-
-    open fun clipRect(): RectF? = null
-
     open fun draw(canvas: PlatformCanvas) {
-        drawChildren(canvas)
+        children.forEach {
+            canvas.save()
+            it.drawAtParent(canvas)
+            canvas.translate(it.x, it.y)
+            it.draw(canvas)
+            canvas.restore()
+        }
     }
+    open fun drawAtParent(canvas: PlatformCanvas){}
 
-    open fun hitTest(x: Float, y: Float): NodeWithPosition? {
-        val rx = x - this.x
-        val ry = y - this.y
-        children.asReversed().forEach {
-            if (it.acceptClip(rx, ry)) {
-                val node = it.hitTest(rx, ry)
-                if (node != null) {
-                    return NodeWithPosition(this, rx, ry, node)
-                }
+}
+
+fun Node.hitTest(x: Float, y: Float): MutableList<NodeWithPosition>? {
+    val rx = x - this.x
+    val ry = y - this.y
+    children.asReversed().forEach {
+        if (it.acceptClip(rx, ry)) {
+            val node = it.hitTest(rx, ry)
+            if (node != null) {
+                node.add(0, NodeWithPosition(this, rx, ry))
+                return node
             }
         }
-        if (acceptHit(rx, ry)) {
-            return NodeWithPosition(this, rx, ry, null)
-        }
-        return null
     }
-
-    private val engineGlobal: EngineGlobal? = context?.consume(engineGlobalContext)
+    if (acceptHit(rx, ry)) {
+        return mutableListOf(NodeWithPosition(this, rx, ry))
+    }
+    return null
 }
 
-internal fun Node.drawChildren(canvas: PlatformCanvas) {
-    children.forEach {
-        canvas.save()
-        val clipRect = it.clipRect()
-        if (clipRect != null) {
-            canvas.clipRect(clipRect.left, clipRect.top, clipRect.right - clipRect.left, clipRect.bottom - clipRect.top)
-        }
-        canvas.translate(it.position(Direction.x), it.position(Direction.y))
-        it.draw(canvas)
-        canvas.restore()
-    }
-}
+/**
+ * 当前是否持有焦点（等价于 `EngineGlobal.focused === this`）。
+ * `focused` 是信号，在 `draw` / `memo` 里读取即为响应式，焦点变化会自动触发重绘。
+ */
+val Node.isFocused: Boolean
+    get() = engineGlobal.focused === this
 
-fun Node.hitTest(x: Float, y: Float): NodeWithPosition? = this.hitTest(x, y)
+/**
+ * 请求获得焦点（等价于 `EngineGlobal.focused = this`）。
+ */
+fun Node.requestFocus() {
+    engineGlobal.focused = this
+}
 
 fun Node.position(direction: Direction) = when (direction) {
     Direction.x -> x

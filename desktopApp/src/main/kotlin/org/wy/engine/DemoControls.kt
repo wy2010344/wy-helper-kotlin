@@ -10,10 +10,8 @@ import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.GrowChild
 import org.wy.engine.layout.LayoutDirection
 import org.wy.lib.StoreRef
-import org.wy.lib.getValue
 import org.wy.signal.getValue
 import org.wy.signal.memo
-import org.wy.signal.setValue
 
 // ════════════════════════════════════════════════════
 // 交互控件
@@ -37,17 +35,17 @@ internal fun <T> StateHolder<Node,List<Node>>.dNavItem(
     override val focusOrder: Int? get() = focusOrder
 
     private val isActive get() = active.value == tab
-    private val g = context!!.consume(engineGlobalContext)!!
-    private val hovered by memo { g.moveHitest?.include(this) ?: false }
+    private val g = engineGlobal
+    private val hovered by memo { g.moveHitTest?.include(this) ?: false }
 
     init {
         val d2 = g.registerKeyPress { e ->
             if (isFocused && (e.code == KeyCode.Enter || e.key == ' ')) onSelect()
         }
-        context!!.addDestroy { d2() }
+        addDestroy { d2() }
     }
 
-    override fun mouseClick(e: MouseEvent) {
+    override fun onPointerClick(e: PointerEvent) {
         onSelect()
     }
 
@@ -129,17 +127,17 @@ internal fun StateHolder<Node,List<Node>>.dToggleRow(
             override val focusable: Boolean get() = true
             override val focusOrder: Int? get() = focusOrder
 
-            private val g = context!!.consume(engineGlobalContext)!!
-            private val hovered by memo { g.moveHitest?.include(this) ?: false }
+            private val g = engineGlobal
+            private val hovered by memo { g.moveHitTest?.include(this) ?: false }
 
             init {
                 val d = g.registerKeyPress { e ->
                     if (isFocused && (e.code == KeyCode.Enter || e.key == ' ')) checked.value = !checked.value
                 }
-                context!!.addDestroy { d() }
+                addDestroy { d() }
             }
 
-            override fun mouseClick(e: MouseEvent) {
+            override fun onPointerClick(e: PointerEvent) {
                 checked.value = !checked.value
             }
 
@@ -182,8 +180,8 @@ internal fun StateHolder<Node,List<Node>>.dSlider(
             override val focusable: Boolean get() = true
             override val focusOrder: Int? get() = focusOrder
 
-            private val g = context!!.consume(engineGlobalContext)!!
-            private val hovered by memo { g.moveHitest?.include(this) ?: false }
+            private val g = engineGlobal
+            private val hovered by memo { g.moveHitTest?.include(this) ?: false }
 
             init {
                 val d = g.registerKeyPress { e ->
@@ -195,13 +193,13 @@ internal fun StateHolder<Node,List<Node>>.dSlider(
                         }
                     }
                 }
-                context!!.addDestroy { d() }
+                addDestroy { d() }
             }
 
-            override fun mouseDown(e: MouseEvent) {
+            override fun onPointerDown(e: PointerEvent) {
                 value.value = (e.x / width).coerceIn(0f, 1f)
-                context!!.drag { me ->
-                    value.value = ((me.x - absoluteX) / width).coerceIn(0f, 1f)
+                drag(e) { me ->
+                    value.value = ((me.rootX - absoluteX) / width).coerceIn(0f, 1f)
                 }
             }
 
@@ -249,17 +247,17 @@ internal fun <T> StateHolder<Node,List<Node>>.dSegTabs(active: StoreRef<T>, item
                     override val focusOrder: Int? get() = 10 + i
 
                     private val isOn get() = active.value == tab
-                    private val g = context!!.consume(engineGlobalContext)!!
-                    private val hovered by memo { g.moveHitest?.include(this) ?: false }
+                    private val g = engineGlobal
+                    private val hovered by memo { g.moveHitTest?.include(this) ?: false }
 
                     init {
                         val d = g.registerKeyPress { e ->
                             if (isFocused && (e.code == KeyCode.Enter || e.key == ' ')) active.value = tab
                         }
-                        context!!.addDestroy { d() }
+                        addDestroy { d() }
                     }
 
-                    override fun mouseClick(e: MouseEvent) {
+                    override fun onPointerClick(e: PointerEvent) {
                         active.value = tab
                     }
 

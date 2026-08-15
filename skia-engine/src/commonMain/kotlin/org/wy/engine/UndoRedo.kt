@@ -89,10 +89,11 @@ class UndoRedo(private val maxHistorySize: Int = 100) {
     private val redoStack = mutableListOf<TextEditAction>()
 
     fun push(action: TextEditAction) {
+        // 动作进入撤销栈，重做栈作废
+        undoStack.add(action)
         redoStack.clear()
-        redoStack.add(action)
-        if (redoStack.size > maxHistorySize) {
-            redoStack.removeFirst()
+        if (undoStack.size > maxHistorySize) {
+            undoStack.removeFirst()
         }
     }
 

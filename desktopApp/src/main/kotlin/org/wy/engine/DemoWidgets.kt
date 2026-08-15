@@ -8,10 +8,8 @@ import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.LayoutDirection
 import org.wy.lib.StoreRef
-import org.wy.lib.getValue
 import org.wy.signal.getValue
 import org.wy.signal.memo
-import org.wy.signal.setValue
 
 // ════════════════════════════════════════════════════
 // 基础控件
@@ -49,18 +47,18 @@ internal fun StateHolder<Node,List<Node>>.dButton(
     override val focusable: Boolean get() = true
     override val focusOrder: Int? get() = focusOrder
 
-    private val g = context!!.consume(engineGlobalContext)!!
-    private val hovered by memo { g.moveHitest?.include(this) ?: false }
-    private val pressed by memo { g.pressed && (g.moveHitest?.include(this) == true) }
+    private val g = engineGlobal
+    private val hovered by memo { g.moveHitTest?.include(this) ?: false }
+    private val pressed by memo { g.pressed != null && (g.moveHitTest?.include(this) == true) }
 
     init {
         val d2 = g.registerKeyPress { e ->
             if (isFocused && (e.code == KeyCode.Enter || e.key == ' ')) onClick()
         }
-        context!!.addDestroy { d2() }
+        addDestroy { d2() }
     }
 
-    override fun mouseClick(e: MouseEvent) {
+    override fun onPointerClick(e: PointerEvent) {
         onClick()
     }
 
@@ -96,8 +94,8 @@ internal fun StateHolder<Node,List<Node>>.dTextField(value: StoreRef<String>, fo
         override val argWidth: LayoutSize = LayoutSize(240f, false)
         override val argHeight: LayoutSize = LayoutSize(34f, false)
 
-        private val g = context!!.consume(engineGlobalContext)!!
-        private val hovered by memo { g.moveHitest?.include(this) ?: false }
+        private val g = engineGlobal
+        private val hovered by memo { g.moveHitTest?.include(this) ?: false }
 
         override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
             if (direction == Direction.x) 10f else 6f

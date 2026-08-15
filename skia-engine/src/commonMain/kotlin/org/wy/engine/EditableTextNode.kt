@@ -1,20 +1,20 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
-import org.wy.lib.EmptyFun
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.setValue
 import kotlin.math.max
-import kotlin.math.min
 
 open class EditableTextNode(
     context: StateHolder<Node,List<Node>>,
     private val maxHistorySize: Int = 100
-) : WrappedTextNode(context), KeyHandler, Selectable {
+) : WrappedTextNode(context), ComposingTextHandler {
     override var text  by createSignal("")
 
     override val focusable: Boolean get() = true
+
+    override fun cursorAt(x: Float, y: Float) = CursorType.TEXT
 
     open val cursorColor: ColorInt = rgba(0, 0, 0)
     open val cursorWidth: Float = 2f
@@ -25,10 +25,6 @@ open class EditableTextNode(
     private var cursorVisible by createSignal(true)
 
     open val singleLine: Boolean get() = false
-
-    private var anchorIndex by createSignal(0)
-    private var focusIndex by createSignal(0)
-    private var dragging by createSignal(false)
 
     private var composingStart by createSignal(0)
     private var composingLength by createSignal(0)
@@ -41,35 +37,16 @@ open class EditableTextNode(
     val canRedo: Boolean get() = undoRedo.canRedo
 
     private var preferredX = Float.NaN
-    private var lastOverlayX = Float.NaN
-    private var lastOverlayY = Float.NaN
 
-    private val selStart: Int
-        get() = min(anchorIndex, focusIndex).coerceAtLeast(0)
-    private val selEnd: Int
-        get() = max(anchorIndex, focusIndex).coerceIn(0, text.length)
-    private val hasSel: Boolean
-        get() = anchorIndex >= 0 && focusIndex >= 0 && anchorIndex != focusIndex
-
-    override val hasSelection: Boolean get() = hasSel
-
-    val selectedText: String
-        get() = if (hasSel) text.substring(selStart, selEnd) else ""
-
-    val selectionRect: RectF?
-        get() {
-            if (!hasSel) return null
-            val p = paragraph ?: return null
-            val rects = p.getRectsForRange(selStart, selEnd, RectStyle.TIGHT)
-            if (rects.isEmpty()) return null
-            val first = rects.first()
-            val last = rects.last()
-            val left = absoluteX + paddingInlineStart + minOf(first.left, last.left)
-            val top = absoluteY + paddingBlockStart + minOf(first.top, last.top)
-            val right = absoluteX + paddingInlineStart + maxOf(first.right, last.right)
-            val bottom = absoluteY + paddingBlockStart + maxOf(first.bottom, last.bottom)
-            return RectF(left, top, right, bottom)
-        }
+    /**
+     * 声明式输入法输入框数据：直接由源状态（光标索引 / 段落布局 / 绝对位置）派生计算，
+     * 由 Renderer 的 overlayTrack 观察，光标移动、文字或布局变化时自动重新定位。
+     */
+    override fun inputOverlay(): InputOverlayData? {
+        if (engineGlobal.activeEditor !== this) return null
+        val (ox, oy) = overlayOrigin()
+        return InputOverlayData(ox, oy, 1f, 1f, fontSize)
+    }
 
     private fun cursor(): Int = if (anchorIndex >= 0) anchorIndex.coerceIn(0, text.length) else 0
 
@@ -77,11 +54,6 @@ open class EditableTextNode(
         val c = idx.coerceIn(0, text.length)
         anchorIndex = c
         focusIndex = c
-    }
-
-    private fun selectRange(start: Int, end: Int) {
-        anchorIndex = start.coerceIn(0, text.length)
-        focusIndex = end.coerceIn(0, text.length)
     }
 
     private val inComposing: Boolean
@@ -172,10 +144,6 @@ open class EditableTextNode(
     fun moveHome() = setCursor(0).also { preferredX = Float.NaN }
     fun moveEnd() = setCursor(text.length).also { preferredX = Float.NaN }
 
-    override fun selectAll() {
-        anchorIndex = 0
-        focusIndex = text.length
-    }
     private fun cursorRect(): List<TextRect> {
         val p = paragraph ?: return emptyList()
         val pos = cursor()
@@ -238,45 +206,20 @@ open class EditableTextNode(
         setCursor(state.cursor)
     }
 
-    private val g: EngineGlobal?
-    private var dragMoveHandle: EmptyFun? = null
-    private var dragUpHandle: EmptyFun? = null
-    
     private var selectionManager: SelectionManager? = null
 
     init {
-        g = context.consume(engineGlobalContext)
         selectionManager = context.consume(selectionManagerContext)
         context.addDestroy {
-            hideOverlay()
-            dragMoveHandle?.invoke()
-            dragUpHandle?.invoke()
+            if (engineGlobal.activeEditor == this) hideOverlay()
             selectionManager?.clear()
         }
     }
 
-    // --- Selectable 接口实现 ---
-    override fun selectionText(): String? = selectedText.ifEmpty { null }
-
-    override fun selectionRect(): RectF? = this.selectionRect
-
-    // hasSelection 已由属性实现，无需额外 override 方法
-
-    override fun setSelected(selected: Boolean) {
-        if (!selected && hasSel) {
-            // 当被取消选中时，清空内部选中状态
-            setCursor(anchorIndex)
-        }
-    }
-    // ---------------------------
     override fun handleKey(e: KeyEvent): Boolean {
         when {
             e.ctrl && !e.shift && e.key == 'z' -> { undo(); return true }
             (e.ctrl && e.key == 'y') || (e.ctrl && e.shift && e.key == 'z') -> { redo(); return true }
-            e.ctrl && e.key == 'a' -> { selectAll(); return true }
-            e.ctrl && e.key == 'c' -> { copy(); return true }
-            e.ctrl && e.key == 'v' -> { paste(); return true }
-            e.ctrl && e.key == 'x' -> { cut(); return true }
             e.code == KeyCode.Backspace -> { backspace(); preferredX = Float.NaN; return true }
             e.code == KeyCode.Delete -> { delete(); preferredX = Float.NaN; return true }
             e.code == KeyCode.Left -> { if (e.shift) selectLeft() else moveLeft(); preferredX = Float.NaN; return true }
@@ -317,6 +260,11 @@ open class EditableTextNode(
         insertText(t)
     }
 
+    override fun onComposing(text: String, cursorPosition: Int) {
+        composingText = text
+        composingCursorPos = cursorPosition
+    }
+
     fun selectLeft() {
         val a = if (anchorIndex >= 0) anchorIndex else cursor()
         val f = focusIndex.coerceIn(0, text.length)
@@ -333,52 +281,17 @@ open class EditableTextNode(
         }
     }
 
-    override fun mouseDownCapture(e: MouseEvent) {
-        super.mouseDownCapture(e)
+    override fun onPointerDownCapture(e: PointerEvent) {
+        super.onPointerDownCapture(e)
         preferredX = Float.NaN
-        val p = paragraph
-        if (p != null) {
-            val localX = e.x - paddingInlineStart
-            val localY = e.y - paddingBlockStart
-            val pos = p.getGlyphPositionAtCoordinate(localX, localY)
-            if (e.shift && anchorIndex >= 0) {
-                focusIndex = pos.coerceIn(0, text.length)
-            } else {
-                setCursor(pos)
-            }
-        }
-        dragging = true
-        showOverlay()
-        
-        // 通知 SelectionManager 当前节点被选中
-        selectionManager?.select(this)
-
-        dragMoveHandle?.invoke()
-        dragUpHandle?.invoke()
-        dragMoveHandle = g?.registerMouseMove { me ->
-            if (!dragging) return@registerMouseMove
-            val pp = paragraph ?: return@registerMouseMove
-            val localX = me.x - absoluteX - paddingInlineStart
-            val localY = me.y - absoluteY - paddingBlockStart
-            val pos = pp.getGlyphPositionAtCoordinate(localX, localY)
-            focusIndex = pos.coerceIn(0, text.length)
-            preferredX = Float.NaN
-        }
-        dragUpHandle = g?.registerMouseUp {
-            dragging = false
-            dragMoveHandle?.invoke()
-            dragMoveHandle = null
-            dragUpHandle?.invoke()
-            dragUpHandle = null
-        }
     }
 
-    override fun mouseMoveCapture(e: MouseEvent) {
-        super.mouseMoveCapture(e)
+    override fun onPointerMoveCapture(e: PointerEvent) {
+        super.onPointerMoveCapture(e)
     }
 
-    override fun mouseUpCapture(e: MouseEvent) {
-        super.mouseUpCapture(e)
+    override fun onPointerUpCapture(e: PointerEvent) {
+        super.onPointerUpCapture(e)
     }
     private fun overlayOrigin(): Pair<Float, Float> {
         val pos = cursor()
@@ -400,31 +313,20 @@ open class EditableTextNode(
         return absoluteX + paddingInlineStart to absoluteY + paddingBlockStart
     }
 
-    private fun showOverlay() {
-        val (ox, oy) = overlayOrigin()
-        lastOverlayX = ox
-        lastOverlayY = oy
-        g?.requestInputOverlay(ox, oy, 1f, 1f, fontSize)
-    }
-
-    private fun updateOverlayPosition() {
-        if (!isFocused) return
-        val (ox, oy) = overlayOrigin()
-        if (ox != lastOverlayX || oy != lastOverlayY) {
-            lastOverlayX = ox
-            lastOverlayY = oy
-            g?.requestInputOverlay(ox, oy, 1f, 1f, fontSize)
+    /** 隐藏输入法输入框，仅当自己是当前活跃编辑器时才真正隐藏，避免打断其他编辑器正在进行的输入 */
+    internal fun hideOverlay() {
+        if (engineGlobal.activeEditor === this) {
+            engineGlobal.activeEditor = null
         }
     }
 
-    private fun hideOverlay() {
-        g?.hideInputOverlay()
-    }
-
-    private fun updateFocusOverlay() {
+    /** 焦点变化时维护活跃编辑器：全局仅一个活跃编辑器持有输入框 */
+    internal fun updateFocusOverlay() {
         if (isFocused) {
-            showOverlay()
-        } else {
+            if (engineGlobal.activeEditor !== this) {
+                engineGlobal.activeEditor = this
+            }
+        } else if (engineGlobal.activeEditor === this) {
             hideOverlay()
         }
     }
@@ -433,28 +335,12 @@ open class EditableTextNode(
         updateFocusOverlay()
         super.draw(canvas)
 
-        updateOverlayPosition()
-
-        if (hasSel) {
-            drawSelection(canvas)
-        } else if (cursorVisible && isFocused) {
+        if (!hasSel && cursorVisible && isFocused) {
             drawCursor(canvas, cursor())
         }
 
         if (composingText.isNotEmpty()) {
             drawComposing(canvas)
-        }
-    }
-
-    private fun drawSelection(canvas: PlatformCanvas) {
-        val p = paragraph ?: return
-        val px = paddingInlineStart
-        val py = paddingBlockStart
-        val start = selStart
-        val end = selEnd
-        if (start >= end) return
-        for (rect in p.getRectsForRange(start, end, RectStyle.TIGHT)) {
-            canvas.fillRect(rect.left + px, rect.top + py, rect.width, rect.height, selectionColor)
         }
     }
 

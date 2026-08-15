@@ -5,6 +5,7 @@ import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import org.wy.engine.ColorInt
 import org.wy.engine.Node
+import org.wy.engine.PointF
 import org.wy.engine.RectF
 import org.wy.engine.rgba
 import org.wy.lib.EmptyFun
@@ -14,7 +15,6 @@ import org.wy.signal.memo
 import org.wy.signal.setValue
 
 data class Size(val width: Float, val height: Float)
-data class PointF(val x: Float, val y: Float)
 
 data class PopoverStyle(
     val backgroundColor: ColorInt = rgba(255, 255, 255),
@@ -101,7 +101,7 @@ class PopoverManager {
         val req = requests[id] ?: return null
         if (req.dismissed) return null
         return nodes.getOrPut(id) {
-            PopoverNode(stateHolder, req)
+            PopoverNode(stateHolder, req).also { it.measure() }
         }
     }
 

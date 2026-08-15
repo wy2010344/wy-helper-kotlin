@@ -42,19 +42,8 @@ class Scroll(
     }
 }
 
-fun StateHolder<Node,List<Node>>.registerScroll(scroll: Scroll) {
-    val parentScroll = consumeScroll(scroll.direction)
+fun StateHolder<Node, List<Node>>.registerScroll(scroll: Scroll) {
     provideScroll(scroll)
-    val engineGlobal = consume(engineGlobalContext)!!
-    addDestroy(engineGlobal.registerMouseWheel {
-        if (scroll.container.absoluteInInner(it.x, it.y)) {
-            val consumed = scroll.scroll(it.delta)
-            val remaining = it.delta - consumed
-            if (remaining != 0f && parentScroll != null && parentScroll != scroll) {
-                parentScroll.scroll(remaining)
-            }
-        }
-    })
 }
 
 fun LayoutNode.maxScroll(direction: Direction): Float {
@@ -102,52 +91,23 @@ class ScrollBarCalculate(
     }
 }
 
-open class ScrollContent(context: StateHolder<Node,List<Node>>) : RectNode(context) {
+open class ScrollContent(context: StateHolder<Node, List<Node>>) : RectNode(context) {
 
-    open val scrollDirection: Direction = Direction.y
+    override fun drawAtParent(canvas: PlatformCanvas) {
 
-    private val scroll: Scroll? by lazy {
-        (context as? StateHolder<*, *>)?.consumeScroll(scrollDirection)
+        val sn = layoutParent
+        if (sn != null) {
+            canvas.clipRect(
+                sn.paddingInlineStart,
+                sn.paddingBlockStart,
+                sn.innerWidth,
+                sn.innerHeight
+            )
+        }
     }
-
-    private fun visibleRect(): RectF? {
-        val sn = layoutParent ?: return null
-        val left = sn.paddingInlineStart
-        val top = sn.paddingBlockStart
-        return RectF(left, top, left + sn.innerSize(Direction.x), top + sn.innerSize(Direction.y))
-    }
-
-    override fun clipRect(): RectF? = visibleRect()
 
     override fun acceptClip(x: Float, y: Float): Boolean {
-        val r = visibleRect() ?: return true
-        return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
-    }
-
-    override fun draw(canvas: PlatformCanvas) {
-        val s = scroll
-        if (s != null) {
-            canvas.save()
-            if (s.direction == Direction.x) {
-                canvas.translate(-s.value, 0f)
-            } else {
-                canvas.translate(0f, -s.value)
-            }
-            super.draw(canvas)
-            canvas.restore()
-        } else {
-            super.draw(canvas)
-        }
-    }
-
-    override fun hitTest(x: Float, y: Float): NodeWithPosition? {
-        val s = scroll
-        return if (s != null) {
-            val adjustedX = if (s.direction == Direction.x) x + s.value else x
-            val adjustedY = if (s.direction == Direction.y) y + s.value else y
-            super.hitTest(adjustedX, adjustedY)
-        } else {
-            super.hitTest(x, y)
-        }
+        val sn = layoutParent ?: return false
+        return x >= sn.paddingInlineStart && x <= sn.paddingInlineStart + sn.innerWidth && y >= sn.paddingBlockStart && y <= sn.paddingBlockStart + sn.innerHeight
     }
 }

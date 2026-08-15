@@ -51,7 +51,39 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*
     final override val argHeight: LayoutSize
         get() = LayoutSize(h.value.toFloat(), false)
     private val skiaLayer = SkiaLayer()
+    override fun setCursor(v: CursorType) {
+        skiaLayer.cursor = when (v) {
+            CursorType.POINTER -> Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+            CursorType.TEXT -> Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR)
+            CursorType.DEFAULT -> Cursor.getDefaultCursor()
+        }
+    }
 
+    /** 声明式 IME：EditableTextNode 活跃时由 Renderer 自动调用，把输入框移动到光标位置。 */
+    override fun setInputOverlay(data: InputOverlayData) {
+        hiddenField?.let {
+            SwingUtilities.invokeLater {
+                it.setText("")
+                it.setBounds(data.x.toInt(), data.y.toInt(), 1, 1)
+                it.font = it.font.deriveFont(data.fontSize)
+                if (!it.requestFocusInWindow()) {
+                    it.requestFocus()
+                }
+            }
+        }
+    }
+
+    override fun hideInputOverlay() {
+        hiddenField?.let {
+            SwingUtilities.invokeLater {
+                it.setText("")
+                it.setBounds(0, 0, 1, 1)
+                skiaLayer.requestFocusInWindow()
+            }
+        }
+    }
+
+    private var hiddenField: JTextField? = null
     override fun frameCallback() {
         SwingUtilities.invokeLater {
             skiaLayer.needRender(true)
@@ -78,6 +110,11 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*
                 override fun windowClosed(e: WindowEvent?) {
                     this@SkiaApp.destroy()
                     de.dispose()
+                }
+
+                override fun windowDeactivated(e: WindowEvent?) {
+                    // 窗口失焦：清空修饰键，防止按键残留
+                    this@SkiaApp.clearModifiers()
                 }
             })
             skiaLayer.addMouseListener(object : MouseAdapter() {
@@ -136,6 +173,8 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*
 
                 override fun keyPressed(e: AwtKeyEvent?) {
                     if (e == null) return
+                    // 每次键盘事件上报权威修饰键状态（含纯修饰键本身，如 Ctrl/Shift 单独按下）
+                    this@SkiaApp.updateModifiers(e.isControlDown, e.isShiftDown, e.isAltDown, e.isMetaDown)
                     val code = KeyCode.fromAwt(e.keyCode)
                     val isModifier = e.isControlDown || e.isAltDown || e.isMetaDown
                     if (code == KeyCode.Unknown && !isModifier) return
@@ -155,11 +194,14 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*
                     )
                 }
 
-                override fun keyReleased(e: AwtKeyEvent?) {}
+                override fun keyReleased(e: AwtKeyEvent?) {
+                    if (e == null) return
+                    this@SkiaApp.updateModifiers(e.isControlDown, e.isShiftDown, e.isAltDown, e.isMetaDown)
+                }
             }
 
             // Hidden JTextField for native text input (IME positioning + character filtering)
-            val hiddenField = JTextField().apply {
+            hiddenField = JTextField().apply {
                 isVisible = true
                 background = Color(0, 0, 0, 0)
                 foreground = Color(0, 0, 0, 0)
@@ -213,35 +255,7 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*
                 })
             }
 
-            window.rootPane.layeredPane.add(hiddenField, JLayeredPane.POPUP_LAYER)
-
-            this@SkiaApp.setInputOverlayHandler(
-                show = { x, y, w, h, fontSize ->
-                    SwingUtilities.invokeLater {
-                        hiddenField.setText("")
-                        hiddenField.setBounds(x.toInt(), y.toInt(), 1, 1)
-                        hiddenField.font = hiddenField.font.deriveFont(fontSize)
-                        if (!hiddenField.requestFocusInWindow()) {
-                            hiddenField.requestFocus()
-                        }
-                    }
-                },
-                hide = {
-                    SwingUtilities.invokeLater {
-                        hiddenField.setText("")
-                        hiddenField.setBounds(0, 0, 1, 1)
-                        skiaLayer.requestFocusInWindow()
-                    }
-                }
-            )
-
-            this@SkiaApp.setCursorHandler { type ->
-                skiaLayer.cursor = when (type) {
-                    CursorType.POINTER -> Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-                    CursorType.TEXT -> Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR)
-                    CursorType.DEFAULT -> Cursor.getDefaultCursor()
-                }
-            }
+            hiddenField?.let { window.rootPane.layeredPane.add(it, JLayeredPane.POPUP_LAYER) }
 
             skiaLayer.isFocusable = true
             skiaLayer.focusTraversalKeysEnabled = false

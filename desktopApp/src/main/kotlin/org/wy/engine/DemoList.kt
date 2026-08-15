@@ -8,7 +8,6 @@ import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.GrowChild
 import org.wy.engine.layout.LayoutDirection
-import org.wy.lib.getValue
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.memo
@@ -44,9 +43,9 @@ fun main() {
                 override val text: String
                     get() = "展示"
 
-                override fun mouseClick(e: MouseEvent) {
+                override fun onPointerClick(e: PointerEvent) {
                     list.forEach { it.hide = false }
-                    super.mouseClick(e)
+                    super.onPointerClick(e)
                 }
             }
 
@@ -67,6 +66,10 @@ fun main() {
 
                         val scrollY = Scroll(this).also {
                             registerScroll(it)
+                        }
+
+                        override fun onPointerWheel(e: PointerEvent) {
+                            scrollY.scroll(e.wheelDelta)
                         }
 
                         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
@@ -129,7 +132,7 @@ fun main() {
                                                         return 1f
                                                     }
 
-                                                    override fun mouseClick(e: MouseEvent) {
+                                                    override fun onPointerClick(e: PointerEvent) {
                                                         it.value.hide = true
                                                     }
 
@@ -144,7 +147,7 @@ fun main() {
                                                     override val text: String
                                                         get() = "删除"
 
-                                                    override fun mouseClick(e: MouseEvent) {
+                                                    override fun onPointerClick(e: PointerEvent) {
                                                         list = list.filter { it.key != key }
                                                     }
 
@@ -187,7 +190,7 @@ fun main() {
                 }
 
                 val hovered by memo {
-                    g?.moveHitest?.include(this) ?: false
+                    g?.moveHitTest?.include(this) ?: false
                 }
 
                 override fun toString(): String {
@@ -209,7 +212,7 @@ fun main() {
                     super.draw(canvas)
                 }
 
-                override fun mouseClick(e: MouseEvent) {
+                override fun onPointerClick(e: PointerEvent) {
                     list = mutableListOf<RowModal>().also {
                         it.addAll(list)
                         it.add(RowModal(Date().time))

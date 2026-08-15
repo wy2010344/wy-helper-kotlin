@@ -11,11 +11,9 @@ import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.GrowChild
 import org.wy.engine.layout.LayoutDirection
 import org.wy.lib.StoreRef
-import org.wy.lib.getValue
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.memo
-import org.wy.signal.setValue
 import java.util.Date
 
 // ════════════════════════════════════════════════════
@@ -167,8 +165,8 @@ private fun StateHolder<Node,List<Node>>.buildGrandDemo() {
                 override val argWidth: LayoutSize = LayoutSize(220f, false)
                 override val argHeight: LayoutSize = LayoutSize(32f, false)
 
-                private val g = context!!.consume(engineGlobalContext)!!
-                private val hovered by memo { g.moveHitest?.include(this) ?: false }
+                private val g = engineGlobal
+                private val hovered by memo { g.moveHitTest?.include(this) ?: false }
 
                 override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
                     if (direction == Direction.x) 10f else 5f

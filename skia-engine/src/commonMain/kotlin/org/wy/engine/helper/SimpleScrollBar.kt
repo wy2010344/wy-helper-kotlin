@@ -6,19 +6,17 @@ import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import org.wy.engine.Direction
 import org.wy.engine.LayoutSize
-import org.wy.engine.MouseEvent
 import org.wy.engine.Node
 import org.wy.engine.PlatformCanvas
+import org.wy.engine.PointerEvent
 import org.wy.engine.RectNode
 import org.wy.engine.Scroll
-import org.wy.engine.engineGlobalContext
 import org.wy.engine.fillInnerRect
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.LayoutDirection
 import org.wy.engine.scrollBarSize
 import org.wy.engine.strokeInnerRect
-import org.wy.lib.EmptyFun
 
 /**
  * 方向由 [direction] 指定：Direction.y 为纵向（默认），Direction.x 为横向。
@@ -26,13 +24,13 @@ import org.wy.lib.EmptyFun
  */
 abstract class SimpleScrollBar(
     context: StateHolder<Node,List<Node>>,
-    val direction: Direction = Direction.y
+//    val direction: Direction = Direction.y
 ) {
     abstract val scroll: Scroll
 
     init {
         object : RectNode(context), FlexParam {
-
+            override val direction: Direction get() = scroll.direction
             override val alignFix: Boolean = true
             override val alignItem: AlignItem = AlignItem.stretch
             override val directionJustify: DirectionJustify =
@@ -66,7 +64,7 @@ abstract class SimpleScrollBar(
                             override val y: Float
                                 get() = if (direction == Direction.y) et.value?.offset ?: 0f else super.y
 
-                            override fun mouseDown(e: MouseEvent) {
+                            override fun onPointerDown(e: PointerEvent) {
                                 startDrag(e)
                             }
 
@@ -75,37 +73,32 @@ abstract class SimpleScrollBar(
                                 super.draw(canvas)
                             }
 
-                            private fun startDrag(e: MouseEvent) {
-                                val g = context!!.consume(engineGlobalContext)!!
+                            private fun startDrag(e: PointerEvent) {
+                                val g = engineGlobal
                                 val calc = et.value ?: return
                                 val startValue = scroll.value
-                                val startPointer = if (direction == Direction.y) e.globalY else e.globalX
+                                val startPointer = if (direction == Direction.y) e.rootY else e.rootX
                                 var destroyed = false
-                                var d1: EmptyFun = {}
-                                var d2: EmptyFun = {}
-                                d1 = g.registerMouseMove { me ->
-                                    if (!destroyed) {
-                                        val pointer = if (direction == Direction.y) me.y else me.x
-                                        scroll.value = startValue + calc.moveToScroll(pointer - startPointer)
-                                    }
-                                }
-                                d2 = g.registerMouseUp {
-                                    if (!destroyed) {
-                                        try {
-                                            val pointer = if (direction == Direction.y) it.y else it.x
+                                val capture = g.capturePointer(
+                                    id = e.id,
+                                    onMove = { me ->
+                                        if (!destroyed) {
+                                            val pointer = if (direction == Direction.y) me.rootY else me.rootX
                                             scroll.value = startValue + calc.moveToScroll(pointer - startPointer)
-                                        } finally {
+                                        }
+                                    },
+                                    onUp = { me ->
+                                        if (!destroyed) {
                                             destroyed = true
-                                            d1()
-                                            d2()
+                                            val pointer = if (direction == Direction.y) me.rootY else me.rootX
+                                            scroll.value = startValue + calc.moveToScroll(pointer - startPointer)
                                         }
                                     }
-                                }
+                                )
                                 addDestroy {
                                     if (!destroyed) {
                                         destroyed = true
-                                        d1()
-                                        d2()
+                                        capture.release()
                                     }
                                 }
                             }

@@ -198,8 +198,13 @@ fun StateHolder<Node,List<Node>>.demoList() {
 
                 val scrollY = Scroll(this).also { registerScroll(it) }
 
+                override fun onPointerWheel(e: PointerEvent) {
+                    scrollY.scroll(e.wheelDelta)
+                }
+
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
                     object : ScrollContent(this), FlexParam, GrowChild {
+                        override val direction: Direction get() = Direction.y
                         override val y: Float get() = -scrollY.value
                         override val argWidth: LayoutSize get() = LayoutSize(410f, false)
                         override fun argGrow(direction: Direction): Float = 1f
@@ -236,7 +241,7 @@ fun StateHolder<Node,List<Node>>.demoList() {
                                             override val autoWidth: Boolean get() = true
                                             override val text: String get() = "hide"
 
-                                            override fun mouseClick(e: MouseEvent) {
+                                            override fun onPointerClick(e: PointerEvent) {
                                                 it.value.hide = true
                                             }
                                         }
@@ -245,7 +250,7 @@ fun StateHolder<Node,List<Node>>.demoList() {
                                             override val autoWidth: Boolean get() = true
                                             override val text: String get() = "delete"
 
-                                            override fun mouseClick(e: MouseEvent) {
+                                            override fun onPointerClick(e: PointerEvent) {
                                                 list = list.filter { r -> r.key != key }
                                             }
                                         }
@@ -265,7 +270,7 @@ fun StateHolder<Node,List<Node>>.demoList() {
                 override val argWidth: LayoutSize get() = LayoutSize(120f, false)
                 override val argHeight: LayoutSize get() = LayoutSize(30f, false)
 
-                override fun mouseClick(e: MouseEvent) {
+                override fun onPointerClick(e: PointerEvent) {
                     list = list + RowModal(Date().time)
                 }
 

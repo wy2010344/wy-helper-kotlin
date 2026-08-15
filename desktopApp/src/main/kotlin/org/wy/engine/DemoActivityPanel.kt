@@ -10,10 +10,8 @@ import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.GrowChild
 import org.wy.engine.layout.LayoutDirection
 import org.wy.lib.StoreRef
-import org.wy.lib.getValue
 import org.wy.signal.getValue
 import org.wy.signal.memo
-import org.wy.signal.setValue
 
 // ════════════════════════════════════════════════════
 // 动态面板
@@ -53,9 +51,14 @@ internal fun StateHolder<Node,List<Node>>.dActivityPanel(
 
             val scrollY = Scroll(this).also { registerScroll(it) }
 
+            override fun onPointerWheel(e: PointerEvent) {
+                scrollY.scroll(e.wheelDelta)
+            }
+
             override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
                 object : ScrollContent(this), FlexParam, GrowChild {
                     override val y: Float get() = -scrollY.value
+                    override val direction: Direction get() = Direction.y
 
                     override fun argGrow(direction: Direction): Float = 1f
 
@@ -77,8 +80,8 @@ internal fun StateHolder<Node,List<Node>>.dActivityPanel(
                                 override val argHeight: LayoutSize = LayoutSize(38f, false)
                                 override val gap: Float = 8f
 
-                                private val g = context!!.consume(engineGlobalContext)!!
-                                private val hovered by memo { g.moveHitest?.include(this) ?: false }
+                                private val g = engineGlobal
+                                private val hovered by memo { g.moveHitTest?.include(this) ?: false }
 
                                 override fun draw(canvas: PlatformCanvas) {
                                     if (hovered) {
@@ -98,13 +101,13 @@ internal fun StateHolder<Node,List<Node>>.dActivityPanel(
                                         override val focusOrder: Int? = it.index
 
                                         init {
-                                            val g = context!!.consume(engineGlobalContext)!!
+                                            val g = engineGlobal
                                             val d = g.registerKeyPress { e ->
                                                 if (isFocused && (e.code == KeyCode.Enter || e.key == ' ')) {
                                                     toggleDone()
                                                 }
                                             }
-                                            context!!.addDestroy { d() }
+                                            addDestroy { d() }
                                         }
 
                                         private fun toggleDone() {
@@ -113,7 +116,7 @@ internal fun StateHolder<Node,List<Node>>.dActivityPanel(
                                             }
                                         }
 
-                                        override fun mouseClick(e: MouseEvent) {
+                                        override fun onPointerClick(e: PointerEvent) {
                                             toggleDone()
                                         }
 

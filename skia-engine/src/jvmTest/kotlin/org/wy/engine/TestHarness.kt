@@ -47,20 +47,35 @@ class TestStateHolder<N, T> : StateHolder<N, T> {
         creater: Creater<N, T, Item, Key, Output>
     ): Memo<*> = error("Not supported in test")
 
+    @Suppress("UNCHECKED_CAST")
     override fun renderNode(
         node: N,
         callback: StateHolderWithNode<N, T>.() -> Unit
-    ): GetValue<T> = error("Not supported in test")
+    ): GetValue<T> {
+        return { emptyList<Any>() as T }
+    }
 
+    @Suppress("UNCHECKED_CAST")
     override fun <NN, TT> renderNode(
         node: NN,
         config: com.wy.mve.ShareConfig<NN, TT>,
         callback: StateHolderWithNode<NN, TT>.() -> Unit
-    ): GetValue<TT> = error("Not supported in test")
+    ): GetValue<TT> {
+        return { emptyList<Any>() as TT }
+    }
 
-    override fun getParent(): Any? = parentNode
+    override fun getParent(): Any? {
+        parentNode?.let { return it }
+        // 模拟真实渲染树：root context 的 parent 是其根节点，否则 Node 构造会抛"需要找到parent"
+        if (rootParent == null) {
+            val g = consume(engineGlobalContext)
+            rootParent = if (g != null) Node(null, g) else null
+        }
+        return rootParent
+    }
 
     var parentNode: Any? = null
+    private var rootParent: Node? = null
 
     fun destroy() {
         if (isDestroyed) return
@@ -76,38 +91,12 @@ class TestStateHolder<N, T> : StateHolder<N, T> {
  * 测试用的 Mock EngineGlobal 实现。
  */
 class TestEngineGlobal : EngineGlobal {
-    private val downCallbacks = mutableListOf<Pair<MouseCallback, () -> Unit>>()
-    private val moveCallbacks = mutableListOf<Pair<MouseCallback, () -> Unit>>()
-    private val upCallbacks = mutableListOf<Pair<MouseCallback, () -> Unit>>()
-    private val wheelCallbacks = mutableListOf<Pair<WheelCallback, () -> Unit>>()
+    private var capturedId: Int? = null
+    private var capturedMove: ((PointerEvent) -> Unit)? = null
+    private var capturedUp: ((PointerEvent) -> Unit)? = null
+
     private val keyCallbacks = mutableListOf<Pair<KeyPressCallback, () -> Unit>>()
     private val composingCallbacks = mutableListOf<Pair<ComposingTextCallback, () -> Unit>>()
-
-    private val gestureRecognizers = mutableListOf<GestureRecognizer>()
-
-    override fun registerMouseDown(callback: MouseCallback): EmptyFun {
-        val destroy: () -> Unit = { downCallbacks.removeAll { it.first === callback } }
-        downCallbacks.add(callback to destroy)
-        return destroy
-    }
-
-    override fun registerMouseMove(callback: MouseCallback): EmptyFun {
-        val destroy: () -> Unit = { moveCallbacks.removeAll { it.first === callback } }
-        moveCallbacks.add(callback to destroy)
-        return destroy
-    }
-
-    override fun registerMouseUp(callback: MouseCallback): EmptyFun {
-        val destroy: () -> Unit = { upCallbacks.removeAll { it.first === callback } }
-        upCallbacks.add(callback to destroy)
-        return destroy
-    }
-
-    override fun registerMouseWheel(callback: WheelCallback): EmptyFun {
-        val destroy: () -> Unit = { wheelCallbacks.removeAll { it.first === callback } }
-        wheelCallbacks.add(callback to destroy)
-        return destroy
-    }
 
     override fun registerKeyPress(callback: KeyPressCallback): EmptyFun {
         val destroy: () -> Unit = { keyCallbacks.removeAll { it.first === callback } }
@@ -121,35 +110,50 @@ class TestEngineGlobal : EngineGlobal {
         return destroy
     }
 
-    override fun registerGestureRecognizer(r: GestureRecognizer) {
-        gestureRecognizers.add(r)
-    }
-
-    override fun unregisterGestureRecognizer(r: GestureRecognizer) {
-        gestureRecognizers.remove(r)
-    }
-
-    override val pressed: Boolean get() = false
-    override val moveHitest: NodeWithPosition? get() = null
+    override var pressed: HitestResult? = null
+    override val moveHitTest: HitestResult? get() = null
+    override var ctrl: Boolean = false
+    override var shift: Boolean = false
+    override var alt: Boolean = false
+    override var meta: Boolean = false
+    override var activeEditor: EditableTextNode? = null
     override var focused: Node? = null
 
-    override val gestureArena: GestureArena get() = GestureArena()
-    override val selectionManager: SelectionManager get() = SelectionManager()
+    private val selectionManagerInstance = SelectionManager()
+    override val selectionManager: SelectionManager get() = selectionManagerInstance
 
-    override fun requestInputOverlay(x: Float, y: Float, w: Float, h: Float, fontSize: Float) {}
-    override fun hideInputOverlay() {}
-    override fun requestCursor(type: CursorType) {}
-
-    fun simulateMouseDown(x: Float, y: Float) {
-        downCallbacks.toList().forEach { (cb, _) -> cb(GlobalMouseEvent(x, y) {}) }
+    override fun capturePointer(
+        id: Int,
+        onMove: (PointerEvent) -> Unit,
+        onUp: (PointerEvent) -> Unit
+    ): PointerCapture {
+        capturedId = id
+        capturedMove = onMove
+        capturedUp = onUp
+        return object : PointerCapture {
+            override fun release() {
+                if (capturedId == id) {
+                    capturedId = null
+                    capturedMove = null
+                    capturedUp = null
+                }
+            }
+        }
     }
 
-    fun simulateMouseMove(x: Float, y: Float) {
-        moveCallbacks.toList().forEach { (cb, _) -> cb(GlobalMouseEvent(x, y) {}) }
+    fun simulatePointerMove(x: Float, y: Float) {
+        capturedMove?.invoke(
+            PointerEvent(type = PointerType.Move, x = x, y = y, rootX = x, rootY = y)
+        )
     }
 
-    fun simulateMouseUp(x: Float, y: Float) {
-        upCallbacks.toList().forEach { (cb, _) -> cb(GlobalMouseEvent(x, y) {}) }
+    fun simulatePointerUp(x: Float, y: Float) {
+        capturedUp?.invoke(
+            PointerEvent(type = PointerType.Up, x = x, y = y, rootX = x, rootY = y)
+        )
+        capturedId = null
+        capturedMove = null
+        capturedUp = null
     }
 
     fun simulateKeyPress(key: Char, code: KeyCode = KeyCode.Unknown, ctrl: Boolean = false, shift: Boolean = false, alt: Boolean = false) {

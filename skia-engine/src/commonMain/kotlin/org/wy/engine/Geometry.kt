@@ -3,6 +3,9 @@ package org.wy.engine
 import kotlin.math.cos
 import kotlin.math.sin
 
+/** 二维点（窗口 / 节点坐标通用）。 */
+data class PointF(val x: Float, val y: Float)
+
 data class RectF(
     val left: Float,
     val top: Float,

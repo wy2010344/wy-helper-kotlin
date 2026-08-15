@@ -9,10 +9,8 @@ import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.GrowChild
 import org.wy.engine.layout.LayoutDirection
 import org.wy.lib.StoreRef
-import org.wy.lib.getValue
 import org.wy.signal.getValue
 import org.wy.signal.memo
-import org.wy.signal.setValue
 
 // ════════════════════════════════════════════════════
 // 概览页
@@ -37,8 +35,8 @@ internal fun StateHolder<Node,List<Node>>.dStatCard(
     override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
         if (direction == Direction.x) 14f else 8f
 
-    private val g = context!!.consume(engineGlobalContext)!!
-    private val hovered by memo { g.moveHitest?.include(this) ?: false }
+    private val g = engineGlobal
+    private val hovered by memo { g.moveHitTest?.include(this) ?: false }
 
     override fun draw(canvas: PlatformCanvas) {
         fillOuterRoundRect(canvas, 10f, CARD)
@@ -114,12 +112,12 @@ internal fun StateHolder<Node,List<Node>>.dChartPanel(): RectNode {
                 override val alignItem: AlignItem get() = AlignItem.stretch
                 override val alignFix: Boolean get() = true
 
-                private val g = context!!.consume(engineGlobalContext)!!
+                private val g = engineGlobal
                 private val hovered by memo {
-                    val hit = g.moveHitest
+                    val hit = g.moveHitTest
                     val n = CHART_DATA.size
                     if (hit != null && hit.include(this)) {
-                        ((hit.x - absoluteX) / (innerWidth / n)).toInt().coerceIn(0, n - 1)
+                        ((hit.chain.first().x - absoluteX) / (innerWidth / n)).toInt().coerceIn(0, n - 1)
                     } else null
                 }
 
