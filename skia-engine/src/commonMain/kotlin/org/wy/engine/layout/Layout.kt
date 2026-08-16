@@ -51,7 +51,6 @@ class FlexObject(val arg: FlexParam):Flex(){
         get() = arg.directionFixBetweenWhenOne
     override val directionJustify: DirectionJustify
         get() = arg.directionJustify
-
 }
 
 val absoluteLayoutDirection:LayoutDirection = object : LayoutDirection{
@@ -72,6 +71,9 @@ interface GrowChild{
         get() = argGrow(Direction.y)
 }
 
+interface IgnoreFlex{
+    val ignore : Boolean
+}
 interface AlignChild{
     fun argAlign(direction: Direction): Align?
     val alignX
@@ -99,6 +101,9 @@ abstract class Flex : FlexObject<LayoutNode> ,LayoutDirection{
         return n.outerSize(direction)
     }
 
+    override fun ignore(n: LayoutNode): Boolean {
+        return n is IgnoreFlex && n.ignore
+    }
     override val layoutX: LayoutFun<LayoutNode>
         get() = layout(Direction.x)
     override val layoutY: LayoutFun<LayoutNode>
@@ -130,6 +135,10 @@ abstract class Flex : FlexObject<LayoutNode> ,LayoutDirection{
 
         override fun outerSize(n: LayoutNode): Float {
             return n.outerSize(direction.opposite)
+        }
+
+        override fun ignore(n: LayoutNode): Boolean {
+            return n is IgnoreFlex && n.ignore
         }
     }
 }

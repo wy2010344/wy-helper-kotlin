@@ -17,6 +17,7 @@ interface Align {
 interface StackChildConvert<T> {
     fun align(n: T): Align?
     fun outerSize(n: T): Float
+    fun ignore(n: T): Boolean = false
 }
 
 interface StackObject<T> : LayoutFun<T>, StackChildConvert<T> {
@@ -45,7 +46,8 @@ class StackLayout<T>(
         }
         var width = 0f
         inside.children.forEach {
-            if (convert.align(it) == null) {
+            // ignore=true 的元素不参与撑大容器（自身尺寸与位置由元素自己提供）
+            if (!convert.ignore(it) && convert.align(it) == null) {
                 width = max(width, convert.outerSize(it))
             }
         }
@@ -90,10 +92,18 @@ class StackLayout<T>(
         get() = size()
 
     override fun childPosition(index: Int): Float {
+        // ignore=true 的元素不参与 align 定位，位置由元素自身提供
+        if (convert.ignore(inside.children[index])) {
+            return 0f
+        }
         return child(index, false)
     }
 
     override fun childSize(index: Int): Float {
+        // ignore=true 的元素保留自身尺寸，不被 stretch 拉伸
+        if (convert.ignore(inside.children[index])) {
+            return convert.outerSize(inside.children[index])
+        }
         return child(index, true)
     }
 

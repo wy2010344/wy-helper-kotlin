@@ -62,6 +62,10 @@ open class ButtonBase(
         onClick()
     }
 
+    /** 不可用按钮显示禁止光标；可用时显示手型（可点击）。 */
+    override fun cursorAt(x: Float, y: Float): CursorType =
+        if (enabled) CursorType.POINTER else CursorType.NOT_ALLOWED
+
     /** 绘制背景 / 边框（不含焦点环），默认空。 */
     open fun drawContent(canvas: PlatformCanvas) {}
 
@@ -70,7 +74,8 @@ open class ButtonBase(
 
     override fun draw(canvas: PlatformCanvas) {
         drawContent(canvas)
-        if (isFocused) drawFocusRing(canvas)
+        // 不可用时即使被外部强制聚焦也不画焦点环
+        if (enabled && isFocused) drawFocusRing(canvas)
         super.draw(canvas)
     }
 }

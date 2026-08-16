@@ -51,12 +51,22 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*
     final override val argHeight: LayoutSize
         get() = LayoutSize(h.value.toFloat(), false)
     private val skiaLayer = SkiaLayer()
+    private fun cursorOf(v: CursorType): Cursor = when (v) {
+        CursorType.POINTER -> Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        CursorType.TEXT -> Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR)
+        CursorType.CROSSHAIR -> Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR)
+        CursorType.MOVE -> Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR)
+        CursorType.RESIZE_NS -> Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR)
+        CursorType.RESIZE_EW -> Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR)
+        CursorType.RESIZE_NWSE -> Cursor.getPredefinedCursor(Cursor.NW_RESIZE_CURSOR)
+        CursorType.RESIZE_NESW -> Cursor.getPredefinedCursor(Cursor.NE_RESIZE_CURSOR)
+        CursorType.WAIT -> Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR)
+        // AWT 没有预定义的 HELP / NOT_ALLOWED，回退默认箭头
+        CursorType.HELP, CursorType.NOT_ALLOWED, CursorType.DEFAULT -> Cursor.getDefaultCursor()
+    }
+
     override fun setCursor(v: CursorType) {
-        skiaLayer.cursor = when (v) {
-            CursorType.POINTER -> Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-            CursorType.TEXT -> Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR)
-            CursorType.DEFAULT -> Cursor.getDefaultCursor()
-        }
+        skiaLayer.cursor = cursorOf(v)
     }
 
     /** 声明式 IME：EditableTextNode 活跃时由 Renderer 自动调用，把输入框移动到光标位置。 */

@@ -10,6 +10,7 @@ import org.wy.engine.helper.PopoverStyle
 import org.wy.engine.helper.popoverManagerContext
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
+import org.wy.engine.layout.IgnoreFlex
 import org.wy.engine.layout.LayoutDirection
 import org.wy.lib.EmptyFun
 import org.wy.signal.createSignal
@@ -32,9 +33,20 @@ fun main() {
 
         private fun StateHolderWithNode<Node, List<Node>>.popoverOverlay() {
             val pm = consume(popoverManagerContext)!!
-            object : Node(this) {
+            object : RectNode(this), FlexParam, IgnoreFlex {
+                override val direction: Direction get() = Direction.y
+                override val layout: LayoutDirection = FlexObject(this)
+                override val alignFix: Boolean get() = true
+                override val alignItem: AlignItem get() = AlignItem.stretch
+                override val directionJustify: DirectionJustify = DirectionJustify.start
+
+                /** 浮层不占 flex 空间，自行决定位置。 */
+                override val ignore: Boolean get() = true
+
                 override val x: Float get() = 0f
                 override val y: Float get() = 0f
+                override val argWidth: LayoutSize get() = LayoutSize(0f, false)
+                override val argHeight: LayoutSize get() = LayoutSize(0f, false)
 
                 override fun draw(canvas: PlatformCanvas) {
                     val popovers = pm.popovers

@@ -31,6 +31,8 @@ open class SimpleScrollNode(
     context: StateHolder<Node, List<Node>>,
     direction: Direction = Direction.y
 ) : RectNode(context), FlexParam, GrowChild {
+    /** 原始滚动方向（不受容器布局方向反转影响） */
+    val scrollDirection: Direction = direction
     final override val direction: Direction = direction.opposite
     final override val layout: LayoutDirection = FlexObject(this)
 
@@ -65,7 +67,8 @@ open class SimpleScrollNode(
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
         registerScroll(innerScroll)
         object : ScrollContent(this), FlexParam, GrowChild {
-            override val direction: Direction = this@SimpleScrollNode.direction.opposite
+            // ScrollContent 内容布局方向与滚动方向一致：纵向滚动时内容纵向排列，横向滚动时内容横向排列
+            override val direction: Direction = this@SimpleScrollNode.scrollDirection
             override val y: Float get() = if (direction == Direction.y) -innerScroll.value else 0f
             override val x: Float get() = if (direction == Direction.x) -innerScroll.value else 0f
             override val layout: LayoutDirection = FlexObject(this)

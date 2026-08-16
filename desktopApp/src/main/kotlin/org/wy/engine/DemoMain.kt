@@ -9,6 +9,7 @@ import org.jetbrains.skia.Surface
 import org.wy.engine.helper.SimpleScrollNode
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
+import org.wy.engine.layout.IgnoreFlex
 import org.wy.engine.layout.LayoutDirection
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
@@ -28,11 +29,12 @@ fun main() {
             get() = 10f
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-            demoTitle()
-            demoEditable()
+//            demoTitle()
+//            demoEditable()
 //            demoImage()
 //            demoGraphics()
-            demoList()
+//            demoList()
+            demoIgnore()
         }
     }
 }
@@ -165,9 +167,7 @@ fun StateHolder<Node,List<Node>>.demoGraphics() {
 
 private class RowModal(val key: Long) {
     var hide by createSignal(false)
-}
-
-fun StateHolder<Node,List<Node>>.demoList() {
+}fun StateHolder<Node,List<Node>>.demoList() {
     object : RectNode(this), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)
         override val argWidth: LayoutSize get() = LayoutSize(420f, false)
@@ -258,6 +258,152 @@ fun StateHolder<Node,List<Node>>.demoList() {
                         override val color: ColorInt get() = rgba(0, 60, 160)
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * IgnoreFlex 演示：一个"浮层"子节点，ignore=true 时不占 flex 主轴空间（铺满容器、不挤动其它子节点），
+ * ignore=false 时退回普通流内子节点（重新占空间）。点击按钮切换对比。
+ */
+fun StateHolder<Node, List<Node>>.demoIgnore() {
+    object : RectNode(this), FlexParam {
+        override val layout: LayoutDirection = FlexObject(this)
+        override val direction: Direction = Direction.y
+        override val directionJustify: DirectionJustify = DirectionJustify.start
+        override val argWidth: LayoutSize get() = LayoutSize(420f, false)
+        override val argHeight: LayoutSize get() = LayoutSize(280f, false)
+        override val alignFix: Boolean get() = true
+        override val alignItem: AlignItem get() = AlignItem.stretch
+        override val gap: Float get() = 8f
+
+        var ignoreOn by createSignal(true)
+
+        override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+            // 提示 + 切换按钮
+            object : RectNode(this), FlexParam {
+                override val direction: Direction = Direction.x
+                override val layout: LayoutDirection = FlexObject(this)
+                override val alignItem: AlignItem get() = AlignItem.center
+                override val gap: Float get() = 8f
+
+                override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+                    object : WrappedTextNode(this) {
+                        override val autoWidth: Boolean get() = true
+                        override val text: String get() = "IgnoreFlex: 浮层子节点不占 flex 空间"
+                        override val fontSize: Float get() = 13f
+                        override val color: ColorInt get() = rgba(80, 80, 100)
+                    }
+
+                    object : RectNode(this) {
+                        override val argWidth: LayoutSize get() = LayoutSize(90f, false)
+                        override val argHeight: LayoutSize get() = LayoutSize(26f, false)
+                        override val focusable: Boolean get() = true
+
+                        override fun draw(canvas: PlatformCanvas) {
+                            val color = if (ignoreOn) rgba(180, 210, 255) else rgba(230, 170, 170)
+                            fillOuterRoundRect(canvas, 6f, color)
+                            super.draw(canvas)
+                        }
+
+                        override fun onPointerClick(e: PointerEvent) {
+                            ignoreOn = !ignoreOn
+                        }
+
+                        override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+                            object : WrappedTextNode(this) {
+                                override val autoWidth: Boolean get() = true
+                                override val text: String get() = if (ignoreOn) "ignore=ON" else "ignore=OFF"
+                                override val fontSize: Float get() = 12f
+                                override val color: ColorInt get() = rgba(0, 60, 160)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 演示容器：3 个普通 flex 子节点 + 1 个 IgnoreFlex 子节点
+            object : RectNode(this), FlexParam {
+                override val layout: LayoutDirection = FlexObject(this)
+                override val direction: Direction = Direction.y
+                override val directionJustify: DirectionJustify = DirectionJustify.start
+                override val argWidth: LayoutSize get() = LayoutSize(420f, false)
+                override val argHeight: LayoutSize get() = LayoutSize(200f, false)
+                override val alignFix: Boolean get() = true
+                override val alignItem: AlignItem get() = AlignItem.stretch
+                override val gap: Float get() = 6f
+
+                override fun draw(canvas: PlatformCanvas) {
+                    fillOuterRect(canvas, rgba(245, 245, 250))
+                    super.draw(canvas)
+                }
+
+                override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+                    ignoreDemoRow("普通子节点 1", 40f, rgba(210, 230, 210))
+                    ignoreDemoRow("普通子节点 2", 40f, rgba(210, 220, 245))
+                    ignoreDemoRow("普通子节点 3", 40f, rgba(245, 225, 200))
+
+                    // IgnoreFlex 子节点：ignore=true 时铺满容器但不占空间；false 时退回流内占空间
+                    object : RectNode(this), IgnoreFlex {
+                        override val ignore: Boolean get() = ignoreOn
+                        override fun argPosition(direction: Direction): Float = if(ignoreOn)0f else super.argPosition(direction)
+
+                        override val argWidth: LayoutSize
+                            get() = if (ignoreOn) LayoutSize(420f, false) else LayoutSize(420f, false)
+                        override val argHeight: LayoutSize
+                            get() = if (ignoreOn) LayoutSize(200f, false) else LayoutSize(40f, false)
+
+                        override fun draw(canvas: PlatformCanvas) {
+                            if (ignoreOn) {
+                                canvas.save()
+                                canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 8f, rgba(80, 140, 255, 60))
+                                canvas.strokeRoundRect(0f, 0f, outerWidth, outerHeight, 8f, rgba(40, 100, 240), 2f)
+                                canvas.restore()
+                            } else {
+                                fillOuterRect(canvas, rgba(255, 140, 140))
+                            }
+                            super.draw(canvas)
+                        }
+
+                        override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+                            object : WrappedTextNode(this) {
+                                override val autoWidth: Boolean get() = true
+                                override val text: String get() =
+                                    if (ignoreOn) "ignore=ON：铺满但不占空间" else "ignore=OFF：回到流内占空间"
+                                override val fontSize: Float get() = 12f
+                                override val fontWeight: Int get() = 700
+                                override val color: ColorInt get() =
+                                    if (ignoreOn) rgba(20, 60, 180) else rgba(140, 30, 30)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun StateHolder<Node, List<Node>>.ignoreDemoRow(
+    text: String,
+    height: Float,
+    color: ColorInt,
+) {
+    object : RectNode(this) {
+        override val argWidth: LayoutSize get() = LayoutSize(420f, false)
+        override val argHeight: LayoutSize get() = LayoutSize(height, false)
+
+        override fun draw(canvas: PlatformCanvas) {
+            fillOuterRect(canvas, color)
+            super.draw(canvas)
+        }
+
+        override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+            object : WrappedTextNode(this) {
+                override val autoWidth: Boolean get() = true
+                override val text: String get() = text
+                override val fontSize: Float get() = 12f
+                override val color: ColorInt get() = rgba(60, 60, 80)
             }
         }
     }

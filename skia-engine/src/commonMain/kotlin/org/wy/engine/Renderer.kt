@@ -30,9 +30,15 @@ open class Renderer private constructor(
 
     private val cursorTrack = object : TrackSignal<CursorType>() {
         override fun get(old: CursorType?, inited: Boolean): CursorType {
-            if (register.moveHitTest != null) {
-                val last = register.moveHitTest!!.chain.last()
-                return last.node.cursorAt(last.x, last.y)
+            // 指针落在空白区域时 hitTest 返回 null，链为空是正常状态，直接回退默认光标
+            val chain = register.moveHitTest?.chain
+            if (chain.isNullOrEmpty()) return CursorType.DEFAULT
+            // 命中链 root→leaf，leaf 可能是内部文字等"纯展示"节点（cursorAt=DEFAULT）；
+            // 从深到浅取第一个声明了非默认光标的节点，保证悬停在控件内容上也能正确反馈
+            for (i in chain.indices.reversed()) {
+                val n = chain[i]
+                val c = n.node.cursorAt(n.x, n.y)
+                if (c != CursorType.DEFAULT) return c
             }
             return CursorType.DEFAULT
         }
@@ -145,7 +151,7 @@ open class Renderer private constructor(
             // 让 moveHitest 始终反映最近的指针位置（含按下瞬间）
             register.moveHitTest = hit
             register.pressed = hit
-            setFocused(hit.chain.last().node)
+            setFocused(hit.chain.lastOrNull()?.node)
             dispatchPointer(hit, PointerType.Down, x, y, device = device)
         } catch (e: Throwable) {
             println("mouseDown error--$e")
@@ -169,12 +175,15 @@ open class Renderer private constructor(
             register.moveHitTest = hit
             dispatchPointer(hit, PointerType.Up, x, y, device = device)
             if (down != null) {
-                val dx = x - down.chain.first().x
-                val dy = y - down.chain.first().y
-                val dist = kotlin.math.sqrt(dx * dx + dy * dy)
-                val dt = System.currentTimeMillis() - down.time
-                if (dist < 5f && dt < 500L) {
-                    dispatchPointer(hit, PointerType.Click, x, y, device = device)
+                val downPos = down.chain.firstOrNull()
+                if (downPos != null) {
+                    val dx = x - downPos.x
+                    val dy = y - downPos.y
+                    val dist = kotlin.math.sqrt(dx * dx + dy * dy)
+                    val dt = System.currentTimeMillis() - down.time
+                    if (dist < 5f && dt < 500L) {
+                        dispatchPointer(hit, PointerType.Click, x, y, device = device)
+                    }
                 }
             }
             // 注意：修饰键反映真实键盘状态，松开鼠标不清空

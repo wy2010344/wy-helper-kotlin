@@ -14,4 +14,6 @@ kotlin {
 dependencies {
     implementation(projects.lib)
     implementation(projects.signal)
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlin.testJunit)
 }

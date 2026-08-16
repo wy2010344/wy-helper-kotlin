@@ -4,6 +4,7 @@ import com.wy.layout.AlignItem
 import com.wy.layout.DirectionJustify
 import com.wy.mve.StateHolder
 import org.wy.engine.Direction
+import org.wy.engine.CursorType
 import org.wy.engine.KeyCode
 import org.wy.engine.LayoutSize
 import org.wy.engine.Node
@@ -81,6 +82,10 @@ open class SliderBase(
         context?.let { it.drag(e) { me -> setFromPointer(me.rootX - absoluteX) } }
     }
 
+    /** 不可用滑杆显示禁止光标；可用时显示手型。 */
+    override fun cursorAt(x: Float, y: Float): CursorType =
+        if (enabled) CursorType.POINTER else CursorType.NOT_ALLOWED
+
     private fun setFromPointer(x: Float) {
         onValueChanged((x / trackWidth()).coerceIn(0f, 1f))
     }
@@ -110,7 +115,7 @@ open class SliderBase(
         val v = value()
         drawTrack(canvas, v)
         drawThumb(canvas, v)
-        if (isFocused) {
+        if (isFocused && enabled) {
             drawFocusRing(canvas)
         } else if (hovered) {
             drawHoverRing(canvas)

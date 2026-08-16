@@ -19,6 +19,7 @@ interface FlexChildConvert<T> {
     fun index(n: T): Int
     fun grow(n: T): Float
     fun outerSize(n: T): Float
+    fun ignore(n:T): Boolean
 }
 
 private data class FlexInfo(
@@ -61,16 +62,30 @@ class FlexLayout<T>(
         val childLengths = mutableMapOf<Int, Float>()
         val children = inside.children
 
+        // ignore=true 的元素不参与 flex 布局计算（不占空间、不参与 grow / gap 分配），
+        // 由元素自身提供位置与尺寸。这里仍为其填入自身尺寸与 position 槽位，保证 layoutIndex 对齐。
+        val flexChildren = children.filter { !convert.ignore(it) }
+        val flexCount = flexChildren.size
+
+        // 处理一个子节点：被 ignore 的元素只占槽位、不推进长度，并返回其自身尺寸
+        fun place(child: T, childLength: Float, childGap: Float) {
+            val index = convert.index(child)
+            if (convert.ignore(child)) {
+                childLengths[index] = convert.outerSize(child)
+            } else {
+                childLengths[index] = childLength
+                length += childLength + childGap
+            }
+            list.add(length)
+        }
+
         val forEach: (action: (T) -> Unit) -> Unit =
             if (reverse) children::forEachRight else children::forEach
 
         val directionFix = arg.directionJustify
         if (directionFix == DirectionJustify.grow) {
             forEach {
-                val childLength = convert.outerSize(it)
-                childLengths[convert.index(it)] = childLength
-                length += childLength + gap
-                list.add(length)
+                place(it, convert.outerSize(it), gap)
             }
             if (length > 0) {
                 length -= gap
@@ -82,18 +97,19 @@ class FlexLayout<T>(
             val growIndex = mutableMapOf<Int, Float>()
             var growAll = 0f
             var totalLength = 0f
-            children.forEach {
+            flexChildren.forEach {
+                val index = convert.index(it)
                 val grow = convert.grow(it)
                 if (grow > 0) {
                     growAll += grow
-                    growIndex[convert.index(it)] = grow
+                    growIndex[index] = grow
                 } else {
                     totalLength += convert.outerSize(it)
                 }
             }
 
             if (growAll > 0) {
-                val remaing = insideSize - (gap * children.size - gap) - totalLength
+                val remaing = insideSize - (gap * flexCount - gap) - totalLength
                 forEach {
                     val index = convert.index(it)
                     val grow = growIndex[index] ?: 0f
@@ -101,14 +117,12 @@ class FlexLayout<T>(
                         if (remaing > 0) remaing * grow / growAll else 0f
                     } else convert.outerSize(it)
 
-                    childLengths[index] = childLength
-                    length += childLength + gap
-                    list.add(length)
+                    place(it, childLength, gap)
                 }
             } else {
                 var tGap = gap
                 val allRemaing = insideSize - totalLength
-                val remaing = allRemaing - (gap * children.size - gap)
+                val remaing = allRemaing - (gap * flexCount - gap)
                 if (directionFix == DirectionJustify.center) {
                     length = remaing / 2
                     list[0] = length
@@ -116,13 +130,13 @@ class FlexLayout<T>(
                     length = remaing
                     list[0] = length
                 } else if (directionFix == DirectionJustify.around) {
-                    tGap = allRemaing / children.size
+                    tGap = allRemaing / flexCount
                     length = tGap / 2
                     list[0] = length
                 } else if (directionFix == DirectionJustify.between) {
-                    if (children.size > 1) {
-                        tGap = allRemaing / (children.size - 1)
-                    } else if (children.size == 1) {
+                    if (flexCount > 1) {
+                        tGap = allRemaing / (flexCount - 1)
+                    } else if (flexCount == 1) {
                         val directionFixBetweenWhenOne = arg.directionFixBetweenWhenOne
                         if (directionFixBetweenWhenOne == DirectionFixBetweenWhenOne.center) {
                             list[0] = allRemaing / 2
@@ -131,16 +145,13 @@ class FlexLayout<T>(
                         }
                     }
                 } else if (directionFix == DirectionJustify.evenly) {
-                    tGap = allRemaing / (children.size + 1)
+                    tGap = allRemaing / (flexCount + 1)
                     length = tGap
                     list[0] = length
                 }
 
                 forEach {
-                    val childrenLength = convert.outerSize(it)
-                    childLengths[convert.index(it)] = childrenLength
-                    length += childrenLength + tGap
-                    list.add(length)
+                    place(it, convert.outerSize(it), tGap)
                 }
             }
         }

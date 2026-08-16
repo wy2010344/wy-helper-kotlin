@@ -19,8 +19,48 @@ data class KeyEvent(
 typealias KeyPressCallback = (e: KeyEvent) -> Unit
 typealias ComposingTextCallback = (text: String, cursorPosition: Int) -> Unit
 
+/**
+ * 系统光标类型。节点通过 [Node.cursorAt] 返回"当前位置该显示什么光标"，
+ * 引擎汇总后交给平台实现（如 Desktop 的 AWT `setCursor`）。
+ *
+ * 各平台实现时：无法精确映射的类型应回退到语义最接近的类型或 [DEFAULT]。
+ */
 enum class CursorType {
-    DEFAULT, POINTER, TEXT
+    /** 默认箭头。 */
+    DEFAULT,
+
+    /** 手型（可点击元素，如按钮 / 链接）。 */
+    POINTER,
+
+    /** 文本 I 型（可编辑文本）。 */
+    TEXT,
+
+    /** 十字准线（精确拾取 / 画布）。 */
+    CROSSHAIR,
+
+    /** 可拖动 / 移动。 */
+    MOVE,
+
+    /** 垂直调整大小（上 / 下）。 */
+    RESIZE_NS,
+
+    /** 水平调整大小（左 / 右）。 */
+    RESIZE_EW,
+
+    /** 左上—右下对角线调整大小。 */
+    RESIZE_NWSE,
+
+    /** 右上—左下对角线调整大小。 */
+    RESIZE_NESW,
+
+    /** 忙碌（长时间任务）。 */
+    WAIT,
+
+    /** 帮助。 */
+    HELP,
+
+    /** 禁止操作。 */
+    NOT_ALLOWED,
 }
 
 /**
