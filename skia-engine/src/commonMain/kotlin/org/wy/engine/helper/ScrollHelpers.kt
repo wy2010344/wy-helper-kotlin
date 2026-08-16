@@ -82,6 +82,23 @@ open class SimpleScrollNode(
                 super.draw(canvas)
             }
 
+            /**
+             * 绘制裁剪：不在可视区域内的子节点跳过绘制（仍参与布局计算，保证滚动尺寸正确）。
+             * 这是"惰性绘制"——节点全量创建（EachValue 照常），但只画可见的。
+             */
+            override fun drawChild(child: Node, canvas: PlatformCanvas) {
+                if (child is LayoutNode) {
+                    val scrollDir = this@SimpleScrollNode.scrollDirection
+                    val pos = child.position(scrollDir)
+                    val size = child.outerSize(scrollDir)
+                    val scrollVal = innerScroll.value
+                    val viewport = this@SimpleScrollNode.innerSize(scrollDir)
+                    // 可视区域（内容坐标）：[scrollVal, scrollVal + viewport]
+                    if (pos + size < scrollVal || pos > scrollVal + viewport) return
+                }
+                super.drawChild(child, canvas)
+            }
+
             override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
                 contentChildren()
             }

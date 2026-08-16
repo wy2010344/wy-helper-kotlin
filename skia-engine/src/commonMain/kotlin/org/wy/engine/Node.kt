@@ -194,13 +194,19 @@ open class Node(
      */
     open val focusTrap: Boolean = false
     open fun draw(canvas: PlatformCanvas) {
-        children.forEach {
-            canvas.save()
-            it.drawAtParent(canvas)
-            canvas.translate(it.x, it.y)
-            it.draw(canvas)
-            canvas.restore()
-        }
+        children.forEach { drawChild(it, canvas) }
+    }
+
+    /**
+     * 绘制单个子节点：save → drawAtParent → translate → draw → restore。
+     * 子类可覆写以加入裁剪/跳过逻辑（如滚动容器只绘制可视区域内的子节点）。
+     */
+    open fun drawChild(child: Node, canvas: PlatformCanvas) {
+        canvas.save()
+        child.drawAtParent(canvas)
+        canvas.translate(child.x, child.y)
+        child.draw(canvas)
+        canvas.restore()
     }
 
     open fun drawAtParent(canvas: PlatformCanvas) {}
