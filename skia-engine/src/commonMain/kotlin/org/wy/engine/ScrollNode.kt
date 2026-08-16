@@ -22,8 +22,10 @@ fun StateHolder<*, *>.consumeScroll(direction: Direction): Scroll? {
 
 class Scroll(
     val container: LayoutNode,
-    val direction: Direction = Direction.y
+    val direction: Direction = Direction.y,
+    context: StateHolder<*, *>? = null
 ) {
+    val parentScroll: Scroll? = context?.consumeScroll(direction)
     private val ref: OneSetStoreRef<Float> = createLateSignal(0f)
     private val setValue = ref.getOnlySet()
     private val getValue = ref::get
@@ -38,6 +40,10 @@ class Scroll(
         val next = (value + delta).coerceIn(0f, container.maxScroll(direction))
         val realDelta = next - value
         value = next
+        if (parentScroll != null) {
+            val result = delta - realDelta
+            parentScroll.scroll(result)
+        }
         return realDelta
     }
 }

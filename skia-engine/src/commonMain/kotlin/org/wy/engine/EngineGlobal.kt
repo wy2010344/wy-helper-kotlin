@@ -45,6 +45,13 @@ interface EngineGlobal {
     val moveHitTest: HitestResult?
 
     /**
+     * 最近一次指针事件的输入设备（响应式信号）。
+     * 由平台在 mouseDown / mouseMove / mouseUp 上报，供组件判断
+     * "触摸 / 笔设备不应产生桌面式 hover 反馈"。
+     */
+    val lastPointerDevice: PointerDevice
+
+    /**
      * 修饰键实时状态（响应式信号，四个键独立可观察）。
      * 反映真实键盘按键状态，与鼠标按下无关；由平台每次鼠标 / 键盘事件刷新，
      * 窗口失焦时清空。绘制层可 `memo { g.shift }` 按需依赖单一按键，
@@ -55,8 +62,14 @@ interface EngineGlobal {
     val alt: Boolean
     val meta: Boolean
 
-    /** 当前激活输入法输入框的编辑器（全局唯一，响应式信号）。 */
-    var activeEditor: EditableTextNode?
+    /**
+     * 当前激活输入法输入框的编辑器。
+     *
+     * 派生自 [focused]：全局焦点唯一，聚焦的 `EditableTextNode` 即活跃编辑器
+     * （`focused as? EditableTextNode`）。无独立存储，focused 变化时自动更新，
+     * 调用方在反应式上下文（memo / TrackSignal / draw）读取即自动跟踪焦点变化。
+     */
+    val activeEditor: EditableTextNode?
 
     var focused: Node?
 

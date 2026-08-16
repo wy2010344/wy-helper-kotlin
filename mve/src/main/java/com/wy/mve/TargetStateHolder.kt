@@ -5,17 +5,18 @@ import org.wy.lib.GetValue
 import org.wy.lib.SetValue
 import org.wy.signal.Memo
 
-interface RootReturn<Target>: DestroyHolder {
+interface RootReturn<Target> : DestroyHolder {
     fun destroy()
     val target: GetValue<Target>
 }
 
-internal open class TargetStateHolder<Node,Target>(
+internal open class TargetStateHolder<Node, Target>(
     override val node: Node,
-    config: ShareConfig<Node,Target>,
-    private val callback: StateHolderWithNode<Node,Target>.() -> Unit,
-    parent: StateHolderI<*,*>?=null
-) : StateHolderI<Node,Target>(config,parent), RootReturn<Target>, StateHolderWithNode<Node,Target> {
+    config: ShareConfig<Node, Target>,
+    private val callback: StateHolderWithNode<Node, Target>.() -> Unit,
+    parent: StateHolderI<*, *>? = null
+) : StateHolderI<Node, Target>(config, parent), RootReturn<Target>,
+    StateHolderWithNode<Node, Target> {
     override fun buildChildren() {
         provide<Node>(parentContext as Context<Node>, node)
         callback()
@@ -29,8 +30,10 @@ internal open class TargetStateHolder<Node,Target>(
         override fun toString(): String {
             return "target-memo"
         }
-    }.apply {
-        afters.add(config::after)
+
+        init {
+            afters.add(config::after)
+        }
     }
 
     override fun toString(): String {
@@ -42,12 +45,12 @@ internal open class TargetStateHolder<Node,Target>(
 internal val parentContext = Context<Any?>(null)
 
 
-fun <Node,Target> renderRoot(
+fun <Node, Target> renderRoot(
     node: Node,
-    config: ShareConfig<Node,Target>,
-    callback: StateHolderWithNode<Node,Target>.() -> Unit
+    config: ShareConfig<Node, Target>,
+    callback:StateHolderWithNode<Node, Target>.() -> Unit
 ): RootReturn<Target> {
-    val node= TargetStateHolder(node, config, callback)
+    val node = TargetStateHolder(node, config, callback)
     node.create()
-    return  node
+    return node
 }

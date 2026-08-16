@@ -112,27 +112,23 @@ class TextSelectionTest {
     fun testNonFocusedEditorDoesNotHideActiveOverlay() {
         val (sh, g, _) = createEnv()
         val a = EditableTextNode(sh)
-        val b = EditableTextNode(sh)
 
-        // 焦点在 a，a 激活输入法输入框（声明式：activeEditor + inputOverlay 数据就绪）
+        // 焦点在 a，a 激活输入法输入框（派生：activeEditor = focused as? EditableTextNode）
         g.focused = a
-        a.updateFocusOverlay()
         assertEquals(a, g.activeEditor, "a 聚焦后应成为活跃编辑器")
         assertTrue(a.inputOverlay() != null, "活跃编辑器的 inputOverlay 应返回输入框数据")
 
-        // b 非焦点，重绘时不得抢走 a 的输入法输入框
-        b.updateFocusOverlay()
+        // b 非焦点，不得成为活跃编辑器
         assertEquals(a, g.activeEditor, "非焦点编辑器不得抢占活跃输入框")
         assertTrue(a.inputOverlay() != null, "a 的输入框数据不应被 b 清掉")
 
         // a 失焦时才隐藏输入法输入框
         g.focused = null
-        a.updateFocusOverlay()
         assertEquals(null, g.activeEditor, "a 失焦后应清空活跃编辑器")
         assertTrue(a.inputOverlay() == null, "a 失焦后 inputOverlay 应为空")
 
-        // 清理全局 activeEditor，避免污染其他测试
-        g.activeEditor = null
+        // 清理焦点，避免污染其他测试
+        g.focused = null
     }
 
     // ---------- 4. 输入框位置是源状态的纯派生（无中间信号） ----------
@@ -150,7 +146,6 @@ class TextSelectionTest {
 
         // 聚焦并激活输入框，输入文本后光标在末尾
         g.focused = ed
-        ed.updateFocusOverlay()
         ed.handleKey(KeyEvent('H', KeyCode.Unknown, false, false, false, false))
         ed.handleKey(KeyEvent('e', KeyCode.Unknown, false, false, false, false))
         val end = ed.inputOverlay()
@@ -168,7 +163,7 @@ class TextSelectionTest {
         assertTrue(after != null)
         assertTrue(after.x > start.x, "插入字符后 overlay 应随内容右移")
 
-        // 清理全局 activeEditor，避免污染其他测试
-        g.activeEditor = null
+        // 清理焦点，避免污染其他测试
+        g.focused = null
     }
 }

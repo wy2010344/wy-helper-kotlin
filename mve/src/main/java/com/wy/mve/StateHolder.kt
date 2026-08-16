@@ -2,7 +2,6 @@ package com.wy.mve
 
 import org.wy.lib.EmptyFun
 import org.wy.lib.GetValue
-import org.wy.lib.SetValue
 import org.wy.signal.Memo
 
 typealias Creater<Node, Target, T, K, O> = StateHolder<Node, Target>.(K, EachTime<T>) -> O
@@ -19,6 +18,11 @@ interface DestroyHolder{
     fun addDestroy(destroy: EmptyFun)
     val destroyed: Boolean
 }
+
+/**
+ * Node 本次添加的节点
+ * Target 返回的集合
+ */
 interface StateHolder<Node, Target>:DestroyHolder {
     fun <T> provide(context: Context<T>, value: T)
 

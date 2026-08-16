@@ -144,8 +144,8 @@ internal open class StateHolderI<Node, Target>(
         }
 
 
-        private fun <T, Node> findProvider(
-            who: StateHolderI<Node, *>,
+        private fun <T> findProvider(
+            who: StateHolderI<*, *>,
             context: Context<T>
         ): Pair<Context<T>, T>? {
             var holder: StateHolderI<*, *>? = who

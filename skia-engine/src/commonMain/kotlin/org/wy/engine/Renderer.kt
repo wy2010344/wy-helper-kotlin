@@ -15,15 +15,17 @@ open class Renderer private constructor(
     context: StateHolder<*, *>?,
     private val register: Register
 ) : LayoutNode(context, register) {
-    constructor(context: StateHolder<*, *>?) : this(context, Register(context)) {
+    constructor(context: StateHolder<*, *>?) : this(context, Register(context))
+    override fun createGetChildren(): () -> List<Node> {
         if (context == null) {
             val state = renderRoot(this@Renderer, nodeConfig) {
                 register.provide(this)
                 argChildren()
             }
-            this.getChildren = state.target
             this.destroyFun = state::destroy
+            return state.target
         }
+        return super.createGetChildren()
     }
 
     private val cursorTrack = object : TrackSignal<CursorType>() {
@@ -46,7 +48,11 @@ open class Renderer private constructor(
             return register.activeEditor?.inputOverlay()
         }
 
-        override fun set(v: InputOverlayData?, oldV: InputOverlayData?, inited: Boolean): EmptyFun? {
+        override fun set(
+            v: InputOverlayData?,
+            oldV: InputOverlayData?,
+            inited: Boolean
+        ): EmptyFun? {
             if (v != null) setInputOverlay(v) else hideInputOverlay()
             return null
         }
@@ -94,19 +100,33 @@ open class Renderer private constructor(
         register.focused = node
     }
 
-    private val focusableNodes by memo {
+    private fun collectFocusable(root: Node): List<Node> {
         val result = mutableListOf<Node>()
         fun collect(node: Node) {
             if (node.focusable && !node.hide) result.add(node)
             node.children.forEach(::collect)
         }
-        children.forEach(::collect)
+        collect(root)
         if (result.any { it.focusOrder != null }) result.sortBy { it.focusOrder ?: Int.MAX_VALUE }
-        result
+        return result
+    }
+
+    private val focusableNodes by memo { collectFocusable(this) }
+
+    /** 从 [focused] 沿父链上溯，返回最近的 [Node.focusTrap] 节点（弹出层圈定范围）。 */
+    private fun findFocusTrap(focused: Node?): Node? {
+        var cur = focused
+        while (cur != null) {
+            if (cur.focusTrap) return cur
+            cur = cur.parent
+        }
+        return null
     }
 
     private fun moveFocus(next: Boolean) {
-        val nodes = focusableNodes
+        // 焦点在当前弹出层（focusTrap）内时，只在圈定子树内遍历；否则全局遍历
+        val trap = findFocusTrap(register.focused)
+        val nodes = if (trap != null) collectFocusable(trap) else focusableNodes
         if (nodes.isEmpty()) return
         val current = register.focused
         val index = nodes.indexOfFirst { it === current }
@@ -118,41 +138,43 @@ open class Renderer private constructor(
         setFocused(nodes[targetIndex])
     }
 
-    fun mouseDown(x: Float, y: Float) {
+    fun mouseDown(x: Float, y: Float, device: PointerDevice = PointerDevice.Mouse) {
         try {
+            register.lastPointerDevice = device
             val hit = hitTestResult(x, y)
             // 让 moveHitest 始终反映最近的指针位置（含按下瞬间）
             register.moveHitTest = hit
             register.pressed = hit
             setFocused(hit.chain.last().node)
-            dispatchPointer(hit, PointerType.Down, x, y)
+            dispatchPointer(hit, PointerType.Down, x, y, device = device)
         } catch (e: Throwable) {
             println("mouseDown error--$e")
         }
     }
 
-    fun mouseUp(x: Float, y: Float) {
+    fun mouseUp(x: Float, y: Float, device: PointerDevice = PointerDevice.Mouse) {
         try {
+            register.lastPointerDevice = device
             // 按下信息先快照再清空，供下方 click 判定使用
             val down = register.pressed
             register.pressed = null
             // 指针捕获：up 先投递给捕获者并结束捕获，随后仍走正常树分发（非按下态，通常无副作用）
             val captured = register.captured(0)
             if (captured != null) {
-                val e = PointerEvent(type = PointerType.Up, x = x, y = y, rootX = x, rootY = y)
+                val e = PointerEvent(type = PointerType.Up, x = x, y = y, rootX = x, rootY = y, device = device)
                 captured.onUp(e)
                 captured.release()
             }
             val hit = hitTestResult(x, y)
             register.moveHitTest = hit
-            dispatchPointer(hit, PointerType.Up, x, y)
+            dispatchPointer(hit, PointerType.Up, x, y, device = device)
             if (down != null) {
                 val dx = x - down.chain.first().x
                 val dy = y - down.chain.first().y
                 val dist = kotlin.math.sqrt(dx * dx + dy * dy)
                 val dt = System.currentTimeMillis() - down.time
                 if (dist < 5f && dt < 500L) {
-                    dispatchPointer(hit, PointerType.Click, x, y)
+                    dispatchPointer(hit, PointerType.Click, x, y, device = device)
                 }
             }
             // 注意：修饰键反映真实键盘状态，松开鼠标不清空
@@ -161,18 +183,19 @@ open class Renderer private constructor(
         }
     }
 
-    fun mouseMove(x: Float, y: Float) {
+    fun mouseMove(x: Float, y: Float, device: PointerDevice = PointerDevice.Mouse) {
         try {
+            register.lastPointerDevice = device
             // 指针捕获：move 只投递给捕获者，不进入树分发
             val captured = register.captured(0)
             if (captured != null) {
-                val e = PointerEvent(type = PointerType.Move, x = x, y = y, rootX = x, rootY = y)
+                val e = PointerEvent(type = PointerType.Move, x = x, y = y, rootX = x, rootY = y, device = device)
                 captured.onMove(e)
                 return
             }
             val hit = hitTestResult(x, y)
             register.moveHitTest = hit
-            dispatchPointer(hit, PointerType.Move, x, y)
+            dispatchPointer(hit, PointerType.Move, x, y, device = device)
         } catch (e: Throwable) {
             println("mouseMove error--$e")
         }
@@ -287,12 +310,14 @@ private fun dispatchPointer(
     type: PointerType,
     rootX: Float,
     rootY: Float,
-    wheelDelta: Float = 0f
+    wheelDelta: Float = 0f,
+    device: PointerDevice = PointerDevice.Mouse
 ) {
     result.chain.forEach {
         //捕获
         val e = PointerEvent(
             type = type,
+            device = device,
             x = it.x,
             y = it.y,
             rootX = rootX,
@@ -308,6 +333,7 @@ private fun dispatchPointer(
         //冒泡
         val e = PointerEvent(
             type = type,
+            device = device,
             x = it.x,
             y = it.y,
             rootX = rootX,

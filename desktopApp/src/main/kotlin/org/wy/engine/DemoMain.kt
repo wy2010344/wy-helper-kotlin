@@ -6,10 +6,9 @@ import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import org.jetbrains.skia.EncodedImageFormat
 import org.jetbrains.skia.Surface
-import org.wy.engine.helper.SimpleScrollBar
+import org.wy.engine.helper.SimpleScrollNode
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
-import org.wy.engine.layout.GrowChild
 import org.wy.engine.layout.LayoutDirection
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
@@ -187,81 +186,54 @@ fun StateHolder<Node,List<Node>>.demoList() {
                 override val fontSize: Float get() = 13f
             }
 
-            object : RectNode(this), FlexParam {
-                override val direction: Direction = Direction.x
-                override val layout: LayoutDirection = FlexObject(this)
-                override val alignItem: AlignItem get() = AlignItem.stretch
-                override val directionJustify: DirectionJustify = DirectionJustify.start
-                override val alignFix: Boolean get() = true
+            object : SimpleScrollNode(this) {
                 override val argWidth: LayoutSize get() = LayoutSize(420f, false)
                 override val argHeight: LayoutSize get() = LayoutSize(170f, false)
+                override val contentGap: Float get() = 6f
 
-                val scrollY = Scroll(this).also { registerScroll(it) }
+                override fun StateHolderWithNode<Node, List<Node>>.contentChildren() {
+                    renderForEach({ callback ->
+                        list.forEach { callback(it.key, it) }
+                    }) { key, it ->
+                        object : RectNode(this), FlexParam {
+                            override val hide: Boolean get() = it.value.hide
+                            override val direction: Direction = Direction.x
+                            override val layout: LayoutDirection = FlexObject(this)
+                            override val alignFix: Boolean get() = true
+                            override val directionJustify: DirectionJustify = DirectionJustify.between
+                            override val argWidth: LayoutSize get() = LayoutSize(410f, false)
+                            override val argHeight: LayoutSize get() = LayoutSize(26f, false)
 
-                override fun onPointerWheel(e: PointerEvent) {
-                    scrollY.scroll(e.wheelDelta)
-                }
+                            override fun draw(canvas: PlatformCanvas) {
+                                fillOuterRect(canvas, rgba(235, 235, 245))
+                                super.draw(canvas)
+                            }
 
-                override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    object : ScrollContent(this), FlexParam, GrowChild {
-                        override val direction: Direction get() = Direction.y
-                        override val y: Float get() = -scrollY.value
-                        override val argWidth: LayoutSize get() = LayoutSize(410f, false)
-                        override fun argGrow(direction: Direction): Float = 1f
-                        override val alignFix: Boolean get() = true
-                        override val gap: Float get() = 6f
-                        override val alignItem: AlignItem get() = AlignItem.stretch
-                        override val layout: LayoutDirection = FlexObject(this)
+                            override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+                                object : WrappedTextNode(this) {
+                                    override val autoWidth: Boolean get() = true
+                                    override val text: String get() = "row $key"
+                                }
 
-                        override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                            renderForEach({ callback ->
-                                list.forEach { callback(it.key, it) }
-                            }) { key, it ->
-                                object : RectNode(this), FlexParam {
-                                    override val hide: Boolean get() = it.value.hide
-                                    override val direction: Direction = Direction.x
-                                    override val layout: LayoutDirection = FlexObject(this)
-                                    override val alignFix: Boolean get() = true
-                                    override val directionJustify: DirectionJustify = DirectionJustify.between
-                                    override val argWidth: LayoutSize get() = LayoutSize(410f, false)
-                                    override val argHeight: LayoutSize get() = LayoutSize(26f, false)
+                                object : WrappedTextNode(this) {
+                                    override val autoWidth: Boolean get() = true
+                                    override val text: String get() = "hide"
 
-                                    override fun draw(canvas: PlatformCanvas) {
-                                        fillOuterRect(canvas, rgba(235, 235, 245))
-                                        super.draw(canvas)
+                                    override fun onPointerClick(e: PointerEvent) {
+                                        it.value.hide = true
                                     }
+                                }
 
-                                    override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                                        object : WrappedTextNode(this) {
-                                            override val autoWidth: Boolean get() = true
-                                            override val text: String get() = "row $key"
-                                        }
+                                object : WrappedTextNode(this) {
+                                    override val autoWidth: Boolean get() = true
+                                    override val text: String get() = "delete"
 
-                                        object : WrappedTextNode(this) {
-                                            override val autoWidth: Boolean get() = true
-                                            override val text: String get() = "hide"
-
-                                            override fun onPointerClick(e: PointerEvent) {
-                                                it.value.hide = true
-                                            }
-                                        }
-
-                                        object : WrappedTextNode(this) {
-                                            override val autoWidth: Boolean get() = true
-                                            override val text: String get() = "delete"
-
-                                            override fun onPointerClick(e: PointerEvent) {
-                                                list = list.filter { r -> r.key != key }
-                                            }
-                                        }
+                                    override fun onPointerClick(e: PointerEvent) {
+                                        list = list.filter { r -> r.key != key }
                                     }
                                 }
                             }
                         }
-                    }
-
-                    object : SimpleScrollBar(this) {
-                        override val scroll: Scroll get() = scrollY
                     }
                 }
             }

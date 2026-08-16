@@ -1,12 +1,10 @@
 package org.wy.engine
 
-import com.wy.layout.AlignItem
 import com.wy.layout.DirectionJustify
 import com.wy.mve.StateHolderWithNode
-import org.wy.engine.helper.SimpleScrollBar
+import org.wy.engine.helper.SimpleScrollNode
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
-import org.wy.engine.layout.GrowChild
 import org.wy.engine.layout.LayoutDirection
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
@@ -52,129 +50,96 @@ fun main() {
             object : Node(this) {
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
 
-                    object : RectNode(this), FlexParam {
-                        override val direction: Direction = Direction.x
-                        override val layout: LayoutDirection = FlexObject(this)
-                        override val alignItem: AlignItem = AlignItem.stretch
-
-                        //这里却一定要重置成非增长型。
-                        override val directionJustify: DirectionJustify = DirectionJustify.start
-                        override val alignFix: Boolean = true
+                    object : SimpleScrollNode(this) {
                         override fun argSize(direction: Direction): LayoutSize {
                             return LayoutSize(300f, false)
                         }
+                        override val contentGap: Float get() = 10f
 
-                        val scrollY = Scroll(this).also {
-                            registerScroll(it)
+                        override fun contentDraw(canvas: PlatformCanvas) {
+                            strokeInnerRect(canvas)
                         }
 
-                        override fun onPointerWheel(e: PointerEvent) {
-                            scrollY.scroll(e.wheelDelta)
-                        }
-
-                        override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                            object : ScrollContent(this), FlexParam, GrowChild {
-                                override val y: Float
-                                    get() = -scrollY.value
-
-                                override fun argGrow(direction: Direction): Float = 1f
-                                override val alignFix = true
-                                override val gap: Float = 10f
-                                override val alignItem: AlignItem = AlignItem.stretch
-                                override val layout: LayoutDirection = FlexObject(this)
-                                override fun draw(canvas: PlatformCanvas) {
-                                    strokeInnerRect(canvas)
-                                    super.draw(canvas)
+                        override fun StateHolderWithNode<Node, List<Node>>.contentChildren() {
+                            renderForEach({ callback ->
+                                list.forEach {
+                                    callback(it.key, it)
                                 }
+                            }) { key, it ->
+                                object : RectNode(this), FlexParam {
+                                    override val hide: Boolean
+                                        get() = it.value.hide
+                                    override val layout: LayoutDirection = FlexObject(this)
+                                    override val direction: Direction
+                                        get() = Direction.x
+                                    override val alignFix: Boolean
+                                        get() = true
+                                    override val directionJustify: DirectionJustify
+                                        get() = DirectionJustify.between
+                                    override val argHeight: LayoutSize
+                                        get() = LayoutSize(30f, false)
 
-                                override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                                    renderForEach({ callback ->
-                                        list.forEach {
-                                            callback(it.key, it)
-                                        }
-                                    }) { key, it ->
-                                        object : RectNode(this), FlexParam {
-                                            override val hide: Boolean
-                                                get() = it.value.hide
-                                            override val layout: LayoutDirection = FlexObject(this)
-                                            override val direction: Direction
-                                                get() = Direction.x
-                                            override val alignFix: Boolean
+                                    override fun draw(canvas: PlatformCanvas) {
+                                        strokeInnerRect(canvas)
+                                        super.draw(canvas)
+                                    }
+
+                                    override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+                                        object : WrappedTextNode(this) {
+                                            override val autoWidth: Boolean
                                                 get() = true
-                                            override val directionJustify: DirectionJustify
-                                                get() = DirectionJustify.between
-                                            override val argHeight: LayoutSize
-                                                get() = LayoutSize(30f, false)
+                                            override val text: String
+                                                get() = "key-$key-index-${it.index}"
+                                        }
+
+                                        object : WrappedTextNode(this) {
+                                            override val autoWidth: Boolean
+                                                get() = true
+                                            override val text: String
+                                                get() = "隐藏"
+
+                                            override fun argPadding(
+                                                direction: Direction,
+                                                startEnd: StartEnd
+                                            ): Float {
+                                                return 1f
+                                            }
+
+                                            override fun onPointerClick(e: PointerEvent) {
+                                                it.value.hide = true
+                                            }
 
                                             override fun draw(canvas: PlatformCanvas) {
-                                                strokeInnerRect(canvas)
+                                                strokeOuterRect(canvas)
                                                 super.draw(canvas)
                                             }
+                                        }
+                                        object : WrappedTextNode(this) {
+                                            override val autoWidth: Boolean
+                                                get() = true
+                                            override val text: String
+                                                get() = "删除"
 
-                                            override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                                                object : WrappedTextNode(this) {
-                                                    override val autoWidth: Boolean
-                                                        get() = true
-                                                    override val text: String
-                                                        get() = "key-$key-index-${it.index}"
-                                                }
-
-                                                object : WrappedTextNode(this) {
-                                                    override val autoWidth: Boolean
-                                                        get() = true
-                                                    override val text: String
-                                                        get() = "隐藏"
-
-                                                    override fun argPadding(
-                                                        direction: Direction,
-                                                        startEnd: StartEnd
-                                                    ): Float {
-                                                        return 1f
-                                                    }
-
-                                                    override fun onPointerClick(e: PointerEvent) {
-                                                        it.value.hide = true
-                                                    }
-
-                                                    override fun draw(canvas: PlatformCanvas) {
-                                                        strokeOuterRect(canvas)
-                                                        super.draw(canvas)
-                                                    }
-                                                }
-                                                object : WrappedTextNode(this) {
-                                                    override val autoWidth: Boolean
-                                                        get() = true
-                                                    override val text: String
-                                                        get() = "删除"
-
-                                                    override fun onPointerClick(e: PointerEvent) {
-                                                        list = list.filter { it.key != key }
-                                                    }
-
-                                                    override fun argPadding(
-                                                        direction: Direction,
-                                                        startEnd: StartEnd
-                                                    ): Float {
-                                                        return 1f
-                                                    }
-
-                                                    override fun draw(canvas: PlatformCanvas) {
-                                                        strokeOuterRect(canvas)
-                                                        super.draw(canvas)
-                                                    }
-                                                }
+                                            override fun onPointerClick(e: PointerEvent) {
+                                                list = list.filter { it.key != key }
                                             }
 
+                                            override fun argPadding(
+                                                direction: Direction,
+                                                startEnd: StartEnd
+                                            ): Float {
+                                                return 1f
+                                            }
+
+                                            override fun draw(canvas: PlatformCanvas) {
+                                                strokeOuterRect(canvas)
+                                                super.draw(canvas)
+                                            }
                                         }
                                     }
+
                                 }
                             }
-
-                            object : SimpleScrollBar(this) {
-                                override val scroll: Scroll
-                                    get() = scrollY
-                            }
-
                         }
                     }
                 }

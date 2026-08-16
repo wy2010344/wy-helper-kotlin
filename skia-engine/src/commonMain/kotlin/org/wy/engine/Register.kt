@@ -21,11 +21,14 @@ internal class Register(context: StateHolder<*, *>?): EngineGlobal {
 
     override var pressed by createSignal<HitestResult?>(null)
     override var moveHitTest by createSignal<HitestResult?>(null)
+    override var lastPointerDevice by createSignal(PointerDevice.Mouse)
     override var ctrl by createSignal(false)
     override var shift by createSignal(false)
     override var alt by createSignal(false)
     override var meta by createSignal(false)
-    override var activeEditor by createSignal<EditableTextNode?>(null)
+    /** 活跃编辑器 = 聚焦的 EditableTextNode（派生，无独立存储）。 */
+    override val activeEditor: EditableTextNode?
+        get() = focused as? EditableTextNode
     private var focusedSignal by createSignal<Node?>(null)
     override var focused: Node?
         get() = focusedSignal

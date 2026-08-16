@@ -61,14 +61,19 @@ internal val nodeConfig = object : ShareConfig<Node, List<Node>> {
     }
 }
 
+infix fun StateHolder<*, *>.unaryPlus(right: Node) {
+
+}
+
 /**
  * @todo，还是老实将context添加与构造分开，比如ooc中就没有构造，匿名类只是事件回调。
  */
 open class Node(
-    context: StateHolder<*, *>?,
+    protected val context: StateHolder<*, *>?,
     engineGlobal: EngineGlobal? = context?.consume(engineGlobalContext)
 ) {
-    open fun cursorAt(x: Float, y: Float) = if (focusable) CursorType.POINTER else CursorType.DEFAULT
+    open fun cursorAt(x: Float, y: Float) =
+        if (focusable) CursorType.POINTER else CursorType.DEFAULT
 
     /**
      * 声明式输入法输入框数据：默认 null 表示不需要 IME 输入框；
@@ -102,12 +107,31 @@ open class Node(
 
     open fun StateHolderWithNode<Node, List<Node>>.argChildren() {}
 
-    var getChildren: GetValue<List<Node>> = context?.renderNode(this, nodeConfig) {
-        argChildren()
-    } ?: { emptyList() }
-        protected set
+    /**
+     * children 的惰性构建：构造期只声明构建动作，首次访问 [children] 时才真正执行
+     * `renderNode → argChildren()`。这样 argChildren() 运行时派生类属性已全部初始化，
+     * 不会读到默认值（基类构造期调用 open 方法的经典问题）。
+     */
+    private var getChildrenValue: GetValue<List<Node>>? = null
+    private var childrenBuilding = false
+    protected open fun createGetChildren(): () -> List<Node> {
+       return (context?.renderNode(this, nodeConfig) { argChildren() }
+            ?: { emptyList() })
+    }
     val children: List<Node>
-        get() = getChildren()
+        get(){
+            val g = getChildrenValue
+            if (g != null) return g()
+            check(!childrenBuilding) { "children 构建中不能递归访问" }
+            childrenBuilding = true
+            try {
+                val build = createGetChildren()
+                getChildrenValue=build
+                return build()
+            } finally {
+                childrenBuilding = false
+            }
+        }
 
     open fun argPosition(direction: Direction): Float = 0f
 
@@ -158,6 +182,17 @@ open class Node(
      * 排在所有显式顺序之后，按文档顺序。
      */
     open val focusOrder: Int? = null
+
+    /**
+     * 是否圈定焦点（相当于 web 模态对话框的焦点陷阱）：为 true 时，
+     * Tab / Shift+Tab 只在以本节点为根的子树上循环，焦点不逃逸到外部。
+     *
+     * 由弹出层（如 [org.wy.engine.helper.DialogBase]）声明为 true。
+     * 引擎不存储"当前圈定者"状态，moveFocus 时从当前 [EngineGlobal.focused]
+     * 沿父链上溯到最近的 focusTrap 节点即得圈定范围——焦点在最内层弹出层时
+     * 就圈定最内层，天然支持嵌套，无需额外中间状态。
+     */
+    open val focusTrap: Boolean = false
     open fun draw(canvas: PlatformCanvas) {
         children.forEach {
             canvas.save()
@@ -167,7 +202,8 @@ open class Node(
             canvas.restore()
         }
     }
-    open fun drawAtParent(canvas: PlatformCanvas){}
+
+    open fun drawAtParent(canvas: PlatformCanvas) {}
 
 }
 

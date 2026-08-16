@@ -39,8 +39,8 @@ open class EditableTextNode(
     private var preferredX = Float.NaN
 
     /**
-     * 声明式输入法输入框数据：直接由源状态（光标索引 / 段落布局 / 绝对位置）派生计算，
-     * 由 Renderer 的 overlayTrack 观察，光标移动、文字或布局变化时自动重新定位。
+     * 声明式输入法输入框数据：直接由源状态（焦点 / 光标索引 / 段落布局 / 绝对位置）派生计算，
+     * 由 Renderer 的 overlayTrack 观察，焦点、光标移动、文字或布局变化时自动重新定位。
      */
     override fun inputOverlay(): InputOverlayData? {
         if (engineGlobal.activeEditor !== this) return null
@@ -211,7 +211,6 @@ open class EditableTextNode(
     init {
         selectionManager = context.consume(selectionManagerContext)
         context.addDestroy {
-            if (engineGlobal.activeEditor == this) hideOverlay()
             selectionManager?.clear()
         }
     }
@@ -313,26 +312,7 @@ open class EditableTextNode(
         return absoluteX + paddingInlineStart to absoluteY + paddingBlockStart
     }
 
-    /** 隐藏输入法输入框，仅当自己是当前活跃编辑器时才真正隐藏，避免打断其他编辑器正在进行的输入 */
-    internal fun hideOverlay() {
-        if (engineGlobal.activeEditor === this) {
-            engineGlobal.activeEditor = null
-        }
-    }
-
-    /** 焦点变化时维护活跃编辑器：全局仅一个活跃编辑器持有输入框 */
-    internal fun updateFocusOverlay() {
-        if (isFocused) {
-            if (engineGlobal.activeEditor !== this) {
-                engineGlobal.activeEditor = this
-            }
-        } else if (engineGlobal.activeEditor === this) {
-            hideOverlay()
-        }
-    }
-
     override fun draw(canvas: PlatformCanvas) {
-        updateFocusOverlay()
         super.draw(canvas)
 
         if (!hasSel && cursorVisible && isFocused) {

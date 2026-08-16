@@ -6,6 +6,8 @@ import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import org.jetbrains.skia.EncodedImageFormat
 import org.jetbrains.skia.Surface
+import org.wy.engine.helper.navItem
+import org.wy.engine.helper.segTabs
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.GrowChild
@@ -250,9 +252,28 @@ private fun StateHolder<Node,List<Node>>.buildGrandDemo() {
 
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
                     dLabel({ "导航" }, 11f, TEXT2, 600)
-                    dNavItem(ACCENT, "概览", null, active, DemoTab.OVERVIEW, 1) { active.value = DemoTab.OVERVIEW }
-                    dNavItem(GREEN, "笔记", null, active, DemoTab.NOTES, 2) { active.value = DemoTab.NOTES }
-                    dNavItem(AMBER, "设置", 3, active, DemoTab.SETTINGS, 3) { active.value = DemoTab.SETTINGS }
+                    navItem(
+                        label = { "概览" },
+                        active = { active.value == DemoTab.OVERVIEW },
+                        onClick = { active.value = DemoTab.OVERVIEW },
+                        focusOrder = 1,
+                        iconColor = ACCENT
+                    )
+                    navItem(
+                        label = { "笔记" },
+                        active = { active.value == DemoTab.NOTES },
+                        onClick = { active.value = DemoTab.NOTES },
+                        focusOrder = 2,
+                        iconColor = GREEN
+                    )
+                    navItem(
+                        label = { "设置" },
+                        active = { active.value == DemoTab.SETTINGS },
+                        onClick = { active.value = DemoTab.SETTINGS },
+                        focusOrder = 3,
+                        iconColor = AMBER,
+                        badge = { 3 }
+                    )
 
                     object : RectNode(this), GrowChild {
                         override fun argGrow(direction: Direction): Float =
@@ -282,7 +303,12 @@ private fun StateHolder<Node,List<Node>>.buildGrandDemo() {
                 override fun argPadding(direction: Direction, startEnd: StartEnd): Float = 16f
 
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    dSegTabs(active, listOf(DemoTab.OVERVIEW to "概览", DemoTab.NOTES to "笔记", DemoTab.SETTINGS to "设置"))
+                    segTabs(
+                        { active.value },
+                        { active.value = it },
+                        listOf(DemoTab.OVERVIEW to "概览", DemoTab.NOTES to "笔记", DemoTab.SETTINGS to "设置"),
+                        focusOrderOffset = 10
+                    )
                     dOverviewPage(active, activities) {
                         activities.value = activities.value +
                             Activity(Date().time, "新任务 ${activities.value.size + 1}", false, "刚刚")

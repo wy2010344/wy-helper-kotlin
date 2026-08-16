@@ -36,6 +36,7 @@ kotlin {
         jvmTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlin.testJunit)
+            implementation(libs.kotlinx.coroutinesSwing)
         }
         androidMain.dependencies {
             implementation(libs.androidx.core.ktx)

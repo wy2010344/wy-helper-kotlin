@@ -8,6 +8,9 @@ import com.wy.mve.Creater
 import org.wy.lib.EmptyFun
 import org.wy.lib.GetValue
 import org.wy.signal.Memo
+import org.wy.signal.createSignal
+import org.wy.signal.getValue
+import org.wy.signal.setValue
 
 /**
  * 测试用的 Mock StateHolder，提供必要的 context 实现。
@@ -110,14 +113,18 @@ class TestEngineGlobal : EngineGlobal {
         return destroy
     }
 
-    override var pressed: HitestResult? = null
-    override val moveHitTest: HitestResult? get() = null
+    override var pressed: HitestResult? by createSignal(null)
+    override var moveHitTest: HitestResult? by createSignal(null)
+    override var lastPointerDevice: PointerDevice by createSignal(PointerDevice.Mouse)
     override var ctrl: Boolean = false
     override var shift: Boolean = false
     override var alt: Boolean = false
     override var meta: Boolean = false
-    override var activeEditor: EditableTextNode? = null
     override var focused: Node? = null
+
+    /** 活跃编辑器 = 聚焦的 EditableTextNode（派生，与 Register 语义一致）。 */
+    override val activeEditor: EditableTextNode?
+        get() = focused as? EditableTextNode
 
     private val selectionManagerInstance = SelectionManager()
     override val selectionManager: SelectionManager get() = selectionManagerInstance
