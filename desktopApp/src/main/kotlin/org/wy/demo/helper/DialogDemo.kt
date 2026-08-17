@@ -5,7 +5,8 @@ import com.wy.layout.DirectionJustify
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import org.wy.engine.*
-import org.wy.engine.helper.button
+import org.wy.engine.helper.Button
+import org.wy.engine.helper.ButtonVariant
 import org.wy.engine.helper.dialog
 import org.wy.engine.helper.text
 import org.wy.engine.helper.textField
@@ -23,8 +24,6 @@ fun main() {
         override val alignFix: Boolean get() = true
         override val alignItem: AlignItem get() = AlignItem.stretch
         override val gap: Float get() = 8f
-
-        var open by createSignal(false)
         var input by createSignal("")
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
@@ -33,18 +32,38 @@ fun main() {
                 hint("打开期间圈定焦点（Tab 只在框内循环）；Esc 或点击遮罩关闭。")
 
                 row {
-                    button({ "打开对话框" }, { open = true })
-                    hint("打开后焦点自动移入对话框，关闭时还原。")
-                }
-            }
+                    object : Button(this@row) {
+                        override val label: String get() = "打开对话框"
 
-            // 模态对话框：铺满窗口的浮层（声明在渲染树最后）
-            dialog({ open }, { open = false }, width = 340f) {
-                text({ "登录" }, 15f, rgba(40, 40, 60), 700)
-                textField({ input }, { input = it }, width = 300f)
-                row(gap = 8f) {
-                    button({ "取消" }, { open = false }, variant = org.wy.engine.helper.ButtonVariant.Secondary)
-                    button({ "确定" }, { open = false })
+                        override fun onClick() {
+                            engineGlobal.appendPop { pop ->
+                                dialog({
+                                    engineGlobal.removePop(pop)
+                                }, width = 340f) {
+                                    text({ "登录" }, 15f, rgba(40, 40, 60), 700)
+                                    textField({ input }, { input = it }, width = 300f)
+                                    row(gap = 8f) {
+                                        object : Button(this@row) {
+                                            override val label: String get() = "取消"
+                                            override val variant: ButtonVariant get() = ButtonVariant.Secondary
+
+                                            override fun onClick() {
+                                                engineGlobal.removePop(pop)
+                                            }
+                                        }
+                                        object : Button(this@row) {
+                                            override val label: String get() = "确定"
+
+                                            override fun onClick() {
+                                                engineGlobal.removePop(pop)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    hint("打开后焦点自动移入对话框，关闭时还原。")
                 }
             }
         }

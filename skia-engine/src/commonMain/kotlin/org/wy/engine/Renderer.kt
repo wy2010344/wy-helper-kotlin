@@ -2,6 +2,7 @@ package org.wy.engine
 
 import com.wy.mve.StateHolder
 import com.wy.mve.renderRoot
+import org.wy.engine.helper.ToastContainer
 import org.wy.lib.EmptyFun
 import org.wy.lib.getValue
 import org.wy.signal.TrackSignal
@@ -21,8 +22,16 @@ open class Renderer private constructor(
             val state = renderRoot(this@Renderer, nodeConfig) {
                 register.provide(this)
                 argChildren()
+                renderForEach({callback->
+                    register.popList.forEach {
+                        callback(it,it)
+                    }
+                }){pop,e ->
+                    pop.render(this)
+                }
+                ToastContainer(this, { register.toastList })
             }
-            this.destroyFun = state::destroy
+            destroyList.add(state::destroy)
             return state.target
         }
         return super.createGetChildren()
@@ -67,16 +76,22 @@ open class Renderer private constructor(
     open fun setCursor(v: CursorType) {}
     open fun setInputOverlay(data: InputOverlayData) {}
     open fun hideInputOverlay() {}
+
+    override val destroyed: Boolean
+        get() = overlayTrack.disabled
+
+    private val destroyList=mutableListOf<EmptyFun>()
+    override fun addDestroy(callback: EmptyFun) {
+       destroyList.add(callback)
+    }
     fun destroy() {
+        destroyList.forEach(::run)
         register.destroy();
-        destroyFun()
         cursorTrack.dispose()
         overlayTrack.dispose()
     }
 
     open fun frameCallback() {}
-
-    private var destroyFun = {}
     var scheduled = false
     private val signal = object : TrackSignal<Unit>() {
         override fun get(old: Unit?, inited: Boolean) {
@@ -94,6 +109,7 @@ open class Renderer private constructor(
             signal.collect {
                 didDraw().draw(canvas, 0f, 0f)
             }
+            register.drainPostRenderEffects()
         } catch (err: Throwable) {
             println("render error--$err")
         }

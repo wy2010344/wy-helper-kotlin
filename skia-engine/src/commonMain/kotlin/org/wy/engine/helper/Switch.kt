@@ -15,8 +15,9 @@ import org.wy.engine.strokeOuterRing
  */
 open class SwitchBase(
     context: StateHolder<Node, List<Node>>,
-    enabled: Boolean = true,
-) : ButtonBase(context, enabled) {
+) : ButtonBase(context) {
+
+    override val enabled: Boolean = true
     /** 当前是否开启，子类从业务状态派生。 */
     open fun isChecked(): Boolean = false
 
@@ -39,7 +40,8 @@ fun StateHolder<Node, List<Node>>.switch(
     focusOrder: Int? = null,
     width: Float = 40f,
     height: Float = 22f,
-): SwitchBase = object : SwitchBase(this, enabled) {
+): SwitchBase = object : SwitchBase(this) {
+    override val enabled: Boolean get() = enabled
     override val argWidth: LayoutSize get() = LayoutSize(width, false)
     override val argHeight: LayoutSize get() = LayoutSize(height, false)
     override val focusOrder: Int? get() = focusOrder

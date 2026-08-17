@@ -1,5 +1,6 @@
 package org.wy.demo.helper
 
+import com.wy.layout.Align
 import com.wy.layout.AlignItem
 import com.wy.layout.DirectionJustify
 import com.wy.mve.StateHolder
@@ -28,16 +29,21 @@ fun main() {
                 hint("点击切换激活项；支持图标圆点与角标。")
 
                 var current by createSignal("首页")
-
                 // 侧栏容器：纵向 + 固定宽度
-                object : RectNode(this), FlexParam {
+                object : RectNode(this), FlexParam, Align {
                     override val layout: LayoutDirection = FlexObject(this)
-                    override val direction: Direction get() = Direction.y
-                    override val directionJustify: DirectionJustify get() = DirectionJustify.start
-                    override val argWidth: LayoutSize get() = LayoutSize(200f, false)
                     override val alignFix: Boolean get() = true
                     override val alignItem: AlignItem get() = AlignItem.stretch
+
                     override val gap: Float get() = 2f
+
+                    override fun size(size: Float): Float {
+                        return 50f
+                    }
+
+                    override fun position(size: Float, getSelfWidth: () -> Float): Float {
+                        return (size-getSelfWidth())/2
+                    }
 
                     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
                         navItem({ "首页" }, { current == "首页" }, { current = "首页" }, iconColor = rgba(80, 160, 80))

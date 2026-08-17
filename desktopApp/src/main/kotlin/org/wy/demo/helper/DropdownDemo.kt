@@ -5,10 +5,9 @@ import com.wy.layout.DirectionJustify
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import org.wy.engine.*
-import org.wy.engine.helper.ButtonBase
+import org.wy.engine.helper.Button
 import org.wy.engine.helper.ButtonVariant
-import org.wy.engine.helper.button
-import org.wy.engine.helper.dropdown
+import org.wy.engine.helper.DropdownBase
 import org.wy.engine.helper.navItem
 import org.wy.engine.helper.text
 import org.wy.engine.layout.FlexObject
@@ -26,9 +25,7 @@ fun main() {
         override val alignItem: AlignItem get() = AlignItem.stretch
         override val gap: Float get() = 8f
 
-        var open by createSignal(false)
         var selected by createSignal("未选择")
-        lateinit var anchorBtn: ButtonBase
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
             page {
@@ -36,15 +33,36 @@ fun main() {
                 hint("面板锚定按钮下方；点击外部 / Esc 关闭，Tab 可从面板逃逸回主界面。")
 
                 row {
-                    anchorBtn = button({ "选择城市 ($selected)" }, { open = true }, variant = ButtonVariant.Secondary, width = 180f)
-                    hint("点击按钮展开下拉列表")
-                }
-            }
+                    object : Button(this@row) {
+                        override val label: String get() = "选择城市 ($selected)"
+                        override val variant: ButtonVariant get() = ButtonVariant.Secondary
+                        override val argWidth: LayoutSize get() = LayoutSize(180f, false)
 
-            // 下拉浮层：铺满窗口、面板贴锚点底部显示
-            dropdown({ open }, { anchorBtn }, { open = false }, width = 180f) {
-                listOf("北京", "上海", "广州", "深圳").forEach { city ->
-                    navItem({ city }, { selected == city }, onClick = { selected = city; open = false })
+                        override fun onClick() {
+                            val anchor = this
+                            engineGlobal.appendPop { pop ->
+                                object : DropdownBase(this, anchor) {
+                                    override fun onDismiss() {
+                                        engineGlobal.removePop(pop)
+                                    }
+
+                                    override fun StateHolderWithNode<Node, List<Node>>.contentChildren() {
+                                        listOf("北京", "上海", "广州", "深圳").forEach { city ->
+                                            navItem(
+                                                { city },
+                                                { selected == city },
+                                                onClick = {
+                                                    selected = city
+                                                    engineGlobal.removePop(pop)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    hint("点击按钮展开下拉列表")
                 }
             }
         }

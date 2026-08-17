@@ -2,11 +2,61 @@ package org.wy.engine
 
 import com.wy.mve.StateHolder
 import org.wy.lib.EmptyFun
+import org.wy.lib.contact
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.setValue
 
-internal class Register(context: StateHolder<*, *>?): EngineGlobal {
+
+internal class Register(context: StateHolder<*, *>?) : EngineGlobal {
+    var popList by createSignal(emptyList<Pop>())
+        private set
+
+    var toastList by createSignal(emptyList<Toast>())
+        private set
+
+    override fun appendPop(callback: StateHolder<Node, List<Node>>.(Pop) -> Unit): Pop {
+        val pop = object : Pop {
+            override fun render(holder: StateHolder<Node, List<Node>>) {
+                holder.callback(this)
+            }
+        }
+        popList = popList.contact(pop)
+        return pop
+    }
+
+    override fun removePop(pop: Pop): Boolean {
+        val index = popList.indexOf(pop)
+        if (index < 0) {
+            return false
+        }
+        popList = popList.toMutableList().also {
+            it.removeAt(index)
+        }
+        return true
+    }
+
+    override fun appendToast(callback: StateHolder<Node, List<Node>>.(Toast) -> Unit): Toast {
+        val toast = object : Toast {
+            override fun render(holder: StateHolder<Node, List<Node>>) {
+                holder.callback(this)
+            }
+        }
+        toastList = toastList.contact(toast)
+        return toast
+    }
+
+    override fun removeToast(toast: Toast): Boolean {
+        val index = toastList.indexOf(toast)
+        if (index < 0) {
+            return false
+        }
+        toastList = toastList.toMutableList().also {
+            it.removeAt(index)
+        }
+        return true
+    }
+
     override val selectionManager = SelectionManager()
 
     init {
@@ -26,6 +76,7 @@ internal class Register(context: StateHolder<*, *>?): EngineGlobal {
     override var shift by createSignal(false)
     override var alt by createSignal(false)
     override var meta by createSignal(false)
+
     /** 活跃编辑器 = 聚焦的 EditableTextNode（派生，无独立存储）。 */
     override val activeEditor: EditableTextNode?
         get() = focused as? EditableTextNode
@@ -73,6 +124,21 @@ internal class Register(context: StateHolder<*, *>?): EngineGlobal {
 
     private val captures = mutableMapOf<Int, Capture>()
 
+    // ---------- 渲染后效果 ----------
+
+    private val postRenderEffects = mutableListOf<EmptyFun>()
+
+    override fun addPostRenderEffect(effect: EmptyFun) {
+        postRenderEffects.add(effect)
+    }
+
+    /** 消费并执行所有渲染后效果（由 [Renderer.render] 每帧调用）。 */
+    internal fun drainPostRenderEffects() {
+        val batch = postRenderEffects.toList()
+        postRenderEffects.clear()
+        batch.forEach { it() }
+    }
+
     override fun capturePointer(
         id: Int,
         onMove: (PointerEvent) -> Unit,
@@ -103,16 +169,24 @@ internal class Register(context: StateHolder<*, *>?): EngineGlobal {
     private val keyPressList = mutableMapOf<KeyPressCallback, EmptyFun>()
     private val composingList = mutableMapOf<ComposingTextCallback, EmptyFun>()
 
-    override fun registerKeyPress(callback: KeyPressCallback): EmptyFun = register(keyPressList, callback)
-    override fun registerComposingText(callback: ComposingTextCallback): EmptyFun = register(composingList, callback)
+    override fun registerKeyPress(callback: KeyPressCallback): EmptyFun =
+        register(keyPressList, callback)
+
+    override fun registerComposingText(callback: ComposingTextCallback): EmptyFun =
+        register(composingList, callback)
 
     fun provide(context: StateHolder<*, *>) {
         context.provide(selectionManagerContext, selectionManager)
         context.provide(engineGlobalContext, this)
     }
 
-    fun dispatchKeyPress(e: KeyEvent) { keyPressList.forEach { it.key(e) } }
-    fun dispatchComposingText(text: String, cursorPosition: Int) { composingList.forEach { it.key(text, cursorPosition) } }
+    fun dispatchKeyPress(e: KeyEvent) {
+        keyPressList.forEach { it.key(e) }
+    }
+
+    fun dispatchComposingText(text: String, cursorPosition: Int) {
+        composingList.forEach { it.key(text, cursorPosition) }
+    }
 }
 
 

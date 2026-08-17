@@ -34,6 +34,7 @@ fun StateHolder<Node, List<Node>>.textField(
             onChange(v)
         }
 
+    override val singleLine: Boolean = true
     override val fontSize: Float = Theme.current.textSize.label
     override val focusOrder: Int? = focusOrder
     override val argWidth: LayoutSize = LayoutSize(width, false)

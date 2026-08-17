@@ -39,7 +39,9 @@ enum class SizeFrom {
 private fun findLayoutList(n: Node, list: MutableList<LayoutNode>) {
     n.children.forEach {
         if (it is LayoutNode) {
-            list.add(it)
+            if (!it.notInLayout) {
+                list.add(it)
+            }
         } else {
             findLayoutList(it, list)
         }
@@ -47,9 +49,11 @@ private fun findLayoutList(n: Node, list: MutableList<LayoutNode>) {
 }
 
 open class LayoutNode(
-    context: StateHolder<*,*>?,
+    context: StateHolder<*, *>?,
     engineGlobal: EngineGlobal? = context?.consume(engineGlobalContext)
 ) : Node(context, engineGlobal) {
+
+    open val notInLayout = false
     open val layout: LayoutDirection
         get() = absoluteLayoutDirection
 
@@ -77,8 +81,11 @@ open class LayoutNode(
     var layoutIndex: Int = 0
         internal set
         get() {
-            if(hide){
+            if (hide) {
                 throw Error("已经隐藏不再显示")
+            }
+            if (notInLayout) {
+                throw Error("当前节点不在Layout中")
             }
             layoutParent?.layoutChildren
             return field

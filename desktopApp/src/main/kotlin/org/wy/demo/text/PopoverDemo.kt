@@ -7,12 +7,14 @@ import com.wy.mve.StateHolderWithNode
 import org.wy.engine.*
 import org.wy.engine.helper.PopoverManager
 import org.wy.engine.helper.PopoverStyle
+import org.wy.engine.helper.Theme
+import org.wy.demo.helper.hint
+import org.wy.demo.helper.page
 import org.wy.engine.helper.popoverManagerContext
+import org.wy.demo.helper.sectionTitle
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
-import org.wy.engine.layout.IgnoreFlex
 import org.wy.engine.layout.LayoutDirection
-import org.wy.lib.EmptyFun
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.setValue
@@ -20,94 +22,49 @@ import org.wy.signal.setValue
 fun main() {
     object : SkiaApp(900, 700), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)
-        override val directionJustify: DirectionJustify get() = DirectionJustify.center
+        override val directionJustify: DirectionJustify get() = DirectionJustify.start
         override val alignFix: Boolean get() = true
         override val alignItem: AlignItem get() = AlignItem.stretch
-        override val gap: Float get() = 8f
+        override val gap: Float get() = 0f
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-            provide(popoverManagerContext, PopoverManager())
-            popoverDemo()
-            popoverOverlay()
-        }
+            provide(popoverManagerContext, PopoverManager(engineGlobal))
+            page(gap = 16f) {
+                sectionTitle("Popover 词典浮层")
+                hint("选中下方文本区域中的任意单词，即可弹出词典释义浮层；点击浮层外部可关闭。")
 
-        private fun StateHolderWithNode<Node, List<Node>>.popoverOverlay() {
-            val pm = consume(popoverManagerContext)!!
-            object : RectNode(this), FlexParam, IgnoreFlex {
-                override val direction: Direction get() = Direction.y
-                override val layout: LayoutDirection = FlexObject(this)
-                override val alignFix: Boolean get() = true
-                override val alignItem: AlignItem get() = AlignItem.stretch
-                override val directionJustify: DirectionJustify = DirectionJustify.start
-
-                /** 浮层不占 flex 空间，自行决定位置。 */
-                override val ignore: Boolean get() = true
-
-                override val x: Float get() = 0f
-                override val y: Float get() = 0f
-                override val argWidth: LayoutSize get() = LayoutSize(0f, false)
-                override val argHeight: LayoutSize get() = LayoutSize(0f, false)
-
-                override fun draw(canvas: PlatformCanvas) {
-                    val popovers = pm.popovers
-                    popovers.forEach { req ->
-                        val pos = pm.getPosition(req.id) ?: return@forEach
-                        val node = pm.getNode(req.id, this@popoverOverlay) ?: return@forEach
-                        canvas.save()
-                        canvas.translate(pos.x, pos.y)
-                        node.draw(canvas)
-                        canvas.restore()
-                    }
-                }
+                dictionaryTextArea()
             }
         }
     }
-}
-
-fun StateHolder<Node, List<Node>>.popoverDemo() {
-    object : WrappedTextNode(this) {
-        override val autoWidth: Boolean get() = true
-        override val text: String get() = "Popover Demo — Select text to show dictionary popover"
-        override val fontSize: Float get() = 18f
-        override val fontWeight: Int get() = 700
-        override val color: ColorInt get() = rgba(40, 40, 60)
-    }
-
-    object : WrappedTextNode(this) {
-        override val autoWidth: Boolean get() = true
-        override val text: String get() = "Select any word below to see its definition in a popover."
-        override val fontSize: Float get() = 12f
-        override val color: ColorInt get() = rgba(120, 120, 140)
-    }
-
-    dictionaryTextArea()
 }
 
 fun StateHolder<Node, List<Node>>.dictionaryTextArea() {
+    val c = Theme.current.colors
+    val r = Theme.current.radius
+
     object : RectNode(this), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)
-        override val argWidth: LayoutSize get() = LayoutSize(600f, false)
-        override val argHeight: LayoutSize get() = LayoutSize(200f, false)
+        override val argWidth: LayoutSize get() = LayoutSize(640f, false)
+        override val argHeight: LayoutSize get() = LayoutSize(220f, false)
         override val alignFix: Boolean get() = true
         override val alignItem: AlignItem get() = AlignItem.stretch
+        override val gap: Float get() = 0f
 
-        private var currentDismiss: EmptyFun? = null
+        private var currentDismiss: org.wy.lib.EmptyFun? = null
 
         override fun draw(canvas: PlatformCanvas) {
-            fillOuterRoundRect(canvas, 12f, rgba(245, 245, 250))
+            fillOuterRoundRect(canvas, r.card, c.surface)
+            strokeOuterRoundRect(canvas, r.card, c.border, 1f)
             super.draw(canvas)
         }
 
-        // 按下任意处关闭当前词典 popover
         override fun onPointerDown(e: PointerEvent) {
             super.onPointerDown(e)
-            if (currentDismiss != null) {
-                currentDismiss?.invoke()
-                currentDismiss = null
-            }
+            currentDismiss?.invoke()
+            currentDismiss = null
         }
 
-        // 松手后若文本已有选区，则显示词典 popover
         override fun onPointerUp(e: PointerEvent) {
             super.onPointerUp(e)
             if (textNode.hasSelection) {
@@ -116,21 +73,20 @@ fun StateHolder<Node, List<Node>>.dictionaryTextArea() {
                     val anchorRect = textNode.selectionRect ?: return
                     currentDismiss?.invoke()
                     currentDismiss = popoverManager.show(
-                        content = { holder ->
-                            buildDictionaryPopover(holder, selectedText, popoverManager)
-                        },
+                        content = { buildPopoverContent(selectedText) },
                         anchorRect = anchorRect,
                         position = PopoverManager.defaultPosition(),
                         style = PopoverStyle(
-                            backgroundColor = rgba(255, 255, 255),
-                            borderColor = rgba(200, 200, 220),
-                            cornerRadius = 10f,
-                            shadowColor = rgba(0, 0, 0, 30),
-                            shadowOffsetY = 4f,
-                            shadowBlur = 12f,
-                            padding = 16f,
+                            backgroundColor = c.surface,
+                            borderColor = c.border,
+                            borderWidth = 1f,
+                            cornerRadius = r.card,
+                            shadowColor = rgba(0, 0, 0, 25),
+                            shadowOffsetY = 6f,
+                            shadowBlur = 16f,
+                            padding = 18f,
                             defaultWidth = 280f,
-                            defaultHeight = 180f
+                            defaultHeight = 200f
                         )
                     )
                 }
@@ -147,9 +103,10 @@ fun StateHolder<Node, List<Node>>.dictionaryTextArea() {
             textNode = object : EditableTextNode(this) {
                 override var text by createSignal(
                     "The quick brown fox jumps over the lazy dog. " +
-                    "Select any word to see its definition in a popover popup, just like macOS Dictionary app."
+                    "Select any word to see its definition in a popover popup, " +
+                    "just like macOS Dictionary app."
                 )
-                override val fontSize: Float get() = 16f
+                override val fontSize: Float get() = 15f
                 override val singleLine: Boolean get() = false
             }
 
@@ -158,70 +115,51 @@ fun StateHolder<Node, List<Node>>.dictionaryTextArea() {
     }
 }
 
-fun buildDictionaryPopover(
-    holder: StateHolderWithNode<Node, List<Node>>,
-    word: String,
-    popoverManager: PopoverManager
-) {
-    with(holder) {
-        object : WrappedTextNode(holder) {
-            override val autoWidth: Boolean get() = true
-            override val text: String get() = word
-            override val fontSize: Float get() = 20f
-            override val fontWeight: Int get() = 700
-            override val color: ColorInt get() = rgba(30, 30, 60)
-        }
+/** 词典浮层内容：单词 + 音标 + 分隔线 + 释义 + 例句。 */
+private fun StateHolder<Node, List<Node>>.buildPopoverContent(word: String) {
+    val c = Theme.current.colors
 
-        object : WrappedTextNode(holder) {
-            override val autoWidth: Boolean get() = true
-            override val text: String get() = "noun  /ˈdɪkʃəneri/"
-            override val fontSize: Float get() = 12f
-            override val color: ColorInt get() = rgba(150, 100, 50)
-        }
+    // 单词
+    object : WrappedTextNode(this) {
+        override val autoWidth: Boolean get() = true
+        override val text: String get() = word
+        override val fontSize: Float get() = 18f
+        override val fontWeight: Int get() = 700
+        override val color: ColorInt get() = c.text
+    }
 
-        object : RectNode(holder) {
-            override val argWidth: LayoutSize get() = LayoutSize(248f, false)
-            override val argHeight: LayoutSize get() = LayoutSize(1f, false)
-            override fun draw(canvas: PlatformCanvas) {
-                fillOuterRect(canvas, rgba(220, 220, 230))
-                super.draw(canvas)
-            }
-        }
+    // 词性 + 音标
+    object : WrappedTextNode(this) {
+        override val autoWidth: Boolean get() = true
+        override val text: String get() = "noun  /ˈdɪkʃəneri/"
+        override val fontSize: Float get() = 12f
+        override val color: ColorInt get() = rgba(180, 130, 60)
+    }
 
-        object : WrappedTextNode(holder) {
-            override val autoWidth: Boolean get() = true
-            override val text: String get() = "1. A book or electronic resource that lists words and gives their meanings."
-            override val fontSize: Float get() = 13f
-            override val color: ColorInt get() = rgba(60, 60, 80)
+    // 分隔线
+    object : RectNode(this) {
+        override val argWidth: LayoutSize get() = LayoutSize(244f, false)
+        override val argHeight: LayoutSize get() = LayoutSize(1f, false)
+        override fun draw(canvas: PlatformCanvas) {
+            fillOuterRect(canvas, c.border)
+            super.draw(canvas)
         }
+    }
 
-        object : WrappedTextNode(holder) {
-            override val autoWidth: Boolean get() = true
-            override val text: String get() = "\"She looked up the word in the dictionary.\""
-            override val fontSize: Float get() = 12f
-            override val color: ColorInt get() = rgba(100, 100, 120)
-            override val italic: Boolean get() = true
-        }
+    // 释义
+    object : WrappedTextNode(this) {
+        override val autoWidth: Boolean get() = true
+        override val text: String get() = "1. A book or electronic resource that lists words and gives their meanings."
+        override val fontSize: Float get() = 13f
+        override val color: ColorInt get() = c.text
+    }
 
-        object : RectNode(holder), FlexParam {
-            override val argWidth: LayoutSize get() = LayoutSize(80f, false)
-            override val argHeight: LayoutSize get() = LayoutSize(28f, false)
-            override val alignFix: Boolean get() = true
-            override fun draw(canvas: PlatformCanvas) {
-                fillOuterRoundRect(canvas, 6f, rgba(230, 230, 240))
-                super.draw(canvas)
-            }
-            override fun onPointerClick(e: PointerEvent) {
-                popoverManager.dismissAll()
-            }
-            override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                object : WrappedTextNode(this) {
-                    override val autoWidth: Boolean get() = true
-                    override val text: String get() = "Close"
-                    override val fontSize: Float get() = 13f
-                    override val color: ColorInt get() = rgba(60, 60, 80)
-                }
-            }
-        }
+    // 例句
+    object : WrappedTextNode(this) {
+        override val autoWidth: Boolean get() = true
+        override val text: String get() = "\"She looked up the word in the dictionary.\""
+        override val fontSize: Float get() = 12f
+        override val color: ColorInt get() = c.textSecondary
+        override val italic: Boolean get() = true
     }
 }

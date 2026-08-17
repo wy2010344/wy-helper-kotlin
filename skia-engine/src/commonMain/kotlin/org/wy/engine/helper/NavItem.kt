@@ -40,7 +40,8 @@ fun StateHolder<Node, List<Node>>.navItem(
     focusOrder: Int? = null,
     iconColor: ColorInt? = null,
     badge: () -> Int? = { null },
-): ButtonBase = object : ButtonBase(this, enabled) {
+): ButtonBase = object : ButtonBase(this) {
+    override val enabled: Boolean get() = enabled
     override val argHeight: LayoutSize get() = LayoutSize(40f, false)
     override val focusOrder: Int? get() = focusOrder
     override val directionJustify: DirectionJustify get() = DirectionJustify.between

@@ -2,6 +2,7 @@ package com.wy.layout
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 
 /** 模拟布局子节点 */
@@ -44,10 +45,12 @@ class FlexLayoutIgnoreTest {
     fun ignoredChildNotCountedInGrowContainer() {
         val layout = flex(MockChild(10f, ignored = true), MockChild(30f), MockChild(40f))
         assertEquals(70f, layout.sizeFromChildren)
-        assertEquals(0f, layout.childPosition(0))
+        // ignored child: position/size 不可用 → 抛 LayoutError
+        assertFailsWith<LayoutError> { layout.childPosition(0) }
+        assertFailsWith<LayoutError> { layout.childSize(0) }
+        // 非 ignored 子节点正常
         assertEquals(0f, layout.childPosition(1))
         assertEquals(30f, layout.childPosition(2))
-        assertEquals(10f, layout.childSize(0))
         assertEquals(30f, layout.childSize(1))
         assertEquals(40f, layout.childSize(2))
     }
@@ -58,10 +61,10 @@ class FlexLayoutIgnoreTest {
             MockChild(10f, ignored = true), MockChild(30f), MockChild(40f),
             justify = DirectionJustify.start,
         )
-        assertEquals(0f, layout.childPosition(0))
+        assertFailsWith<LayoutError> { layout.childPosition(0) }
+        assertFailsWith<LayoutError> { layout.childSize(0) }
         assertEquals(0f, layout.childPosition(1))
         assertEquals(30f, layout.childPosition(2))
-        assertEquals(10f, layout.childSize(0))
     }
 
     @Test
@@ -75,10 +78,10 @@ class FlexLayoutIgnoreTest {
         // 容器高度 200，只有两个有效子节点平分
         assertEquals(100f, layout.childSize(0))
         assertEquals(100f, layout.childSize(2))
-        // 被 ignore 的子节点保留自身尺寸
-        assertEquals(50f, layout.childSize(1))
+        // 被 ignore 的子节点：position/size 不可用
+        assertFailsWith<LayoutError> { layout.childPosition(1) }
+        assertFailsWith<LayoutError> { layout.childSize(1) }
         assertEquals(0f, layout.childPosition(0))
-        assertEquals(100f, layout.childPosition(1))
         assertEquals(100f, layout.childPosition(2))
     }
 
@@ -89,10 +92,12 @@ class FlexLayoutIgnoreTest {
             justify = DirectionJustify.start,
             gap = 10f,
         )
-        // 只有两个有效子节点参与 gap：B 在 0，C 在 30+10=40
+        // 只有两个有效子节点参与 gap：A 在 0，C 在 30+10=40
         assertEquals(0f, layout.childPosition(0))
         assertEquals(40f, layout.childPosition(2))
-        assertEquals(20f, layout.childSize(1))
+        // ignored child: 不可用
+        assertFailsWith<LayoutError> { layout.childPosition(1) }
+        assertFailsWith<LayoutError> { layout.childSize(1) }
     }
 
     @Test
@@ -103,7 +108,7 @@ class FlexLayoutIgnoreTest {
         )
         // 只有 B 参与居中：(200-30)/2 = 85
         assertEquals(85f, layout.childPosition(1))
-        assertEquals(20f, layout.childSize(0))
+        assertFailsWith<LayoutError> { layout.childSize(0) }
     }
 
     @Test
@@ -120,9 +125,9 @@ class FlexLayoutIgnoreTest {
     fun allChildrenIgnoredInGrowContainer() {
         val layout = flex(MockChild(10f, ignored = true), MockChild(20f, ignored = true))
         assertEquals(0f, layout.sizeFromChildren)
-        assertEquals(0f, layout.childPosition(0))
-        assertEquals(0f, layout.childPosition(1))
-        assertEquals(10f, layout.childSize(0))
-        assertEquals(20f, layout.childSize(1))
+        assertFailsWith<LayoutError> { layout.childPosition(0) }
+        assertFailsWith<LayoutError> { layout.childPosition(1) }
+        assertFailsWith<LayoutError> { layout.childSize(0) }
+        assertFailsWith<LayoutError> { layout.childSize(1) }
     }
 }

@@ -18,19 +18,29 @@ import kotlin.test.assertTrue
 class DialogTest {
 
     /** 构建一个 Renderer + 对话框 + 两个按钮（一个在对话框外作对比）。 */
-    private fun buildDialog(enabled: Boolean = true): TestEnv {
+    private fun buildDialog(open: Boolean = true): TestEnv {
         val env = TestEnv()
+        env.open = open
         env.renderer = object : Renderer(null) {
             override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                env.outside = button({ "外部按钮" }, {})
-                env.dlg = dialog({ env.open }, { env.dismissCount++ }, enabled = enabled) {
-                    env.okBtn = button({ "确定" }, {})
-                    env.cancelBtn = button({ "取消" }, {})
+                env.outside = object : Button(this@argChildren) {
+                    override val label: String get() = "外部按钮"
+                }
+                env.dlg = object : DialogBase(this@argChildren) {
+                    override val enabled: Boolean get() = env.open
+                    override fun onDismiss() { env.dismissCount++ }
+                    override fun StateHolderWithNode<Node, List<Node>>.contentChildren() {
+                        env.okBtn = object : Button(this) {
+                            override val label: String get() = "确定"
+                        }
+                        env.cancelBtn = object : Button(this) {
+                            override val label: String get() = "取消"
+                        }
+                    }
                 }
             }
         }
         env.renderer.children
-        // 惰性构建：展开 dialog 子树（panel → 按钮），建立 parent 链
         fun forceBuild(n: Node) {
             n.children.forEach { forceBuild(it) }
         }
@@ -63,7 +73,7 @@ class DialogTest {
         env.renderer.engineGlobal.focused = env.outside
 
         env.renderer.keyPress('\u001b', KeyCode.Escape, false, false, false)
-        assertEquals(0, env.dismissCount, "焦点在对话框外时 Esc 不应关闭（避免关闭最上层之外的对话框）")
+        assertEquals(0, env.dismissCount, "焦点在对话框外时 Esc 不应关闭")
     }
 
     @Test
@@ -86,7 +96,6 @@ class DialogTest {
     @Test
     fun openingFocusesFirstFocusableInside() {
         val env = buildDialog()
-        // 打开前焦点在外部 → 同步后移入对话框内第一个可聚焦元素
         env.renderer.engineGlobal.focused = env.outside
         env.dlg.syncFocusNow()
         assertEquals(env.okBtn, env.renderer.engineGlobal.focused, "打开时自动聚焦面板第一个可聚焦元素")
@@ -96,10 +105,10 @@ class DialogTest {
     fun closingRestoresPreviousFocus() {
         val env = buildDialog()
         env.renderer.engineGlobal.focused = env.outside
-        env.dlg.syncFocusNow() // open：移入 okBtn
+        env.dlg.syncFocusNow()
 
         env.open = false
-        env.dlg.syncFocusNow() // close：还原打开前焦点
+        env.dlg.syncFocusNow()
         assertEquals(env.outside, env.renderer.engineGlobal.focused, "关闭后还原打开前的焦点")
     }
 
@@ -107,9 +116,9 @@ class DialogTest {
     fun repeatedFocusSyncKeepsOriginalSavedFocus() {
         val env = buildDialog()
         env.renderer.engineGlobal.focused = env.outside
-        env.dlg.syncFocusNow() // open：记录外部焦点，移入 okBtn
+        env.dlg.syncFocusNow()
         env.renderer.engineGlobal.focused = env.cancelBtn
-        env.dlg.syncFocusNow() // 常驻效果再次同步：不应覆盖保存的原始焦点
+        env.dlg.syncFocusNow()
 
         env.open = false
         env.dlg.syncFocusNow()
@@ -118,7 +127,7 @@ class DialogTest {
 
     @Test
     fun disabledDialogDoesNotDismissOrFocus() {
-        val env = buildDialog(enabled = false)
+        val env = buildDialog(open = false)
         env.renderer.engineGlobal.focused = env.okBtn
         env.renderer.keyPress('\u001b', KeyCode.Escape, false, false, false)
         assertEquals(0, env.dismissCount, "disabled 时 Esc 不应关闭")

@@ -1,6 +1,5 @@
 package com.wy.layout
 
-import org.wy.lib.forEachRight
 import org.wy.signal.memo
 
 
@@ -24,7 +23,7 @@ interface FlexChildConvert<T> {
 
 private data class FlexInfo(
     val childLengths: Map<Int, Float>,
-    val list: List<Float>,
+    val positions: Map<Int, Float>,
     val length: Float
 )
 
@@ -58,29 +57,24 @@ class FlexLayout<T>(
         val gap = arg.gap
         val reverse = arg.reverse
         var length = 0f
-        val list = mutableListOf(0f)
         val childLengths = mutableMapOf<Int, Float>()
+        val positions = mutableMapOf<Int, Float>()
         val children = inside.children
 
-        // ignore=true 的元素不参与 flex 布局计算（不占空间、不参与 grow / gap 分配），
-        // 由元素自身提供位置与尺寸。这里仍为其填入自身尺寸与 position 槽位，保证 layoutIndex 对齐。
+        // ignore=true 的元素不参与 flex 布局计算（不占空间、不参与 grow / gap 分配）
         val flexChildren = children.filter { !convert.ignore(it) }
         val flexCount = flexChildren.size
 
-        // 处理一个子节点：被 ignore 的元素只占槽位、不推进长度，并返回其自身尺寸
+        // 只处理非 ignore 子节点：写入 positions / childLengths 并推进 length
         fun place(child: T, childLength: Float, childGap: Float) {
             val index = convert.index(child)
-            if (convert.ignore(child)) {
-                childLengths[index] = convert.outerSize(child)
-            } else {
-                childLengths[index] = childLength
-                length += childLength + childGap
-            }
-            list.add(length)
+            childLengths[index] = childLength
+            positions[index] = length
+            length += childLength + childGap
         }
 
         val forEach: (action: (T) -> Unit) -> Unit =
-            if (reverse) children::forEachRight else children::forEach
+            if (reverse) { action -> flexChildren.asReversed().forEach(action) } else flexChildren::forEach
 
         val directionFix = arg.directionJustify
         if (directionFix == DirectionJustify.grow) {
@@ -93,7 +87,6 @@ class FlexLayout<T>(
 
         } else {
             val insideSize = inside.innerSize
-            //外部提供了尺寸
             val growIndex = mutableMapOf<Int, Float>()
             var growAll = 0f
             var totalLength = 0f
@@ -125,29 +118,25 @@ class FlexLayout<T>(
                 val remaing = allRemaing - (gap * flexCount - gap)
                 if (directionFix == DirectionJustify.center) {
                     length = remaing / 2
-                    list[0] = length
                 } else if (directionFix == DirectionJustify.end) {
                     length = remaing
-                    list[0] = length
                 } else if (directionFix == DirectionJustify.around) {
                     tGap = allRemaing / flexCount
                     length = tGap / 2
-                    list[0] = length
                 } else if (directionFix == DirectionJustify.between) {
                     if (flexCount > 1) {
                         tGap = allRemaing / (flexCount - 1)
                     } else if (flexCount == 1) {
                         val directionFixBetweenWhenOne = arg.directionFixBetweenWhenOne
                         if (directionFixBetweenWhenOne == DirectionFixBetweenWhenOne.center) {
-                            list[0] = allRemaing / 2
+                            length = allRemaing / 2
                         } else if (directionFixBetweenWhenOne == DirectionFixBetweenWhenOne.end) {
-                            list[0] = allRemaing
+                            length = allRemaing
                         }
                     }
                 } else if (directionFix == DirectionJustify.evenly) {
                     tGap = allRemaing / (flexCount + 1)
                     length = tGap
-                    list[0] = length
                 }
 
                 forEach {
@@ -155,21 +144,19 @@ class FlexLayout<T>(
                 }
             }
         }
-        if (reverse) {
-            list.reverse()
-        }
         return@memo FlexInfo(
-            childLengths, list, length
+            childLengths, positions, length
         )
     }
 
     override fun childPosition(index: Int): Float {
-        //两个flex嵌套，依赖孙节点的尺寸。但父节点问子节点尺寸，子节点先问父节点自己尺寸，就会循环
-        return cache().list[index]
+        return cache().positions[index]
+            ?: throw LayoutError("$index is ignored, its position is not available in FlexLayout")
     }
 
     override fun childSize(index: Int): Float {
-        return cache().childLengths[index] ?: 0f
+        return cache().childLengths[index]
+            ?: throw LayoutError("$index is ignored, its size is not available in FlexLayout")
     }
 
     override val sizeFromChildren: Float

@@ -45,9 +45,9 @@ class StackLayout<T>(
             return@memo inside.innerSize
         }
         var width = 0f
-        inside.children.forEach {
-            // ignore=true 的元素不参与撑大容器（自身尺寸与位置由元素自己提供）
-            if (!convert.ignore(it) && convert.align(it) == null) {
+        val alignChildren = inside.children.filter { !convert.ignore(it) }
+        alignChildren.forEach {
+            if (convert.align(it) == null) {
                 width = max(width, convert.outerSize(it))
             }
         }
@@ -92,17 +92,15 @@ class StackLayout<T>(
         get() = size()
 
     override fun childPosition(index: Int): Float {
-        // ignore=true 的元素不参与 align 定位，位置由元素自身提供
         if (convert.ignore(inside.children[index])) {
-            return 0f
+            throw LayoutError("$index is ignored, its position is not available in StackLayout")
         }
         return child(index, false)
     }
 
     override fun childSize(index: Int): Float {
-        // ignore=true 的元素保留自身尺寸，不被 stretch 拉伸
         if (convert.ignore(inside.children[index])) {
-            return convert.outerSize(inside.children[index])
+            throw LayoutError("$index is ignored, its size is not available in StackLayout")
         }
         return child(index, true)
     }

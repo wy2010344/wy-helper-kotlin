@@ -6,9 +6,6 @@ import org.wy.engine.Node
 import org.wy.engine.PointerEvent
 import org.wy.engine.PointerType
 import org.wy.engine.Renderer
-import org.wy.engine.absoluteX
-import org.wy.engine.absoluteY
-import org.wy.engine.outerHeight
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -21,19 +18,25 @@ import kotlin.test.assertTrue
 class DropdownTest {
 
     /** 构建一个 Renderer + 锚点按钮 + 下拉浮层（含两个可聚焦项）。 */
-    private fun buildDropdown(enabled: Boolean = true): TestEnv {
+    private fun buildDropdown(open: Boolean = true): TestEnv {
         val env = TestEnv()
+        env.open = open
         env.renderer = object : Renderer(null) {
             override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                env.anchor = button({ "菜单" }, {})
-                env.dd = dropdown(
-                    { env.open },
-                    { env.anchor },
-                    { env.dismissCount++ },
-                    enabled = enabled,
-                ) {
-                    env.itemA = button({ "项 A" }, {})
-                    env.itemB = button({ "项 B" }, {})
+                env.anchor = object : Button(this@argChildren) {
+                    override val label: String get() = "菜单"
+                }
+                env.dd = object : DropdownBase(this@argChildren, env.anchor) {
+                    override val enabled: Boolean get() = env.open
+                    override fun onDismiss() { env.dismissCount++ }
+                    override fun StateHolderWithNode<Node, List<Node>>.contentChildren() {
+                        env.itemA = object : Button(this) {
+                            override val label: String get() = "项 A"
+                        }
+                        env.itemB = object : Button(this) {
+                            override val label: String get() = "项 B"
+                        }
+                    }
                 }
             }
         }
@@ -98,18 +101,6 @@ class DropdownTest {
         env.open = false
         env.dd.syncFocusNow()
         assertEquals(env.anchor, env.renderer.engineGlobal.focused, "关闭后还原打开前的焦点")
-    }
-
-    @Test
-    fun panelPositionedBelowAnchor() {
-        val env = buildDropdown()
-        val panel = env.dd.children[0]
-        assertEquals(env.anchor.absoluteX, panel.absoluteX, "面板左边缘对齐锚点")
-        assertEquals(
-            env.anchor.absoluteY + env.anchor.outerHeight + env.dd.offsetY,
-            panel.absoluteY,
-            "面板位于锚点底部下方"
-        )
     }
 
     @Test

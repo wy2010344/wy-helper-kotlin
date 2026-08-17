@@ -5,6 +5,7 @@ import com.wy.mve.ShareConfig
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import com.wy.mve.ValueOrGetList
+import org.wy.lib.EmptyFun
 import org.wy.lib.GetValue
 
 enum class Direction {
@@ -61,10 +62,6 @@ internal val nodeConfig = object : ShareConfig<Node, List<Node>> {
     }
 }
 
-infix fun StateHolder<*, *>.unaryPlus(right: Node) {
-
-}
-
 /**
  * @todo，还是老实将context添加与构造分开，比如ooc中就没有构造，匿名类只是事件回调。
  */
@@ -72,6 +69,8 @@ open class Node(
     protected val context: StateHolder<*, *>?,
     engineGlobal: EngineGlobal? = context?.consume(engineGlobalContext)
 ) {
+    open val destroyed get() = context?.destroyed ?: false
+    open fun addDestroy(callback: EmptyFun) = context?.addDestroy(callback)
     open fun cursorAt(x: Float, y: Float) =
         if (focusable) CursorType.POINTER else CursorType.DEFAULT
 
@@ -115,18 +114,19 @@ open class Node(
     private var getChildrenValue: GetValue<List<Node>>? = null
     private var childrenBuilding = false
     protected open fun createGetChildren(): () -> List<Node> {
-       return (context?.renderNode(this, nodeConfig) { argChildren() }
+        return (context?.renderNode(this, nodeConfig) { argChildren() }
             ?: { emptyList() })
     }
+
     val children: List<Node>
-        get(){
+        get() {
             val g = getChildrenValue
             if (g != null) return g()
             check(!childrenBuilding) { "children 构建中不能递归访问" }
             childrenBuilding = true
             try {
                 val build = createGetChildren()
-                getChildrenValue=build
+                getChildrenValue = build
                 return build()
             } finally {
                 childrenBuilding = false

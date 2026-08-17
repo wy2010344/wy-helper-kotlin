@@ -100,6 +100,36 @@ class TestEngineGlobal : EngineGlobal {
 
     private val keyCallbacks = mutableListOf<Pair<KeyPressCallback, () -> Unit>>()
     private val composingCallbacks = mutableListOf<Pair<ComposingTextCallback, () -> Unit>>()
+    private val pops = mutableListOf<Pop>()
+    private val toasts = mutableListOf<Toast>()
+
+    override fun appendPop(callback: StateHolder<Node, List<Node>>.(Pop) -> Unit): Pop {
+        val pop = object : Pop {
+            override fun render(holder: StateHolder<Node, List<Node>>) {
+                holder.callback(this)
+            }
+        }
+        pops.add(pop)
+        return pop
+    }
+
+    override fun removePop(pop: Pop): Boolean {
+        return pops.remove(pop)
+    }
+
+    override fun appendToast(callback: StateHolder<Node, List<Node>>.(Toast) -> Unit): Toast {
+        val toast = object : Toast {
+            override fun render(holder: StateHolder<Node, List<Node>>) {
+                holder.callback(this)
+            }
+        }
+        toasts.add(toast)
+        return toast
+    }
+
+    override fun removeToast(toast: Toast): Boolean {
+        return toasts.remove(toast)
+    }
 
     override fun registerKeyPress(callback: KeyPressCallback): EmptyFun {
         val destroy: () -> Unit = { keyCallbacks.removeAll { it.first === callback } }
@@ -146,6 +176,21 @@ class TestEngineGlobal : EngineGlobal {
                 }
             }
         }
+    }
+
+    // ---------- 渲染后效果（测试中同步消费） ----------
+
+    private val postRenderEffects = mutableListOf<EmptyFun>()
+
+    override fun addPostRenderEffect(effect: EmptyFun) {
+        postRenderEffects.add(effect)
+    }
+
+    /** 消费并执行所有渲染后效果（测试用，模拟 Renderer.render 后的消费）。 */
+    fun drainPostRenderEffects() {
+        val batch = postRenderEffects.toList()
+        postRenderEffects.clear()
+        batch.forEach { it() }
     }
 
     fun simulatePointerMove(x: Float, y: Float) {

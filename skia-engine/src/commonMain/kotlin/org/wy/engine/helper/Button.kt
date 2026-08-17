@@ -25,8 +25,8 @@ import org.wy.signal.memo
  */
 open class ButtonBase(
     context: StateHolder<Node, List<Node>>,
-    protected val enabled: Boolean = true,
 ) : RectNode(context), FlexParam {
+    open val enabled: Boolean = true
     override val layout: LayoutDirection = FlexObject(this)
     override val direction: Direction get() = Direction.x
     override val directionJustify: DirectionJustify get() = DirectionJustify.center
@@ -86,25 +86,20 @@ enum class ButtonVariant {
 }
 
 /**
- * 默认样式按钮工厂。
+ * 默认样式按钮子类：继承 [ButtonBase]，默认样式从 [Theme] 读取。
+ *
+ * 用法：`object : Button(this) { override val label = "确定"; override fun onClick() { ... } }`
  *
  * 样式值全部来自 [Theme.current]，业务可整体替换主题换肤；
  * 需要更自由的视觉时可改用 `object : ButtonBase(this) { ... }` 直接覆盖视觉方法。
  */
-fun StateHolder<Node, List<Node>>.button(
-    label: () -> String,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-    variant: ButtonVariant = ButtonVariant.Primary,
-    width: Float = 90f,
-    height: Float = 32f,
-    focusOrder: Int? = null,
-): ButtonBase = object : ButtonBase(this, enabled) {
-    override val argWidth: LayoutSize get() = LayoutSize(width, false)
-    override val argHeight: LayoutSize get() = LayoutSize(height, false)
-    override val focusOrder: Int? get() = focusOrder
 
-    override fun onClick() = onClick()
+open class Button(context: StateHolder<Node, List<Node>>) : ButtonBase(context) {
+    open val label: String = ""
+    open val variant: ButtonVariant = ButtonVariant.Primary
+
+    override val argWidth: LayoutSize get() = LayoutSize(90f, false)
+    override val argHeight: LayoutSize get() = LayoutSize(32f, false)
 
     override fun drawContent(canvas: PlatformCanvas) {
         val c = Theme.current.colors
@@ -142,7 +137,7 @@ fun StateHolder<Node, List<Node>>.button(
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
         val c = Theme.current.colors
         text(
-            label,
+            { label },
             Theme.current.textSize.label,
             if (enabled) {
                 if (variant == ButtonVariant.Primary) c.onPrimary else c.text

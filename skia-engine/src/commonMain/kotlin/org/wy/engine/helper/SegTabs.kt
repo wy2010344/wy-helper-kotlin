@@ -51,8 +51,10 @@ fun <T> StateHolder<Node, List<Node>>.segTabs(
     }
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+        val btnEnabled = enabled
         items.forEachIndexed { i, (tab, name) ->
-            object : ButtonBase(this, enabled), GrowChild {
+            object : ButtonBase(this), GrowChild {
+                override val enabled: Boolean get() = btnEnabled
                 override fun argGrow(direction: Direction): Float = 1f
                 override val focusOrder: Int? get() = focusOrderOffset?.let { it + i }
 

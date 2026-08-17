@@ -31,8 +31,7 @@ import org.wy.engine.layout.LayoutDirection
  */
 open class DialogBase(
     context: StateHolder<Node, List<Node>>,
-    enabled: Boolean = true,
-) : OverlayBase(context, enabled) {
+) : OverlayBase(context) {
 
     /** 模态：打开期间圈定焦点。 */
     override val trapsFocus: Boolean get() = true
@@ -93,13 +92,10 @@ open class DialogBase(
  * @param content 面板内容
  */
 fun StateHolder<Node, List<Node>>.dialog(
-    open: () -> Boolean,
     onClose: () -> Unit,
-    enabled: Boolean = true,
     width: Float = 380f,
     content: StateHolderWithNode<Node, List<Node>>.() -> Unit,
-): DialogBase = object : DialogBase(this, enabled) {
-    override fun isOpen(): Boolean = open()
+): DialogBase = object : DialogBase(this) {
     override fun onDismiss() = onClose()
     override val panelWidth: Float get() = width
     override fun StateHolderWithNode<Node, List<Node>>.contentChildren() = content()

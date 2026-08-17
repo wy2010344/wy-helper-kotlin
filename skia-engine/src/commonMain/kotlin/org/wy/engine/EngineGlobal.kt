@@ -1,6 +1,7 @@
 package org.wy.engine
 
 import com.wy.mve.Context
+import com.wy.mve.StateHolder
 import org.wy.lib.EmptyFun
 
 expect enum class KeyCode {
@@ -71,7 +72,22 @@ interface PointerCapture {
     fun release()
 }
 
+interface Pop {
+    fun render(holder: StateHolder<Node, List<Node>>)
+}
+interface Toast {
+    fun render(holder: StateHolder<Node, List<Node>>)
+}
 interface EngineGlobal {
+
+    fun appendPop(callback: StateHolder<Node, List<Node>>.(pop: Pop)-> Unit): Pop
+
+    fun removePop(pop: Pop): Boolean
+
+    fun appendToast(callback: StateHolder<Node, List<Node>>.(toast: Toast) -> Unit): Toast
+
+    fun removeToast(toast: Toast): Boolean
+
     fun registerKeyPress(callback: KeyPressCallback): EmptyFun
     fun registerComposingText(callback: ComposingTextCallback): EmptyFun
 
@@ -125,6 +141,12 @@ interface EngineGlobal {
         onMove: (PointerEvent) -> Unit,
         onUp: (PointerEvent) -> Unit
     ): PointerCapture
+
+    /**
+     * 注册渲染后效果：在 [Renderer.render] 完成绘制后同步消费，
+     * 保证回调执行时所有节点已构建完毕（比 signal batch 的 addEffect 更可预测）。
+     */
+    fun addPostRenderEffect(effect: EmptyFun)
 
 }
 

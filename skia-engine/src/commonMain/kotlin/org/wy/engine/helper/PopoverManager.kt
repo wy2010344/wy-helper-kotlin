@@ -1,18 +1,31 @@
 package org.wy.engine.helper
 
+import com.wy.layout.AlignItem
+import com.wy.layout.DirectionJustify
 import com.wy.mve.Context
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import org.wy.engine.ColorInt
+import org.wy.engine.Direction
+import org.wy.engine.EngineGlobal
+import org.wy.engine.LayoutSize
 import org.wy.engine.Node
+import org.wy.engine.PlatformCanvas
+import org.wy.engine.PointerEvent
 import org.wy.engine.PointF
+import org.wy.engine.Pop
 import org.wy.engine.RectF
+import org.wy.engine.RectNode
+import org.wy.engine.StartEnd
+import org.wy.engine.WrappedTextNode
+import org.wy.engine.fillOuterRoundRect
+import org.wy.engine.innerSize
+import org.wy.engine.layout.FlexObject
+import org.wy.engine.layout.FlexParam
+import org.wy.engine.layout.LayoutDirection
 import org.wy.engine.rgba
+import org.wy.engine.strokeOuterRoundRect
 import org.wy.lib.EmptyFun
-import org.wy.signal.createSignal
-import org.wy.signal.getValue
-import org.wy.signal.memo
-import org.wy.signal.setValue
 
 data class Size(val width: Float, val height: Float)
 
@@ -30,86 +43,49 @@ data class PopoverStyle(
     val defaultHeight: Float = 200f
 )
 
-/** 弹窗定位：基于锚点矩形计算最终位置 */
 fun interface PopoverPosition {
     fun resolve(anchorRect: RectF, popoverSize: Size): PointF
 }
 
-data class PopoverRequest(
-    val id: Int,
-    var content: (StateHolderWithNode<Node, List<Node>>) -> Unit,
-    var position: PopoverPosition,
-    var style: PopoverStyle = PopoverStyle(),
-    var dismissed: Boolean = false
-)
-
 /**
- * PopoverManager：管理所有活跃的 popover 请求。
- * 由业务层创建并通过 popoverManagerContext 提供给子树。
+ * Popover 管理器：每个 popover 通过 [EngineGlobal.appendPop] 挂载到真实 MVE 树，
+ * 不再使用假树。非重叠（新 popover 可与旧 popover 共存，由业务控制）。
+ *
+ * 通过 [popoverManagerContext] 提供给子树。
  */
-class PopoverManager {
+class PopoverManager(private val g: EngineGlobal) {
     private var nextId = 0
-    private val requests = mutableMapOf<Int, PopoverRequest>()
-    private var version by createSignal(0)
-
-    val popovers by memo {
-        version
-        requests.values.filter { !it.dismissed }.toList()
-    }
-
-    private val positions = mutableMapOf<Int, PointF>()
-    private val nodes = mutableMapOf<Int, PopoverNode>()
+    private val pops = mutableMapOf<Int, Pop>()
 
     fun show(
-        content: (StateHolderWithNode<Node, List<Node>>) -> Unit,
+        content: StateHolder<Node, List<Node>>.() -> Unit,
         anchorRect: RectF,
         position: PopoverPosition = defaultPosition(),
-        style: PopoverStyle = PopoverStyle()
+        style: PopoverStyle = PopoverStyle(),
+        onDismiss: () -> Unit = {}
     ): EmptyFun {
         val id = nextId++
-        val req = PopoverRequest(id, content, position, style)
-        requests[id] = req
         val defaultSize = Size(style.defaultWidth, style.defaultHeight)
         val pos = position.resolve(anchorRect, defaultSize)
-        positions[id] = pos
-        version++
+
+        val pop = g.appendPop { holder ->
+            PopoverNode(this, pos, style, content) {
+                dismiss(id)
+                onDismiss()
+            }
+        }
+        pops[id] = pop
         return { dismiss(id) }
     }
 
     fun dismiss(id: Int) {
-        val req = requests[id]
-        if (req != null && !req.dismissed) {
-            req.dismissed = true
-            nodes.remove(id)
-            version++
-        }
+        val pop = pops.remove(id) ?: return
+        g.removePop(pop)
     }
 
     fun dismissAll() {
-        if (requests.isNotEmpty()) {
-            requests.values.forEach { it.dismissed = true }
-            requests.clear()
-            positions.clear()
-            nodes.clear()
-            version++
-        }
-    }
-
-    fun getPosition(id: Int): PointF? = positions[id]
-
-    fun getNode(id: Int, stateHolder: StateHolder<*, *>?): PopoverNode? {
-        val req = requests[id] ?: return null
-        if (req.dismissed) return null
-        return nodes.getOrPut(id) {
-            PopoverNode(stateHolder, req).also { it.measure() }
-        }
-    }
-
-    fun updatePosition(id: Int, anchorRect: RectF, popoverSize: Size) {
-        val req = requests[id] ?: return
-        if (!req.dismissed) {
-            positions[id] = req.position.resolve(anchorRect, popoverSize)
-        }
+        pops.values.forEach { g.removePop(it) }
+        pops.clear()
     }
 
     companion object {
@@ -123,6 +99,84 @@ class PopoverManager {
             val x = anchorRect.centerX - popoverSize.width / 2f
             val y = anchorRect.top - popoverSize.height - 4f
             PointF(x.coerceAtLeast(4f), y.coerceAtLeast(4f))
+        }
+    }
+}
+
+/**
+ * Popover 容器节点：通过 Pop 机制挂载到真实 MVE 树，支持信号/上下文/生命周期。
+ *
+ * notInLayout：由 [pos] 手动定位，不参与父节点布局。
+ * 内容由 [content] 在真实 StateHolder 中构建，拥有完整 MVE 能力。
+ */
+class PopoverNode(
+    context: StateHolder<Node, List<Node>>,
+    private val pos: PointF,
+    private val style: PopoverStyle,
+    private val content: StateHolder<Node, List<Node>>.() -> Unit,
+    private val onDismiss: () -> Unit,
+) : RectNode(context), FlexParam {
+
+    override val notInLayout: Boolean get() = true
+    override val layout: LayoutDirection = FlexObject(this)
+    override val direction: Direction get() = Direction.y
+    override val directionJustify: DirectionJustify get() = DirectionJustify.grow
+    override val alignItem: AlignItem get() = AlignItem.stretch
+    override val gap: Float get() = 4f
+    override val alignFix: Boolean get() = true
+
+    override fun argPosition(direction: Direction): Float = when (direction) {
+        Direction.x -> pos.x
+        Direction.y -> pos.y
+    }
+
+    override fun argSize(direction: Direction): LayoutSize =
+        LayoutSize(0f, false)
+
+    override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
+        style.padding
+
+    override fun onPointerClick(e: PointerEvent) {
+        e.stopPropagation()
+    }
+
+    override fun draw(canvas: PlatformCanvas) {
+        // 阴影
+        if (style.shadowBlur > 0f) {
+            canvas.save()
+            canvas.saveLayerAlpha(1f)
+            fillOuterRoundRect(canvas, style.cornerRadius, style.shadowColor)
+            canvas.restore()
+        }
+        // 背景
+        fillOuterRoundRect(canvas, style.cornerRadius, style.backgroundColor)
+        // 边框
+        strokeOuterRoundRect(canvas, style.cornerRadius, style.borderColor, style.borderWidth)
+        super.draw(canvas)
+    }
+
+    override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+        content()
+        // 关闭按钮
+        object : RectNode(this), FlexParam {
+            override val argWidth: LayoutSize get() = LayoutSize(60f, false)
+            override val argHeight: LayoutSize get() = LayoutSize(24f, false)
+            override val alignFix: Boolean get() = true
+            override fun draw(canvas: PlatformCanvas) {
+                fillOuterRoundRect(canvas, 4f, rgba(230, 230, 240))
+                super.draw(canvas)
+            }
+            override fun onPointerClick(e: PointerEvent) {
+                onDismiss()
+            }
+            override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+                object : WrappedTextNode(this) {
+                    override val autoWidth: Boolean get() = true
+                    override val text: String get() = "Close"
+                    override val fontSize: Float get() = 12f
+                    override val color: ColorInt get() = rgba(80, 80, 100)
+                }
+            }
         }
     }
 }

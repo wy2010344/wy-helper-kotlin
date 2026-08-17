@@ -32,9 +32,8 @@ import org.wy.engine.layout.LayoutDirection
  */
 open class DropdownBase(
     context: StateHolder<Node, List<Node>>,
-    private val anchor: () -> LayoutNode?,
-    enabled: Boolean = true,
-) : OverlayBase(context, enabled) {
+    private val anchor: LayoutNode,
+) : OverlayBase(context) {
 
     /** 面板宽度（高度由内容撑起）。 */
     open val panelWidth: Float get() = 160f
@@ -54,13 +53,17 @@ open class DropdownBase(
             override val alignItem: AlignItem get() = AlignItem.stretch
             override val alignFix: Boolean get() = true
             override val gap: Float get() = 2f
-            override val argWidth: LayoutSize get() = LayoutSize(this@DropdownBase.panelWidth, false)
+            override val argWidth: LayoutSize
+                get() = LayoutSize(
+                    this@DropdownBase.panelWidth,
+                    false
+                )
 
             override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
                 if (direction == Direction.x) 8f else 6f
 
             override fun argPosition(direction: Direction): Float {
-                val a = anchor() ?: return 0f
+                val a = anchor
                 val overlay = this@DropdownBase
                 return when (direction) {
                     // 锚点绝对坐标减去浮层根节点绝对坐标，换算成面板相对根节点的偏移
@@ -96,22 +99,17 @@ open class DropdownBase(
 /**
  * 默认样式下拉浮层工厂。
  *
- * @param open 是否打开（闭包读取业务状态）
  * @param anchor 锚点节点（面板贴其底部显示）
  * @param onClose 关闭回调（Esc / 点击外部）
- * @param enabled 是否可用（false 时既不打开也不响应）
  * @param width 面板宽度
  * @param content 面板内容（下拉项等）
  */
 fun StateHolder<Node, List<Node>>.dropdown(
-    open: () -> Boolean,
-    anchor: () -> LayoutNode?,
+    anchor: LayoutNode,
     onClose: () -> Unit,
-    enabled: Boolean = true,
     width: Float = 160f,
     content: StateHolderWithNode<Node, List<Node>>.() -> Unit,
-): DropdownBase = object : DropdownBase(this, anchor, enabled) {
-    override fun isOpen(): Boolean = open()
+): DropdownBase = object : DropdownBase(this, anchor) {
     override fun onDismiss() = onClose()
     override val panelWidth: Float get() = width
     override fun StateHolderWithNode<Node, List<Node>>.contentChildren() = content()

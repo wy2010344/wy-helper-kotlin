@@ -15,8 +15,8 @@ class ButtonTest {
     /** 暴露 hovered / pressed 供断言的测试子类。 */
     class ExposedButton(
         context: StateHolder<Node, List<Node>>,
-        enabled: Boolean = true,
-    ) : ButtonBase(context, enabled) {
+        override val enabled: Boolean = true,
+    ) : ButtonBase(context) {
         var clickCount = 0
         override fun onClick() {
             clickCount++

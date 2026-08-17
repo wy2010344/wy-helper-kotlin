@@ -7,7 +7,8 @@ abstract class TrackSignal<T>{
     protected open fun set(v: T, oldV: T?, inited: Boolean) : EmptyFun?{
         return null
     }
-    private var disabled = false
+    var disabled = false
+        private set
     private var inited = false
     private var lastValue: T? = null
     private var destroy: EmptyFun = {}

@@ -2,6 +2,7 @@ package com.wy.layout
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 
 /** 模拟布局子节点 */
@@ -44,9 +45,9 @@ class StackLayoutIgnoreTest {
             alignItem = AlignItem.stretch,
         )
         assertEquals(40f, layout.sizeFromChildren)
-        // ignore 子节点保留自身尺寸，不被 stretch 拉伸
         assertEquals(40f, layout.childSize(0))
-        assertEquals(200f, layout.childSize(1))
+        // ignored child: 不可用
+        assertFailsWith<LayoutError> { layout.childSize(1) }
     }
 
     @Test
@@ -57,8 +58,7 @@ class StackLayoutIgnoreTest {
             alignItem = AlignItem.stretch,
         )
         assertEquals(0f, layout.childPosition(0))
-        // ignore 子节点位置由自身提供，不参与 align 定位
-        assertEquals(0f, layout.childPosition(1))
+        assertFailsWith<LayoutError> { layout.childPosition(1) }
     }
 
     @Test
@@ -68,9 +68,8 @@ class StackLayoutIgnoreTest {
             MockStackChild(200f, ignored = true),
             alignItem = AlignItem.center,
         )
-        // 容器尺寸只由非 ignore 子节点决定，center 定位基于该尺寸
         assertEquals(0f, layout.childPosition(0))
-        assertEquals(0f, layout.childPosition(1))
+        assertFailsWith<LayoutError> { layout.childPosition(1) }
     }
 
     @Test
@@ -85,9 +84,8 @@ class StackLayoutIgnoreTest {
         )
         assertEquals(300f, layout.sizeFromChildren)
         assertEquals((300f - 40f) / 2f, layout.childPosition(0))
-        // ignore 子节点仍保留自身尺寸、位置自决
-        assertEquals(200f, layout.childSize(1))
-        assertEquals(0f, layout.childPosition(1))
+        assertFailsWith<LayoutError> { layout.childSize(1) }
+        assertFailsWith<LayoutError> { layout.childPosition(1) }
     }
 
     @Test
@@ -97,10 +95,10 @@ class StackLayoutIgnoreTest {
             MockStackChild(80f, ignored = true),
         )
         assertEquals(0f, layout.sizeFromChildren)
-        assertEquals(50f, layout.childSize(0))
-        assertEquals(80f, layout.childSize(1))
-        assertEquals(0f, layout.childPosition(0))
-        assertEquals(0f, layout.childPosition(1))
+        assertFailsWith<LayoutError> { layout.childSize(0) }
+        assertFailsWith<LayoutError> { layout.childSize(1) }
+        assertFailsWith<LayoutError> { layout.childPosition(0) }
+        assertFailsWith<LayoutError> { layout.childPosition(1) }
     }
 
     @Test

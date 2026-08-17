@@ -12,7 +12,7 @@ import kotlin.test.assertFalse
 
 /**
  * 轻提示测试：到时自动关闭、点击内容关闭、整层不拦截命中、
- * hide 跟随显示状态、可注入时间源驱动超时。
+ * hide 始终为 false、可注入时间源驱动超时。
  */
 class ToastTest {
 
@@ -20,17 +20,14 @@ class ToastTest {
     private class FakeToast(
         context: StateHolder<Node, List<Node>>,
         durationMs: Long,
-        private val shownState: () -> Boolean,
         private val clock: () -> Long,
         private val onDismissed: () -> Unit,
     ) : ToastBase(context, durationMs) {
-        override fun isShown(): Boolean = shownState()
         override fun onDismiss() = onDismissed()
         override fun now(): Long = clock()
     }
 
     private class Env {
-        var visible = true
         var t = 0L
         var dismissCount = 0
             private set
@@ -40,7 +37,7 @@ class ToastTest {
         fun build() {
             renderer = object : Renderer(null) {
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    toast = FakeToast(this, 2000L, { visible }, { t }) { dismissCount++ }
+                    toast = FakeToast(this, 2000L, { t }) { dismissCount++ }
                 }
             }
             renderer.children
@@ -64,24 +61,6 @@ class ToastTest {
     }
 
     @Test
-    fun hiddenStateResetsTimer() {
-        val env = Env()
-        env.build()
-        env.toast.timeoutEffect() // 显示，t=0 开始计时
-        env.visible = false
-        env.toast.timeoutEffect() // 隐藏：重置计时
-
-        env.visible = true
-        env.t = 1000
-        env.toast.timeoutEffect() // 重新显示后重新计时
-        assertEquals(0, env.dismissCount, "重新显示后计时应从头开始")
-
-        env.t = 3000
-        env.toast.timeoutEffect()
-        assertEquals(1, env.dismissCount, "重新计时达到时长后关闭")
-    }
-
-    @Test
     fun clickDismisses() {
         val env = Env()
         env.build()
@@ -97,9 +76,9 @@ class ToastTest {
     }
 
     @Test
-    fun hideFollowsShownState() {
+    fun hideAlwaysFalse() {
         val env = Env()
         env.build()
-        assertFalse(env.toast.hide, "显示时可见")
+        assertFalse(env.toast.hide, "Toast 构造即显示，hide 始终为 false")
     }
 }
