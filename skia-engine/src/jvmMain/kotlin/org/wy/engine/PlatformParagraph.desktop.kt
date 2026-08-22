@@ -5,6 +5,8 @@ import org.jetbrains.skia.FontSlant
 import org.jetbrains.skia.FontStyle
 import org.jetbrains.skia.FontWidth
 import org.jetbrains.skia.paragraph.Alignment
+import org.jetbrains.skia.paragraph.DecorationLineStyle
+import org.jetbrains.skia.paragraph.DecorationStyle
 import org.jetbrains.skia.paragraph.FontCollection
 import org.jetbrains.skia.paragraph.Paragraph
 import org.jetbrains.skia.paragraph.ParagraphBuilder
@@ -32,6 +34,15 @@ actual class PlatformParagraph(internal val paragraph: Paragraph) {
             start, end, heightMode, widthMode
         ).map { TextRect(it.rect.left, it.rect.top, it.rect.right, it.rect.bottom) }
     }
+
+    actual fun getWordBoundary(offset: Int): Pair<Int, Int>? {
+        val r = paragraph.getWordBoundary(offset)
+        if (r.end <= r.start) return null
+        return r.start to r.end   // IRange 即半开区间 [start, end)
+    }
+
+    actual fun getLineMetrics(): List<PlatformLineMetric> =
+        paragraph.lineMetrics.map { PlatformLineMetric(it.startIndex, it.endIndex) }
 }
 
 private val defaultFontCollection: FontCollection by lazy {
@@ -45,7 +56,8 @@ private fun makeTextStyle(
     fontColor: ColorInt,
     letterSpacing: Float = 0f,
     wordSpacing: Float = 0f,
-    lineHeightMultiplier: Float? = null
+    lineHeightMultiplier: Float? = null,
+    decoration: TextDecoration = TextDecoration.None
 ): TextStyle {
     return TextStyle().apply {
         fontFamily?.let { setFontFamily(it) }
@@ -57,6 +69,20 @@ private fun makeTextStyle(
         if (letterSpacing != 0f) setLetterSpacing(letterSpacing)
         if (wordSpacing != 0f) setWordSpacing(wordSpacing)
         if (lineHeightMultiplier != null) setHeight(lineHeightMultiplier)
+        if (decoration.hasAny) {
+            setDecorationStyle(
+                // underline / overline / lineThrough / gaps / color / lineStyle / thickness
+                DecorationStyle(
+                    decoration.underline,
+                    false,
+                    decoration.lineThrough,
+                    false,
+                    fontColor,
+                    DecorationLineStyle.SOLID,
+                    1f
+                )
+            )
+        }
     }
 }
 
@@ -93,7 +119,8 @@ actual fun buildParagraph(
                 span.style.color,
                 span.style.letterSpacing,
                 span.style.wordSpacing,
-                span.style.lineHeightMultiplier
+                span.style.lineHeightMultiplier,
+                span.style.decoration
             )
         )
         builder.addText(span.text)

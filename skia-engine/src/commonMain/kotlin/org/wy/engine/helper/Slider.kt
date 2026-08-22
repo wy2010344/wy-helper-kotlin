@@ -52,7 +52,7 @@ open class SliderBase(
 
     /** 鼠标悬停状态（触摸 / 笔不置位；disabled 无 hover）。 */
     protected val hovered by memo {
-        enabled && g.moveHitTest?.include(this) == true && g.lastPointerDevice != PointerDevice.Touch
+        enabled && g.moveHitTest?.include(this) == true && g.moveHitTest?.device != PointerDevice.Touch
     }
 
     /** 当前值 0..1，子类从业务状态派生。 */

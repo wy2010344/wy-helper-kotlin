@@ -35,7 +35,6 @@ fun StateHolder<Node, List<Node>>.flexIgnoreMain() {
     object : RectNode(this), FlexParam {
         override val direction: Direction = Direction.y
         override val layout: LayoutDirection = FlexObject(this)
-        override val directionJustify: DirectionJustify get() = DirectionJustify.start
         override val alignFix: Boolean get() = true
         override val alignItem: AlignItem get() = AlignItem.stretch
         override val gap: Float get() = 16f

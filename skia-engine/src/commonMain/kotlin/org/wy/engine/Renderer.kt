@@ -1,8 +1,12 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
+import com.wy.mve.StateHolderWithNode
 import com.wy.mve.renderRoot
-import org.wy.engine.helper.ToastContainer
+import org.wy.engine.helper.toastContainer
+import org.wy.engine.layout.FlexObject
+import org.wy.engine.layout.FlexParam
+import org.wy.engine.layout.LayoutDirection
 import org.wy.lib.EmptyFun
 import org.wy.lib.getValue
 import org.wy.signal.TrackSignal
@@ -17,19 +21,41 @@ open class Renderer private constructor(
     private val register: Register
 ) : LayoutNode(context, register) {
     constructor(context: StateHolder<*, *>?) : this(context, Register(context))
+
+    init {
+        // 自身即渲染树根：注入给 EngineGlobal，供选区等全树遍历派生使用
+        register.rootNode = this
+    }
+
     override fun createGetChildren(): () -> List<Node> {
         if (context == null) {
             val state = renderRoot(this@Renderer, nodeConfig) {
                 register.provide(this)
                 argChildren()
-                renderForEach({callback->
+                renderForEach({ callback ->
                     register.popList.forEach {
-                        callback(it,it)
+                        callback(it, it)
                     }
-                }){pop,e ->
+                }) { pop, e ->
                     pop.render(this)
                 }
-                ToastContainer(this, { register.toastList })
+                toastContainer {
+                    object : RectNode(this), FlexParam {
+                        override val layout: LayoutDirection = FlexObject(this)
+                        override val gap: Float
+                            get() = 10f
+
+                        override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+                            renderForEach({ callback ->
+                                register.toastList.forEach {
+                                    callback(it, it)
+                                }
+                            }) { toast, _ ->
+                                toast.render(this)
+                            }
+                        }
+                    }
+                }
             }
             destroyList.add(state::destroy)
             return state.target
@@ -80,10 +106,11 @@ open class Renderer private constructor(
     override val destroyed: Boolean
         get() = overlayTrack.disabled
 
-    private val destroyList=mutableListOf<EmptyFun>()
+    private val destroyList = mutableListOf<EmptyFun>()
     override fun addDestroy(callback: EmptyFun) {
-       destroyList.add(callback)
+        destroyList.add(callback)
     }
+
     fun destroy() {
         destroyList.forEach(::run)
         register.destroy();
@@ -160,13 +187,106 @@ open class Renderer private constructor(
         setFocused(nodes[targetIndex])
     }
 
+    /**
+     * 连击跟踪：记录"上一次按下"快照（目标 / 位置 / 时刻），判定同目标、时间窗内、
+     * 近距再次按下即递增计数（单击 → 双击 → 三击）。
+     *
+     * 不能用 [EngineGlobal.pressed] 替代：pressed 是"当下按住"的派生信号
+     * （来自 pointerSelect 会话，双击/三击路径刻意不开会话时恒为 null），
+     * 而连击判定需要离散的历史按下记录。
+     */
+    private class ClickTracker {
+        var node: Selectable? = null
+        var x = 0f
+        var y = 0f
+        var time = 0L
+        var count = 0
+
+        /** 记录一次按下，返回连击数。 */
+        fun recordDown(target: Node?, x: Float, y: Float, now: Long): Int {
+            val repeated = target != null &&
+                target === node &&
+                now - time < 400L &&
+                kotlin.math.abs(x - this.x) < 5f &&
+                kotlin.math.abs(y - this.y) < 5f
+            count = if (repeated) count + 1 else 1
+            node = target as? Selectable
+            this.x = x; this.y = y; time = now
+            return count
+        }
+    }
+
+    private val clicks = ClickTracker()
+
+    /** 双击后的按住拖拽会话：以双击词为锚，移动端点按词粒度扩展。 */
+    private var wordDragSession: WordDragSession? = null
+
+    /** 指针是否按下中（双击 / 三击路径不开 pointerSelect 会话，需独立跟踪）。 */
+    private var pointerDown = false
+
+    private class WordDragSession(
+        val sel: Selectable,
+        val anchorStart: Int,
+        val anchorEnd: Int
+    )
+
     fun mouseDown(x: Float, y: Float, device: PointerDevice = PointerDevice.Mouse) {
         try {
-            register.lastPointerDevice = device
-            val hit = hitTestResult(x, y)
+            val hit = hitTestResult(x, y, device)
             // 让 moveHitest 始终反映最近的指针位置（含按下瞬间）
             register.moveHitTest = hit
-            register.pressed = hit
+            val now = System.currentTimeMillis()
+            val leaf = hit.chain.lastOrNull()?.node
+            // 连击判定：同一可选节点、400ms 内、位移极小（双击 → 三击递增，否则重置单击）
+            val clickCount = clicks.recordDown(leaf, x, y, now)
+            pointerDown = true
+            wordDragSession = null
+
+            if (clickCount >= 3) {
+                // 三击选段：一次性物化整个逻辑段落（'\n' 分隔），不开拖拽会话。
+                // 仅对在册可选节点生效（活性 + selectionEnabled 子树声明），
+                // 否则按普通点击处理（onPointerClick 兜底）。
+                val sel = leaf as? Selectable
+                if (sel != null && register.selectionManager.isSelectable(sel)) {
+                    setFocused(leaf)
+                    val off = sel.positionForPoint(hit.x, hit.y)
+                    val para = sel.paragraphRangeAt(off) ?: (0 to sel.textLength)
+                    if (para.second > para.first) {
+                        register.selectionManager.select(sel, para.first, sel, para.second)
+                    }
+                }
+                dispatchPointer(hit, PointerType.Down, x, y, device = device)
+                return
+            }
+
+            if (clickCount == 2) {
+                // 双击选词：一次性物化为编程式选区（编辑器聚焦时自动分流为其内部选区）。
+                // 不开启常规拖拽会话——holding 会话会压制程序化选区；词拖扩展由
+                // [wordDragSession] 在 mouseMove 中单独驱动，松手即结束。
+                val sel = leaf as? Selectable
+                if (sel != null && register.selectionManager.isSelectable(sel)) {
+                    setFocused(leaf)
+                    val off = sel.positionForPoint(hit.x, hit.y)
+                    val word = sel.wordRangeAt(off)
+                    if (word != null && word.second > word.first) {
+                        register.selectionManager.select(sel, word.first, sel, word.second)
+                        wordDragSession = WordDragSession(sel, word.first, word.second)
+                    } else {
+                        // 无分词能力时退化为选中整个节点文本
+                        register.selectionManager.select(sel, 0, sel, sel.textLength)
+                    }
+                }
+                dispatchPointer(hit, PointerType.Down, x, y, device = device)
+                return
+            }
+
+            // 开启选择会话；Shift+按下时复用上一会话的 press（锚点继承，焦点重新跟随移动）
+            val prev = register.pointerSelect
+            register.pointerSelect = if (register.shift && prev != null) {
+                PointerSelect(prev.press, null)
+            } else {
+                PointerSelect(hit, null)
+            }
             setFocused(hit.chain.lastOrNull()?.node)
             dispatchPointer(hit, PointerType.Down, x, y, device = device)
         } catch (e: Throwable) {
@@ -176,19 +296,29 @@ open class Renderer private constructor(
 
     fun mouseUp(x: Float, y: Float, device: PointerDevice = PointerDevice.Mouse) {
         try {
-            register.lastPointerDevice = device
-            // 按下信息先快照再清空，供下方 click 判定使用
+            // 松手：词拖扩展会话随按住状态一起结束（选区保持最后一次扩展结果）
+            pointerDown = false
+            wordDragSession = null
+            // 按压态（release 未填）先快照，供下方 click 判定使用
             val down = register.pressed
-            register.pressed = null
+            val hit = hitTestResult(x, y, device)
+            register.moveHitTest = hit
+            // 松手定格：填入 release 后 hover 不再影响选区（纯数据变化，无命令）
+            register.pointerSelect = register.pointerSelect?.copy(release = hit)
             // 指针捕获：up 先投递给捕获者并结束捕获，随后仍走正常树分发（非按下态，通常无副作用）
             val captured = register.captured(0)
             if (captured != null) {
-                val e = PointerEvent(type = PointerType.Up, x = x, y = y, rootX = x, rootY = y, device = device)
+                val e = PointerEvent(
+                    type = PointerType.Up,
+                    x = x,
+                    y = y,
+                    rootX = x,
+                    rootY = y,
+                    device = device
+                )
                 captured.onUp(e)
                 captured.release()
             }
-            val hit = hitTestResult(x, y)
-            register.moveHitTest = hit
             dispatchPointer(hit, PointerType.Up, x, y, device = device)
             if (down != null) {
                 val downPos = down.chain.firstOrNull()
@@ -210,16 +340,35 @@ open class Renderer private constructor(
 
     fun mouseMove(x: Float, y: Float, device: PointerDevice = PointerDevice.Mouse) {
         try {
-            register.lastPointerDevice = device
             // 指针捕获：move 只投递给捕获者，不进入树分发
             val captured = register.captured(0)
             if (captured != null) {
-                val e = PointerEvent(type = PointerType.Move, x = x, y = y, rootX = x, rootY = y, device = device)
+                val e = PointerEvent(
+                    type = PointerType.Move,
+                    x = x,
+                    y = y,
+                    rootX = x,
+                    rootY = y,
+                    device = device
+                )
                 captured.onMove(e)
+                // 捕获期间仍刷新命中链快照：跨节点拖拽选择靠它定位指针下的目标文本节点
+                register.moveHitTest = hitTestResult(x, y, device)
                 return
             }
-            val hit = hitTestResult(x, y)
+            val hit = hitTestResult(x, y, device)
             register.moveHitTest = hit
+            // 双击后按住拖动：以锚词为基准按词粒度扩展选区（仅同节点内生效）
+            val drag = wordDragSession
+            if (drag != null && pointerDown && hit.chain.any { it.node === drag.sel }) {
+                val off = drag.sel.positionForPoint(x, y)
+                val (a, b) = expandWordSelection(drag.anchorStart, drag.anchorEnd, off) {
+                    drag.sel.wordRangeAt(it)
+                }
+                if (b > a) {
+                    register.selectionManager.select(drag.sel, a, drag.sel, b)
+                }
+            }
             dispatchPointer(hit, PointerType.Move, x, y, device = device)
         } catch (e: Throwable) {
             println("mouseMove error--$e")
@@ -227,7 +376,13 @@ open class Renderer private constructor(
     }
 
     fun mouseExit() {
-        register.pressed = null
+        // 按住拖出窗口：把当前进度定格（选区保持连续），再清理 hover 位置
+        val s = register.pointerSelect
+        if (s != null && s.release == null) {
+            register.pointerSelect = s.copy(release = register.moveHitTest ?: s.press)
+        }
+        // 词拖扩展同理结束（已物化的选区原样保留）
+        wordDragSession = null
         register.moveHitTest = null
     }
 
@@ -268,24 +423,25 @@ open class Renderer private constructor(
                     }
 
                     'x' -> {
-                        val current = register.selectionManager.current
-                        if (current != null && current.hasSelection) {
-                            current.cut()
+                        val editor = register.activeEditor
+                        if (editor != null && editor.hasSelection) {
+                            editor.cut()
                             return
                         }
                     }
 
                     'v' -> {
-                        val current = register.selectionManager.current
-                        if (current != null) {
-                            current.paste()
+                        val editor = register.activeEditor
+                        if (editor != null) {
+                            editor.paste()
                             return
                         }
                     }
                 }
             }
 
-            val handled = register.focused?.handleKey(e) ?: false
+            // 焦点可能指向已销毁节点（原始事实不清理），派发前校验活性
+            val handled = register.focused?.takeIf { !it.destroyed }?.handleKey(e) ?: false
             if (!handled) {
                 if (!alt && !meta && !ctrl && code == KeyCode.Tab) {
                     moveFocus(!shift)
@@ -383,9 +539,11 @@ private fun sendPointer(node: Node, type: PointerType, e: PointerEvent, capture:
     }
 }
 
-private fun Node.hitTestResult(x: Float, y: Float): HitestResult {
+private fun Node.hitTestResult(x: Float, y: Float, device: PointerDevice = PointerDevice.Mouse): HitestResult {
     return HitestResult(
         hitTest(x, y).orEmpty(),
-        System.currentTimeMillis()
+        System.currentTimeMillis(),
+        x, y,
+        device
     )
 }

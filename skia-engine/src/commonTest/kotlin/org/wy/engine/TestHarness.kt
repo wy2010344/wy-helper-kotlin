@@ -143,20 +143,31 @@ class TestEngineGlobal : EngineGlobal {
         return destroy
     }
 
-    override var pressed: HitestResult? by createSignal(null)
+    override var pointerSelect: PointerSelect? by createSignal(null)
     override var moveHitTest: HitestResult? by createSignal(null)
-    override var lastPointerDevice: PointerDevice by createSignal(PointerDevice.Mouse)
-    override var ctrl: Boolean = false
-    override var shift: Boolean = false
-    override var alt: Boolean = false
-    override var meta: Boolean = false
+    override var ctrl: Boolean by createSignal(false)
+    override var shift: Boolean by createSignal(false)
+    override var alt: Boolean by createSignal(false)
+    override var meta: Boolean by createSignal(false)
     override var focused: Node? = null
 
-    /** 活跃编辑器 = 聚焦的 EditableTextNode（派生，与 Register 语义一致）。 */
-    override val activeEditor: EditableTextNode?
-        get() = focused as? EditableTextNode
+    /** headless 无渲染树根；SelectionManager 经 mount 清单补充可选集合。 */
+    override var rootNode: Node? = null
 
-    private val selectionManagerInstance = SelectionManager()
+    /** 活跃编辑器 = 聚焦的 EditableTextNode（派生，与 Register 语义一致，含活性校验）。 */
+    override val activeEditor: EditableTextNode?
+        get() = (focused as? EditableTextNode)?.takeIf { !it.destroyed }
+
+    // headless 环境没有渲染树根，SelectionManager 无法遍历发现孤立节点；
+    // 用信号化的显式清单补充（mount），语义等价于"这些节点挂在树上"
+    private var mounted by createSignal(emptyList<Selectable>())
+
+    /** 把孤立的可选节点登记进选区派生集合（模拟挂树）。 */
+    fun mount(selectable: Selectable) {
+        mounted = mounted + selectable
+    }
+
+    private val selectionManagerInstance = SelectionManager(this) { mounted }
     override val selectionManager: SelectionManager get() = selectionManagerInstance
 
     override fun capturePointer(

@@ -5,12 +5,10 @@ import com.wy.layout.DirectionJustify
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import org.wy.engine.*
-import org.wy.engine.helper.PopoverManager
-import org.wy.engine.helper.PopoverStyle
 import org.wy.engine.helper.Theme
 import org.wy.demo.helper.hint
 import org.wy.demo.helper.page
-import org.wy.engine.helper.popoverManagerContext
+import org.wy.engine.helper.popover
 import org.wy.demo.helper.sectionTitle
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
@@ -28,10 +26,9 @@ fun main() {
         override val gap: Float get() = 0f
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-            provide(popoverManagerContext, PopoverManager(engineGlobal))
             page(gap = 16f) {
                 sectionTitle("Popover 词典浮层")
-                hint("选中下方文本区域中的任意单词，即可弹出词典释义浮层；点击浮层外部可关闭。")
+                hint("选中下方文本区域中的任意单词，即可弹出词典释义浮层；点击浮层外部或 Esc 可关闭。")
 
                 dictionaryTextArea()
             }
@@ -51,7 +48,13 @@ fun StateHolder<Node, List<Node>>.dictionaryTextArea() {
         override val alignItem: AlignItem get() = AlignItem.stretch
         override val gap: Float get() = 0f
 
-        private var currentDismiss: org.wy.lib.EmptyFun? = null
+        /** 当前打开的 popover 句柄，用于切换选区 / 取消选中时关闭旧浮层。 */
+        private var currentPop: Pop? = null
+
+        private fun closeCurrent() {
+            currentPop?.let { engineGlobal.removePop(it) }
+            currentPop = null
+        }
 
         override fun draw(canvas: PlatformCanvas) {
             fillOuterRoundRect(canvas, r.card, c.surface)
@@ -61,8 +64,7 @@ fun StateHolder<Node, List<Node>>.dictionaryTextArea() {
 
         override fun onPointerDown(e: PointerEvent) {
             super.onPointerDown(e)
-            currentDismiss?.invoke()
-            currentDismiss = null
+            closeCurrent()
         }
 
         override fun onPointerUp(e: PointerEvent) {
@@ -71,33 +73,22 @@ fun StateHolder<Node, List<Node>>.dictionaryTextArea() {
                 val selectedText = textNode.selectedText
                 if (selectedText.isNotEmpty()) {
                     val anchorRect = textNode.selectionRect ?: return
-                    currentDismiss?.invoke()
-                    currentDismiss = popoverManager.show(
-                        content = { buildPopoverContent(selectedText) },
-                        anchorRect = anchorRect,
-                        position = PopoverManager.defaultPosition(),
-                        style = PopoverStyle(
-                            backgroundColor = c.surface,
-                            borderColor = c.border,
-                            borderWidth = 1f,
-                            cornerRadius = r.card,
-                            shadowColor = rgba(0, 0, 0, 25),
-                            shadowOffsetY = 6f,
-                            shadowBlur = 16f,
-                            padding = 18f,
-                            defaultWidth = 280f,
-                            defaultHeight = 200f
-                        )
-                    )
+                    closeCurrent()
+                    currentPop = engineGlobal.appendPop { pop ->
+                        popover(anchorRect, onClose = {
+                            engineGlobal.removePop(pop)
+                            currentPop = null
+                        }) {
+                            buildPopoverContent(selectedText)
+                        }
+                    }
                 }
             } else {
-                currentDismiss?.invoke()
-                currentDismiss = null
+                closeCurrent()
             }
         }
 
         lateinit var textNode: EditableTextNode
-        lateinit var popoverManager: PopoverManager
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
             textNode = object : EditableTextNode(this) {
@@ -109,8 +100,6 @@ fun StateHolder<Node, List<Node>>.dictionaryTextArea() {
                 override val fontSize: Float get() = 15f
                 override val singleLine: Boolean get() = false
             }
-
-            popoverManager = consume(popoverManagerContext)!!
         }
     }
 }
@@ -138,7 +127,6 @@ private fun StateHolder<Node, List<Node>>.buildPopoverContent(word: String) {
 
     // 分隔线
     object : RectNode(this) {
-        override val argWidth: LayoutSize get() = LayoutSize(244f, false)
         override val argHeight: LayoutSize get() = LayoutSize(1f, false)
         override fun draw(canvas: PlatformCanvas) {
             fillOuterRect(canvas, c.border)

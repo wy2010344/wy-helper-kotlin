@@ -67,7 +67,7 @@ internal val nodeConfig = object : ShareConfig<Node, List<Node>> {
  */
 open class Node(
     protected val context: StateHolder<*, *>?,
-    engineGlobal: EngineGlobal? = context?.consume(engineGlobalContext)
+    engineGlobal: EngineGlobal? = null
 ) {
     open val destroyed get() = context?.destroyed ?: false
     open fun addDestroy(callback: EmptyFun) = context?.addDestroy(callback)
@@ -84,20 +84,25 @@ open class Node(
     val parent: Node?
 
     init {
-        if (engineGlobal == null) {
-            throw Error("未找到EngineGlobal")
-        }
-        this.engineGlobal = engineGlobal
         if (context == null) {
             parent = null
+            if (engineGlobal == null) {
+                throw Error("未找到EngineGlobal")
+            }
+            this.engineGlobal = engineGlobal
         } else {
             val p = context.getParent()
             if (p is Node) {
                 parent = p
+                this.engineGlobal = parent.engineGlobal
                 @Suppress("UNCHECKED_CAST")
                 (context as StateHolder<Node, *>).addNode(this)
             } else if (p != null) {
                 parent = null
+                if (engineGlobal == null) {
+                    throw Error("未找到EngineGlobal")
+                }
+                this.engineGlobal = engineGlobal
             } else {
                 throw Error("需要找到parent")
             }
@@ -135,14 +140,22 @@ open class Node(
 
     open fun argPosition(direction: Direction): Float = 0f
 
-    var index = 0
-        internal set
+    /**
+     * 原始文档序编号：[collectIndex] 在 children 重算时维护。
+     * 与 [index] 的区别是不做 hide 检查——节点隐藏/销毁后仍保留最后一次编号，
+     * 供文档序比较兜底（否则已消失节点无法参与稳定排序）。
+     */
+    internal var indexValue = 0
+    var index: Int
         get() {
             if (hide) {
                 throw Error("已经隐藏不再显示")
             }
             parent?.children
-            return field
+            return indexValue
+        }
+        internal set(value) {
+            indexValue = value
         }
 
     open val x: Float
@@ -193,24 +206,30 @@ open class Node(
      * 就圈定最内层，天然支持嵌套，无需额外中间状态。
      */
     open val focusTrap: Boolean = false
-    open fun draw(canvas: PlatformCanvas) {
-        children.forEach { drawChild(it, canvas) }
-    }
 
     /**
-     * 绘制单个子节点：save → drawAtParent → translate → draw → restore。
-     * 子类可覆写以加入裁剪/跳过逻辑（如滚动容器只绘制可视区域内的子节点）。
+     * 本节点及整个子树是否参与文本选择（相当于 web 的 `user-select`）。
+     * 为 false 时子树内所有可选文本退出选区派生集合——拖选 / 双击 / 全选均不可波及
+     * （如按钮内嵌标签、装饰性文本）。与 [focusTrap] 同为祖先声明的子树开关，
+     * 可选集合在遍历派生时剪枝，无任何命令式注册。
      */
-    open fun drawChild(child: Node, canvas: PlatformCanvas) {
-        canvas.save()
-        child.drawAtParent(canvas)
-        canvas.translate(child.x, child.y)
-        child.draw(canvas)
-        canvas.restore()
+    open val selectionEnabled: Boolean = true
+
+    open fun draw(canvas: PlatformCanvas) {
+        children.forEach { child ->
+            if (child.skipDraw) {
+                return@forEach
+            }
+            canvas.save()
+            child.drawAtParent(canvas)
+            canvas.translate(child.x, child.y)
+            child.draw(canvas)
+            canvas.restore()
+        }
     }
 
+    open val skipDraw = false
     open fun drawAtParent(canvas: PlatformCanvas) {}
-
 }
 
 fun Node.hitTest(x: Float, y: Float): MutableList<NodeWithPosition>? {

@@ -14,6 +14,8 @@ actual enum class KeyCode(val androidCode: Int) {
     Enter(AndroidKeyEvent.KEYCODE_ENTER),
     Tab(AndroidKeyEvent.KEYCODE_TAB),
     Escape(AndroidKeyEvent.KEYCODE_ESCAPE),
+    PageUp(AndroidKeyEvent.KEYCODE_PAGE_UP),
+    PageDown(AndroidKeyEvent.KEYCODE_PAGE_DOWN),
     Unknown(-1);
 
     companion object {

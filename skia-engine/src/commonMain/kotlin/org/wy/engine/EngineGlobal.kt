@@ -5,7 +5,8 @@ import com.wy.mve.StateHolder
 import org.wy.lib.EmptyFun
 
 expect enum class KeyCode {
-    Backspace, Delete, Left, Right, Home, End, Up, Down, Enter, Tab, Escape, Unknown
+    Backspace, Delete, Left, Right, Home, End, Up, Down, Enter, Tab, Escape,
+    PageUp, PageDown, Unknown
 }
 
 data class KeyEvent(
@@ -75,12 +76,14 @@ interface PointerCapture {
 interface Pop {
     fun render(holder: StateHolder<Node, List<Node>>)
 }
+
 interface Toast {
     fun render(holder: StateHolder<Node, List<Node>>)
 }
+
 interface EngineGlobal {
 
-    fun appendPop(callback: StateHolder<Node, List<Node>>.(pop: Pop)-> Unit): Pop
+    fun appendPop(callback: StateHolder<Node, List<Node>>.(pop: Pop) -> Unit): Pop
 
     fun removePop(pop: Pop): Boolean
 
@@ -92,20 +95,22 @@ interface EngineGlobal {
     fun registerComposingText(callback: ComposingTextCallback): EmptyFun
 
     /**
-     * 当前按下状态（响应式信号）。null = 未按下；
-     * 非空时携带按下时的命中链与时间，按下坐标可用 `pressed.chain.windowX/Y` 取。
+     * 指针选择会话（响应式信号）。null = 尚无会话；
+     * mouseDown 创建（Shift 时复用上一会话的 press 以继承锚点），
+     * mouseUp / mouseExit 填入 [PointerSelect.release] 定格。
+     * 由引擎写入；var 以便测试环境直接模拟指针序列。
      */
-    val pressed: HitestResult?
+    var pointerSelect: PointerSelect?
 
     /** 最近一次指针位置的命中链（响应式信号，供 hover 与指针位置查询）。 */
-    val moveHitTest: HitestResult?
+    var moveHitTest: HitestResult?
 
     /**
-     * 最近一次指针事件的输入设备（响应式信号）。
-     * 由平台在 mouseDown / mouseMove / mouseUp 上报，供组件判断
-     * "触摸 / 笔设备不应产生桌面式 hover 反馈"。
+     * 当前是否按住中：从 [pointerSelect] 派生（release 未填 = 按住），
+     * 供按压态视觉反馈等使用；非独立信号。
      */
-    val lastPointerDevice: PointerDevice
+    val pressed: HitestResult?
+        get() = pointerSelect?.takeIf { it.release == null }?.press
 
     /**
      * 修饰键实时状态（响应式信号，四个键独立可观察）。
@@ -132,6 +137,13 @@ interface EngineGlobal {
     val selectionManager: SelectionManager
 
     /**
+     * 渲染树根节点：供选区等"全树派生"做遍历计算（如 SelectionManager 的
+     * 可选集合）。由引擎在构建根时注入；headless 测试环境可为 null，
+     * 此时 SelectionManager 退回显式提供的补充清单。
+     */
+    val rootNode: Node?
+
+    /**
      * 捕获指针。典型调用时机：节点在 `onPointerDown` 内调用。
      * 捕获后该 [id] 的 Move / Up 事件只投递给 [onMove] / [onUp]，
      * up 后自动结束（调用方也可提前 [PointerCapture.release]）。
@@ -151,12 +163,33 @@ interface EngineGlobal {
 }
 
 /**
- * 一次指针按下的完整状态：按下时的命中链 + 按下时刻。
- * 用于点击 / 长按判定（时间差）与按下起点坐标（`chain.windowX/Y`）。
+ * 一次指针按下的完整状态：按下时的命中链 + 按下时刻 + 输入设备。
+ * 用于点击 / 长按判定（时间差）、按下起点坐标（`chain.windowX/Y`）
+ * 与"触摸设备不做 hover 反馈"判断（[device]）。
  */
 data class HitestResult(
     val chain: List<NodeWithPosition>,
-    val time: Long
+    val time: Long,
+    val x: Float,
+    val y: Float,
+    val device: PointerDevice = PointerDevice.Mouse
+)
+
+/**
+ * 一次指针选择会话：按下快照 + 释放快照。
+ *
+ * - [release] 为 null 表示仍在按住中：焦点端点跟随 [EngineGlobal.moveHitTest]；
+ * - [release] 非 null 表示已松手定格：焦点冻结在释放位置，hover 不再影响选区；
+ * - Shift+按下时引擎复用上一会话的 [press]（锚点继承），仅重新进入按住态——
+ *   因此 Shift 扩展、连续 Shift+click 的锚点记忆不需要任何额外状态，全部由
+ *   该结构本身承载。
+ *
+ * 由引擎在 mouseDown（创建 / 复用）与 mouseUp / mouseExit（填 release）写入，
+ * 是"指针落在哪"这一原始事实的记录；选区由 SelectionManager 从它纯派生。
+ */
+data class PointerSelect(
+    val press: HitestResult,
+    val release: HitestResult?
 )
 
 /** 输入法输入框的声明数据：位置、尺寸与字号。 */

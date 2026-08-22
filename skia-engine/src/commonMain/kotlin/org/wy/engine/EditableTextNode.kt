@@ -10,7 +10,60 @@ open class EditableTextNode(
     context: StateHolder<Node,List<Node>>,
     private val maxHistorySize: Int = 100
 ) : WrappedTextNode(context), ComposingTextHandler {
-    override var text  by createSignal("")
+
+    private var rawText by createSignal("")
+
+    /**
+     * 逻辑文本真相源（纯 UTF-16 串）。
+     * 写路径统一经 [writeText] 钩子：富文本子类在写入前按差异同步样式段，
+     * 父类内部的 `text = ...` 赋值无需关心存储形态。
+     */
+    override var text: String
+        get() = rawText
+        set(value) { writeText(value) }
+
+    /** 文本写入钩子：默认直写信号；子类覆写时须调用 super 完成实际落值。 */
+    protected open fun writeText(newValue: String) {
+        rawText = newValue
+    }
+
+    /** 本地光标状态（编辑器私有）：anchor 即光标位置，键盘扩选时 focus 随之移动。
+     *  高亮绘制不读它们——选区真相由 SelectionManager 从 cursorSelPair 派生分配。 */
+    protected var anchorIndex by createSignal(-1)
+    protected var focusIndex by createSignal(-1)
+
+    /**
+     * 本地光标对：活跃编辑器的选区真相源，SelectionManager 派生时直接读取。
+     * anchor/focus 均已初始化（>= 0）才有效；塌缩即清除其他节点的跨节点选区。
+     */
+    internal val cursorSelPair: SelPair?
+        get() {
+            if (anchorIndex < 0 || focusIndex < 0) return null
+            val len = text.length
+            return SelPair(
+                SelPoint(this, anchorIndex.coerceIn(0, len)),
+                SelPoint(this, focusIndex.coerceIn(0, len))
+            )
+        }
+
+    /** 本地选区（编辑动作的依据）：只认自己的光标信号，不受全局 programmatic 会话污染。 */
+    private val localHasSel: Boolean
+        get() = anchorIndex >= 0 && focusIndex >= 0 && anchorIndex != focusIndex
+    private val localSelStart: Int get() = minOf(anchorIndex, focusIndex).coerceIn(0, text.length)
+    private val localSelEnd: Int get() = maxOf(anchorIndex, focusIndex).coerceIn(0, text.length)
+
+    /**
+     * 首次键盘/剪贴板交互时把当前全局分配吸收为本地光标（一次性物化，非持续同步）：
+     * 保证"拖拽选择后直接打字替换""全选后聚焦打字替换"等交互连续性；
+     * 本地光标一旦初始化，后续编辑只由本地信号驱动。
+     */
+    private fun absorbGlobalSelection() {
+        if (anchorIndex >= 0 && focusIndex >= 0) return
+        selectionManager?.rangeOf(this)?.let { (s, e) ->
+            anchorIndex = s
+            focusIndex = e
+        }
+    }
 
     override val focusable: Boolean get() = true
 
@@ -26,6 +79,15 @@ open class EditableTextNode(
 
     open val singleLine: Boolean get() = false
 
+    /** 占位文本：逻辑文本为空时显示，不参与编辑与选区。 */
+    var placeholder by createSignal("")
+
+    /** 占位显示颜色。 */
+    open val placeholderColor: ColorInt = rgba(128, 128, 128)
+
+    /** 密码模式：每个字素簇显示为一个圆点，编辑仍作用于逻辑文本。 */
+    var obscureText by createSignal(false)
+
     private var composingStart by createSignal(0)
     private var composingLength by createSignal(0)
     private var compositionBase:Pair<Int,String>?=null
@@ -35,6 +97,98 @@ open class EditableTextNode(
     private val undoRedo = UndoRedo(maxHistorySize)
     val canUndo: Boolean get() = undoRedo.canUndo
     val canRedo: Boolean get() = undoRedo.canRedo
+
+    // ---------- 显示文本（占位 / 掩码） ----------
+
+    /** 当前是否处于占位显示状态。 */
+    protected val showingPlaceholder: Boolean
+        get() = text.isEmpty() && placeholder.isNotEmpty()
+
+    /** 段落实际构建用的显示文本：普通文本 / 占位文本 / 逐簇圆点。 */
+    internal val displayText: String
+        get() = when {
+            showingPlaceholder -> placeholder
+            obscureText -> buildString {
+                var i = 0
+                while (i < text.length) {
+                    append('•')
+                    i = Graphemes.nextBoundary(text, i)
+                }
+            }
+            else -> text
+        }
+
+    /** 编辑器段落：占位时显示灰色占位文本，否则由 [displaySpans] 提供正文。 */
+    override val spans: List<RichTextSpan>
+        get() = if (showingPlaceholder) {
+            listOf(
+                RichTextSpan(
+                    placeholder,
+                    RichTextStyle(
+                        fontFamily,
+                        fontSize,
+                        fontWeight,
+                        italic,
+                        placeholderColor,
+                        letterSpacing,
+                        wordSpacing,
+                        lineHeightMultiplier
+                    )
+                )
+            )
+        } else {
+            displaySpans()
+        }
+
+    /** 正文显示片段（非占位态）：默认单一显示文本；富文本子类覆写为分段样式。 */
+    protected open fun displaySpans(): List<RichTextSpan> = listOf(
+        RichTextSpan(
+            displayText,
+            RichTextStyle(
+                fontFamily,
+                fontSize,
+                fontWeight,
+                italic,
+                color,
+                letterSpacing,
+                wordSpacing,
+                lineHeightMultiplier
+            )
+        )
+    )
+
+    /** 显示索引 → 逻辑索引：占位塌缩为 0；掩码下第 k 个圆点对应第 k 个字素簇起点。 */
+    override fun displayToLogicIndex(displayPos: Int): Int = when {
+        showingPlaceholder -> 0
+        !obscureText -> displayPos.coerceIn(0, text.length)
+        else -> {
+            var i = 0
+            var n = 0
+            while (i < text.length && n < displayPos) {
+                i = Graphemes.nextBoundary(text, i)
+                n++
+            }
+            i
+        }
+    }
+
+    /** 逻辑索引 → 显示索引：落在字素簇内部时归到该簇的圆点左缘。 */
+    override fun logicToDisplayIndex(logicPos: Int): Int = when {
+        showingPlaceholder -> 0
+        !obscureText -> logicPos.coerceIn(0, text.length)
+        else -> {
+            var i = 0
+            var n = 0
+            val limit = logicPos.coerceIn(0, text.length)
+            while (i < limit) {
+                val next = Graphemes.nextBoundary(text, i)
+                if (next > limit) break
+                i = next
+                n++
+            }
+            n
+        }
+    }
 
     private var preferredX = Float.NaN
 
@@ -72,7 +226,7 @@ open class EditableTextNode(
     fun insertText(inserted: String) {
         val textToInsert = if (singleLine) inserted.replace("\n", "").replace("\r", "") else inserted
         if (textToInsert.isEmpty()) return
-        if (hasSel) {
+        if (localHasSel) {
             replaceSel(textToInsert)
             return
         }
@@ -83,8 +237,8 @@ open class EditableTextNode(
     }
 
     private fun replaceSel(replacement: String) {
-        val s = selStart
-        val e = selEnd
+        val s = localSelStart
+        val e = localSelEnd
         if (s == e) {
             insertText(replacement)
             return
@@ -95,58 +249,203 @@ open class EditableTextNode(
         setCursor(s + replacement.length)
     }
 
+    /** 按字素簇删除光标前一个"字符"（emoji / 组合字符不拆半）。 */
     fun backspace() {
-        if (hasSel) {
+        if (localHasSel) {
             delSel()
             return
         }
         val pos = cursor()
         if (pos <= 0) return
-        val deleted = text.substring(pos - 1, pos)
-        undoRedo.push(DeleteTextAction(pos - 1, deleted, true))
-        text = text.removeRange(pos - 1, pos)
-        setCursor(pos - 1)
+        val start = Graphemes.prevBoundary(text, pos)
+        if (start >= pos) return
+        val deleted = text.substring(start, pos)
+        undoRedo.push(DeleteTextAction(start, deleted, true))
+        text = text.removeRange(start, pos)
+        setCursor(start)
     }
 
+    /** 按字素簇删除光标后一个"字符"。 */
     fun delete() {
-        if (hasSel) {
+        if (localHasSel) {
             delSel()
             return
         }
         val pos = cursor()
         if (pos >= text.length) return
-        val deleted = text.substring(pos, pos + 1)
+        val end = Graphemes.nextBoundary(text, pos)
+        if (end <= pos) return
+        val deleted = text.substring(pos, end)
         undoRedo.push(DeleteTextAction(pos, deleted, false))
-        text = text.removeRange(pos, pos + 1)
+        text = text.removeRange(pos, end)
         setCursor(pos)
     }
 
     private fun delSel() {
-        if (!hasSel) return
-        val s = selStart
-        val e = selEnd
+        if (!localHasSel) return
+        val s = localSelStart
+        val e = localSelEnd
         val deleted = text.substring(s, e)
         undoRedo.push(DeleteTextAction(s, deleted, true))
         text = text.removeRange(s, e)
         setCursor(s)
     }
 
+    /** 按字素簇左移光标。 */
     fun moveLeft() {
         val p = cursor()
-        if (p > 0) setCursor(p - 1)
+        if (p > 0) setCursor(Graphemes.prevBoundary(text, p))
     }
 
+    /** 按字素簇右移光标。 */
     fun moveRight() {
         val p = cursor()
-        if (p < text.length) setCursor(p + 1)
+        if (p < text.length) setCursor(Graphemes.nextBoundary(text, p))
     }
 
-    fun moveHome() = setCursor(0).also { preferredX = Float.NaN }
-    fun moveEnd() = setCursor(text.length).also { preferredX = Float.NaN }
+    // ---------- 行 / 文档 / 词 / 页 导航（Home·End·Ctrl+方向键·PageUp·PageDown） ----------
+
+    /** 光标所在软行区间（[start, end)，不含换行符）；无布局时 null。
+     *  pos == length 时落在最后一行（半开区间匹配不到行尾光标）。 */
+    private fun lineRangeAt(pos: Int): Pair<Int, Int>? {
+        val p = paragraph ?: return null
+        if (text.isEmpty()) return null
+        val m = p.getLineMetrics().firstOrNull { pos >= it.startIndex && pos < it.endIndex }
+            ?: p.getLineMetrics().lastOrNull()?.takeIf { pos == text.length }
+            ?: return null
+        var end = m.endIndex.coerceIn(m.startIndex, text.length)
+        if (end > m.startIndex && text[end - 1] == '\n') end--
+        if (end > m.startIndex && text[end - 1] == '\r') end--
+        return m.startIndex to end
+    }
+
+    private fun lineStart(pos: Int): Int = lineRangeAt(pos)?.first ?: 0
+    private fun lineEnd(pos: Int): Int = lineRangeAt(pos)?.second ?: text.length
+
+    /** 扩选到 [newPos]：anchor 保持（未初始化则取当前光标），focus 移动。 */
+    private fun extendTo(newPos: Int) {
+        anchorIndex = if (anchorIndex >= 0) anchorIndex else cursor()
+        focusIndex = newPos.coerceIn(0, text.length)
+    }
+
+    private fun moveTo(newPos: Int, extend: Boolean) {
+        if (extend) extendTo(newPos) else setCursor(newPos)
+    }
+
+    fun moveHome() {
+        preferredX = Float.NaN
+        setCursor(lineStart(cursor()))
+    }
+
+    fun moveEnd() {
+        preferredX = Float.NaN
+        setCursor(lineEnd(cursor()))
+    }
+
+    fun selectHome() {
+        preferredX = Float.NaN
+        extendTo(lineStart(focusIndex.coerceIn(0, text.length)))
+    }
+
+    fun selectEnd() {
+        preferredX = Float.NaN
+        extendTo(lineEnd(focusIndex.coerceIn(0, text.length)))
+    }
+
+    fun moveDocStart() {
+        preferredX = Float.NaN
+        setCursor(0)
+    }
+
+    fun moveDocEnd() {
+        preferredX = Float.NaN
+        setCursor(text.length)
+    }
+
+    fun selectDocStart() {
+        preferredX = Float.NaN
+        extendTo(0)
+    }
+
+    fun selectDocEnd() {
+        preferredX = Float.NaN
+        extendTo(text.length)
+    }
+
+    fun movePrevWord() {
+        preferredX = Float.NaN
+        setCursor(Words.prevBoundary(text, cursor()))
+    }
+
+    fun moveNextWord() {
+        preferredX = Float.NaN
+        setCursor(Words.nextBoundary(text, cursor()))
+    }
+
+    fun selectPrevWord() {
+        preferredX = Float.NaN
+        extendTo(Words.prevBoundary(text, focusIndex.coerceIn(0, text.length)))
+    }
+
+    fun selectNextWord() {
+        preferredX = Float.NaN
+        extendTo(Words.nextBoundary(text, focusIndex.coerceIn(0, text.length)))
+    }
+
+    /** 删除光标前一个词；有选区时退化为删除选区。 */
+    fun deleteWordBackward() {
+        if (localHasSel) return delSel()
+        val pos = cursor()
+        if (pos <= 0) return
+        val start = Words.prevBoundary(text, pos)
+        if (start >= pos) return
+        undoRedo.push(DeleteTextAction(start, text.substring(start, pos), true))
+        text = text.removeRange(start, pos)
+        setCursor(start)
+        preferredX = Float.NaN
+    }
+
+    /** 删除光标后一个词；有选区时退化为删除选区。 */
+    fun deleteWordForward() {
+        if (localHasSel) return delSel()
+        val pos = cursor()
+        if (pos >= text.length) return
+        val end = Words.nextBoundary(text, pos)
+        if (end <= pos) return
+        undoRedo.push(DeleteTextAction(pos, text.substring(pos, end), false))
+        text = text.removeRange(pos, end)
+        setCursor(pos)
+        preferredX = Float.NaN
+    }
+
+    /** PageUp/PageDown 一次跳动的行数。 */
+    open val pageLines: Int get() = 12
+
+    /** 垂直跳 [count] 行（负上正下），保持 [preferredX] 视觉列；无布局时回退文档首尾。 */
+    private fun jumpLines(count: Int, extend: Boolean) {
+        val fallback = if (count < 0) 0 else text.length
+        val r = cursorRect().firstOrNull()
+        val newPos = when {
+            r == null -> fallback
+            else -> {
+                val p = paragraph!!
+                if (preferredX.isNaN()) preferredX = r.left + r.width / 2f
+                val step = r.bottom - r.top
+                val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.top + step * count)
+                displayToLogicIndex(newPos)
+            }
+        }
+        moveTo(newPos, extend)
+    }
+
+    fun movePageUp() = jumpLines(-pageLines, extend = false)
+    fun movePageDown() = jumpLines(pageLines, extend = false)
+    fun selectPageUp() = jumpLines(-pageLines, extend = true)
+    fun selectPageDown() = jumpLines(pageLines, extend = true)
 
     private fun cursorRect(): List<TextRect> {
         val p = paragraph ?: return emptyList()
-        val pos = cursor()
+        val pos = logicToDisplayIndex(cursor())
         val list = p.getRectsForRange(pos, pos + 1, RectStyle.TIGHT)
         if (list.isNotEmpty()) return list
         if (pos > 0) return p.getRectsForRange(pos - 1, pos, RectStyle.TIGHT)
@@ -161,7 +460,7 @@ open class EditableTextNode(
         if (preferredX.isNaN()) preferredX = r.left + r.width / 2f
         val step = r.bottom - r.top
         val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.top - step)
-        setCursor(newPos.coerceIn(0, text.length))
+        setCursor(displayToLogicIndex(newPos))
     }
 
     fun moveDown() {
@@ -172,7 +471,7 @@ open class EditableTextNode(
         if (preferredX.isNaN()) preferredX = r.left + r.width / 2f
         val step = r.bottom - r.top
         val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.bottom + step)
-        setCursor(newPos.coerceIn(0, text.length))
+        setCursor(displayToLogicIndex(newPos))
     }
 
     fun selectUp() {
@@ -185,7 +484,7 @@ open class EditableTextNode(
         val step = r.bottom - r.top
         val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.top - step)
         anchorIndex = a
-        focusIndex = newPos.coerceIn(0, text.length)
+        focusIndex = displayToLogicIndex(newPos)
     }
 
     fun selectDown() {
@@ -198,7 +497,7 @@ open class EditableTextNode(
         val step = r.bottom - r.top
         val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.bottom + step)
         anchorIndex = a
-        focusIndex = newPos.coerceIn(0, text.length)
+        focusIndex = displayToLogicIndex(newPos)
     }
 
     private fun applyState(state: TextState) {
@@ -206,27 +505,64 @@ open class EditableTextNode(
         setCursor(state.cursor)
     }
 
-    private var selectionManager: SelectionManager? = null
-
-    init {
-        selectionManager = context.consume(selectionManagerContext)
-        context.addDestroy {
-            selectionManager?.clear()
-        }
-    }
-
     override fun handleKey(e: KeyEvent): Boolean {
+        absorbGlobalSelection()
         when {
             e.ctrl && !e.shift && e.key == 'z' -> { undo(); return true }
             (e.ctrl && e.key == 'y') || (e.ctrl && e.shift && e.key == 'z') -> { redo(); return true }
-            e.code == KeyCode.Backspace -> { backspace(); preferredX = Float.NaN; return true }
-            e.code == KeyCode.Delete -> { delete(); preferredX = Float.NaN; return true }
-            e.code == KeyCode.Left -> { if (e.shift) selectLeft() else moveLeft(); preferredX = Float.NaN; return true }
-            e.code == KeyCode.Right -> { if (e.shift) selectRight() else moveRight(); preferredX = Float.NaN; return true }
+
+            e.code == KeyCode.Backspace -> {
+                if (e.ctrl || e.alt) deleteWordBackward() else backspace()
+                preferredX = Float.NaN
+                return true
+            }
+            e.code == KeyCode.Delete -> {
+                if (e.ctrl || e.alt) deleteWordForward() else delete()
+                preferredX = Float.NaN
+                return true
+            }
+            e.code == KeyCode.Left -> {
+                when {
+                    e.ctrl && e.shift -> selectPrevWord()
+                    e.ctrl -> movePrevWord()
+                    e.shift -> selectLeft()
+                    else -> moveLeft()
+                }
+                preferredX = Float.NaN
+                return true
+            }
+            e.code == KeyCode.Right -> {
+                when {
+                    e.ctrl && e.shift -> selectNextWord()
+                    e.ctrl -> moveNextWord()
+                    e.shift -> selectRight()
+                    else -> moveRight()
+                }
+                preferredX = Float.NaN
+                return true
+            }
+            e.code == KeyCode.Home -> {
+                when {
+                    e.ctrl && e.shift -> selectDocStart()
+                    e.ctrl -> moveDocStart()
+                    e.shift -> selectHome()
+                    else -> moveHome()
+                }
+                return true
+            }
+            e.code == KeyCode.End -> {
+                when {
+                    e.ctrl && e.shift -> selectDocEnd()
+                    e.ctrl -> moveDocEnd()
+                    e.shift -> selectEnd()
+                    else -> moveEnd()
+                }
+                return true
+            }
+            e.code == KeyCode.PageUp -> { if (e.shift) selectPageUp() else movePageUp(); return true }
+            e.code == KeyCode.PageDown -> { if (e.shift) selectPageDown() else movePageDown(); return true }
             e.code == KeyCode.Up -> { if (e.shift) selectUp() else moveUp(); return true }
             e.code == KeyCode.Down -> { if (e.shift) selectDown() else moveDown(); return true }
-            e.code == KeyCode.Home -> { moveHome(); return true }
-            e.code == KeyCode.End -> { moveEnd(); return true }
             e.code == KeyCode.Enter -> { if (!singleLine) insertText("\n"); preferredX = Float.NaN; return true }
             e.code == KeyCode.Tab -> { if (!singleLine) { insertText("\t"); return true }; return false }
             e.ctrl || e.alt -> return false
@@ -241,13 +577,15 @@ open class EditableTextNode(
     }
 
     override fun copy() {
-        if (!hasSel) return
-        clipboardSetText(text.substring(selStart, selEnd))
+        absorbGlobalSelection()
+        if (!localHasSel) return
+        clipboardSetText(text.substring(localSelStart, localSelEnd))
     }
 
     override fun cut() {
-        if (!hasSel) return
-        clipboardSetText(text.substring(selStart, selEnd))
+        absorbGlobalSelection()
+        if (!localHasSel) return
+        clipboardSetText(text.substring(localSelStart, localSelEnd))
         delSel()
     }
 
@@ -268,7 +606,7 @@ open class EditableTextNode(
         val a = if (anchorIndex >= 0) anchorIndex else cursor()
         val f = focusIndex.coerceIn(0, text.length)
         if (f > 0) {
-            anchorIndex = a; focusIndex = f - 1
+            anchorIndex = a; focusIndex = Graphemes.prevBoundary(text, f)
         }
     }
 
@@ -276,24 +614,59 @@ open class EditableTextNode(
         val a = if (anchorIndex >= 0) anchorIndex else cursor()
         val f = focusIndex.coerceIn(0, text.length)
         if (f < text.length) {
-            anchorIndex = a; focusIndex = f + 1
+            anchorIndex = a; focusIndex = Graphemes.nextBoundary(text, f)
         }
+    }
+
+    /** 编辑器内全选：写本地光标信号，全局派生自动跟随。 */
+    fun selectAll() {
+        anchorIndex = 0
+        focusIndex = text.length
+    }
+
+    // 以下查询面向逻辑文本（占位 / 掩码下与段落显示文本不同）
+
+    override val textLength: Int get() = text.length
+
+    override val selectedText: String
+        get() {
+            val r = assignedRange ?: return ""
+            val s = r.first.coerceIn(0, text.length)
+            val e = r.second.coerceIn(0, text.length)
+            return if (e > s) text.substring(s, e) else ""
+        }
+
+    override fun textInRange(start: Int, end: Int): String =
+        if (end > start) text.substring(start, end.coerceAtMost(text.length)) else ""
+
+    /** 光标定位到任意偏移（编程式）：写本地光标信号，塌缩即接管全局派生链。 */
+    fun moveCursorTo(offset: Int) {
+        setCursor(offset)
+    }
+
+    /** 编辑器内设置任意选区区间 [start, end)（编程式）：写本地光标信号，两端相等即光标定位。 */
+    fun selectRange(start: Int, end: Int) {
+        val len = text.length
+        anchorIndex = start.coerceIn(0, len)
+        focusIndex = end.coerceIn(0, len)
     }
 
     override fun onPointerDownCapture(e: PointerEvent) {
         super.onPointerDownCapture(e)
         preferredX = Float.NaN
-    }
-
-    override fun onPointerMoveCapture(e: PointerEvent) {
-        super.onPointerMoveCapture(e)
-    }
-
-    override fun onPointerUpCapture(e: PointerEvent) {
-        super.onPointerUpCapture(e)
+        // 点击定位光标，并塌缩全局会话清除其他节点选区
+        // （拖拽中的选区由 SelectionManager 按指针信号接管，与本地光标互不干扰）
+        val p = paragraph ?: return
+        val pos = displayToLogicIndex(
+            p.getGlyphPositionAtCoordinate(
+                e.x - paddingInlineStart,
+                e.y - paddingBlockStart
+            )
+        )
+        setCursor(pos)
     }
     private fun overlayOrigin(): Pair<Float, Float> {
-        val pos = cursor()
+        val pos = logicToDisplayIndex(cursor())
         val p = paragraph
         if (p != null) {
             val list = p.getRectsForRange(pos, pos + 1, RectStyle.TIGHT)
@@ -324,7 +697,7 @@ open class EditableTextNode(
         }
     }
 
-    private fun drawCursor(canvas: PlatformCanvas, pos: Int) {
+    private fun drawCursor(canvas: PlatformCanvas, logicPos: Int) {
         val p = paragraph
         if (p == null) {
             canvas.fillRect(
@@ -336,6 +709,7 @@ open class EditableTextNode(
             )
             return
         }
+        val pos = logicToDisplayIndex(logicPos)
         val px = paddingInlineStart
         val py = paddingBlockStart
         val list = p.getRectsForRange(pos, pos + 1, RectStyle.TIGHT)
@@ -355,8 +729,8 @@ open class EditableTextNode(
         val p = paragraph ?: return
         val px = paddingInlineStart
         val py = paddingBlockStart
-        val s = composingStart
-        val e = s + composingLength
+        val s = logicToDisplayIndex(composingStart)
+        val e = logicToDisplayIndex(composingStart + composingLength)
         for (rect in p.getRectsForRange(s, e, RectStyle.TIGHT)) {
             canvas.fillRect(rect.left + px, rect.top + py, rect.width, rect.height, composingBackgroundColor)
             canvas.fillRect(rect.left + px, rect.bottom - 2f + py, rect.width, 2f, composingUnderlineColor)
@@ -393,8 +767,9 @@ open class EditableTextNode(
             return
         }
         if(compositionBase==null){
+            absorbGlobalSelection()
             val (start,oldLen)=when{
-                hasSel -> selStart to (selEnd-selStart)
+                localHasSel -> localSelStart to (localSelEnd-localSelStart)
                 else -> cursor().coerceIn(0,text.length) to 0
             }
             compositionBase=start to text.substring(start,start+oldLen)

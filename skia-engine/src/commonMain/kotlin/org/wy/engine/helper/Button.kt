@@ -36,11 +36,14 @@ open class ButtonBase(
     override val focusable: Boolean get() = enabled
     override val focusOrder: Int? get() = null
 
+    /** 按钮是交互控件而非文本载体：整个子树退出文本选择（业务内嵌标签不被拖选/全选波及）。 */
+    override val selectionEnabled: Boolean get() = false
+
     protected val g = engineGlobal
 
     /** 鼠标悬停状态（触摸 / 笔不置位；disabled 无 hover）。 */
     protected val hovered by memo {
-        enabled && g.moveHitTest?.include(this) == true && g.lastPointerDevice != PointerDevice.Touch
+        enabled && g.moveHitTest?.include(this) == true && g.moveHitTest?.device != PointerDevice.Touch
     }
 
     /** 按下状态：鼠标按下且命中本按钮（含触摸按下反馈；disabled 无 pressed）。 */
@@ -52,7 +55,7 @@ open class ButtonBase(
     open fun onClick() {}
 
     init {
-        context.addDestroy(g.registerKeyPress { e ->
+        addDestroy(g.registerKeyPress { e ->
             if (enabled && isFocused && (e.code == KeyCode.Enter || e.key == ' ')) onClick()
         })
     }

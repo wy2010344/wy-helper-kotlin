@@ -13,4 +13,4 @@ fun createHelperEnv(): Pair<TestStateHolder<Node, List<Node>>, TestEngineGlobal>
 }
 
 /** 构造一个只包含单个节点的命中链（x/y 均为 0）。 */
-fun hit(node: Node) = HitestResult(listOf(NodeWithPosition(node, 0f, 0f)), 0L)
+fun hit(node: Node) = HitestResult(listOf(NodeWithPosition(node, 0f, 0f)), 0L, 0f, 0f)

@@ -11,7 +11,8 @@ import kotlin.test.assertTrue
  * 文本选择与中文输入的行为约束测试。
  *
  * 保护两条关键回归：
- * 1. 所有文本区域（RichTextNode 及其子类）都支持点击定位与拖拽选择，
+ * 1. 所有文本区域（RichTextNode 及其子类）都可被统一选区管理（拉模型：
+ *    SelectionManager 从指针命中链推导端点，节点只提供坐标换算），
  *    而不是只有编辑器（EditableTextNode）能选。
  * 2. 中文（IME）输入能精确定位光标，且非焦点编辑器不得抢占输入框焦点
  *    打断输入法。
@@ -34,53 +35,48 @@ class TextSelectionTest {
         return Triple(stateHolder, engineGlobal, renderer)
     }
 
-    private fun mouseDownCapture(node: Node, x: Float, y: Float, engineGlobal: TestEngineGlobal, shift: Boolean = false) {
-        engineGlobal.shift = shift
-        val e = PointerEvent(type = PointerType.Down, x = x, y = y)
-        node.onPointerDownCapture(e)
-    }
-
     // ---------- 1. 所有文本区域可选择 ----------
 
     @Test
-    fun testPlainTextSupportsClickAndDragSelection() {
+    fun testPlainTextSelectableThroughPointerSignals() {
         val (sh, g, _) = createEnv()
         val node = TestText(sh, "Hello World")
+        g.mount(node) // headless 无渲染树，显式挂进选区派生集合
 
-        // 点击文本起点
-        mouseDownCapture(node, 0f, 0f, g)
-        assertTrue(node.hasSelection == false, "刚点击（无拖动）不应产生选区")
+        // 无会话时无选中
+        assertNull(g.selectionManager.rangeOf(node))
 
-        // 按住拖到文字末尾：通过捕获的 move 回调驱动拖拽选择
-        g.simulatePointerMove(9999f, 0f)
-        assertTrue(node.hasSelection, "拖动后应产生选区")
-        assertEquals("Hello World", node.selectionText())
-    }
+        // 指针按下即命中该文本节点：节点无需自行处理事件，端点由引擎从命中链推导
+        // （jvm 环境 paragraph 为空 → positionForPoint 恒为 0 → 原地按下即塌缩，无高亮）
+        g.pointerSelect =
+            PointerSelect(HitestResult(listOf(NodeWithPosition(node, 0f, 0f)), 0L, 0f, 0f), null)
+        assertNull(g.selectionManager.rangeOf(node), "原地按下（无拖动）不应产生选区")
 
-    @Test
-    fun testPlainTextSupportsShiftClickExtend() {
-        val (sh, g, _) = createEnv()
-        val node = TestText(sh, "Hello World")
+        // 松手定格后 hover 别处不影响（仍为塌缩光标态）
+        g.pointerSelect = PointerSelect(
+            HitestResult(listOf(NodeWithPosition(node, 0f, 0f)), 0L, 0f, 0f),
+            HitestResult(listOf(NodeWithPosition(node, 0f, 0f)), 1L, 0f, 0f)
+        )
+        g.moveHitTest = HitestResult(emptyList(), 1L, 50f, 50f)
+        assertNull(g.selectionManager.rangeOf(node))
+        assertNull(g.selectionManager.selectedText)
 
-        mouseDownCapture(node, 0f, 0f, g)
-        assertNull(node.selectionText())
-
-        // Shift+点击第 6 个字符附近扩展选区
-        mouseDownCapture(node, 100f, 0f, g, shift = true)
-        val text = node.selectionText()
-        assertTrue(text != null && text.isNotEmpty(), "Shift 点击应从锚点扩展到点击处")
-        assertTrue(node.hasSelection)
-    }
-
-    @Test
-    fun testPlainTextSelectAllAndReadSelection() {
-        val (sh, g, _) = createEnv()
-        val node = TestText(sh, "Hello World")
-
-        // 普通文本实现 Selectable：可被 SelectionManager 登记并全选
-        g.selectionManager.select(node)
+        // 节点确实参与了注册：全选可覆盖它
+        g.moveHitTest = null
         g.selectionManager.selectAll()
-        assertTrue(node.hasSelection)
+        assertEquals("Hello World", g.selectionManager.selectedText)
+        assertEquals("Hello World", node.selectedText)
+    }
+
+    @Test
+    fun testPlainTextRegisteredForSelectAll() {
+        val (sh, g, _) = createEnv()
+        val node = TestText(sh, "Hello World")
+        g.mount(node) // headless 无渲染树，显式挂进选区派生集合
+
+        // 普通文本实现 Selectable：注册后统一全选/复制
+        g.selectionManager.selectAll()
+        assertTrue(g.selectionManager.hasSelection)
         assertEquals("Hello World", g.selectionManager.selectedText)
     }
 

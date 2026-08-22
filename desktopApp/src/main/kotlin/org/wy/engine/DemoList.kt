@@ -21,6 +21,7 @@ fun main() {
             get() = true
         override val gap: Float
             get() = 10f
+
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
 
             class RowModal(
@@ -54,10 +55,11 @@ fun main() {
                         override fun argSize(direction: Direction): LayoutSize {
                             return LayoutSize(300f, false)
                         }
+
                         override val contentGap: Float get() = 10f
 
-                        override fun contentDraw(canvas: PlatformCanvas) {
-                            strokeInnerRect(canvas)
+                        override fun contentDraw(canvas: PlatformCanvas, content: ScrollContent) {
+                            content.strokeInnerRect(canvas)
                         }
 
                         override fun StateHolderWithNode<Node, List<Node>>.contentChildren() {
@@ -78,6 +80,9 @@ fun main() {
                                         get() = DirectionJustify.between
                                     override val argHeight: LayoutSize
                                         get() = LayoutSize(30f, false)
+
+                                    override val skipDraw: Boolean
+                                        get() = clipAtGradParentNode()
 
                                     override fun draw(canvas: PlatformCanvas) {
                                         strokeInnerRect(canvas)

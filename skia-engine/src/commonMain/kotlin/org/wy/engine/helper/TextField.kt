@@ -42,7 +42,7 @@ fun StateHolder<Node, List<Node>>.textField(
 
     private val g = engineGlobal
     private val hovered by memo {
-        g.moveHitTest?.include(this) == true && g.lastPointerDevice != PointerDevice.Touch
+        g.moveHitTest?.include(this) == true && g.moveHitTest?.device != PointerDevice.Touch
     }
 
     override fun argPadding(direction: Direction, startEnd: StartEnd): Float =

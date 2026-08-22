@@ -137,6 +137,21 @@ open class LayoutNode(
 
 }
 
+
+fun LayoutNode.clipAtGradParentNode(border: Float = 0f): Boolean {
+    val p = layoutParent ?: return false
+    val gp = p.layoutParent ?: return false
+    val nx = x + p.x - border
+    val ny = y + p.y - border
+    val nw = outerWidth + border * 2
+    val nh = outerHeight + border * 2
+    val cx = gp.paddingBlockStart
+    val cy = gp.paddingBlockStart
+    val cw = gp.innerWidth
+    val ch = gp.innerHeight
+    return nx + nw <= cx || nx >= cx + cw || ny + nh <= cy || ny >= cy + ch
+}
+
 fun LayoutNode.padding(direction: Direction, startEnd: StartEnd) = when (direction) {
     Direction.x -> when (startEnd) {
         StartEnd.start -> paddingInlineStart

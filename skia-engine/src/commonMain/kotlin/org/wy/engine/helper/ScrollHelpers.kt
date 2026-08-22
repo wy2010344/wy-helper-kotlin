@@ -40,18 +40,17 @@ open class SimpleScrollNode(
     final override val alignItem: AlignItem get() = AlignItem.stretch
     final override val directionJustify: DirectionJustify = DirectionJustify.start
 
-    /** 容器 gap：内容区与滚动条之间的间距。 */
-    override val gap: Float get() = containerGap
-    open val containerGap: Float = 0f
-
     /** 内容区内部 gap。 */
     open val contentGap: Float = 0f
+
+    open val contentAcceptHit = true
+    open val contentAlignItem: AlignItem = AlignItem.stretch
 
     /** 容器在父布局中的 grow 系数，默认不增长，子类可 override。 */
     override fun argGrow(direction: Direction): Float = 0f
 
     /** 内容区自定义绘制（如边框），在子节点绘制前执行。 */
-    open fun contentDraw(canvas: PlatformCanvas) {}
+    open fun contentDraw(canvas: PlatformCanvas, content: ScrollContent) {}
 
     /** 内容区：在这里声明滚动内容。 */
     open fun StateHolderWithNode<Node, List<Node>>.contentChildren() {}
@@ -73,30 +72,20 @@ open class SimpleScrollNode(
             override val x: Float get() = if (direction == Direction.x) -innerScroll.value else 0f
             override val layout: LayoutDirection = FlexObject(this)
             override val alignFix: Boolean get() = true
-            override val alignItem: AlignItem get() = AlignItem.stretch
+            override val alignItem: AlignItem get() = contentAlignItem
             override val gap: Float get() = contentGap
             override fun argGrow(direction: Direction): Float = 1f
 
-            override fun draw(canvas: PlatformCanvas) {
-                contentDraw(canvas)
-                super.draw(canvas)
+            override fun acceptHit(x: Float, y: Float): Boolean {
+                if (contentAcceptHit) {
+                    return super.acceptHit(x, y)
+                }
+                return false
             }
 
-            /**
-             * 绘制裁剪：不在可视区域内的子节点跳过绘制（仍参与布局计算，保证滚动尺寸正确）。
-             * 这是"惰性绘制"——节点全量创建（EachValue 照常），但只画可见的。
-             */
-            override fun drawChild(child: Node, canvas: PlatformCanvas) {
-                if (child is LayoutNode) {
-                    val scrollDir = this@SimpleScrollNode.scrollDirection
-                    val pos = child.position(scrollDir)
-                    val size = child.outerSize(scrollDir)
-                    val scrollVal = innerScroll.value
-                    val viewport = this@SimpleScrollNode.innerSize(scrollDir)
-                    // 可视区域（内容坐标）：[scrollVal, scrollVal + viewport]
-                    if (pos + size < scrollVal || pos > scrollVal + viewport) return
-                }
-                super.drawChild(child, canvas)
+            override fun draw(canvas: PlatformCanvas) {
+                contentDraw(canvas, this)
+                super.draw(canvas)
             }
 
             override fun StateHolderWithNode<Node, List<Node>>.argChildren() {

@@ -9,26 +9,44 @@ import org.wy.engine.Renderer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
- * 轻提示测试：到时自动关闭、点击内容关闭、整层不拦截命中、
- * hide 始终为 false、可注入时间源驱动超时。
+ * 轻提示测试：挂载即倒计时（init 时调度定时器，与渲染无关）、
+ * 定时器到期关闭、点击内容关闭、整层不拦截命中、hide 始终为 false、
+ * 节点销毁时取消定时器。
  */
 class ToastTest {
 
-    /** 可注入时间源与关闭回调的 Toast 测试替身。 */
+    /** 定时调度记录器：替代真实定时器，供测试观察调度参数与手动触发到期。 */
+    private class TimerRecord {
+        var delayMs: Long = -1
+            private set
+        var canceled = false
+            private set
+        private var fire: () -> Unit = {}
+
+        fun scheduler(delayMs: Long, action: () -> Unit): () -> Unit {
+            this.delayMs = delayMs
+            this.fire = action
+            return { canceled = true }
+        }
+
+        fun trigger() = fire()
+    }
+
+    /** Toast 测试替身：注入 [TimerRecord]，不真正起定时器。 */
     private class FakeToast(
         context: StateHolder<Node, List<Node>>,
         durationMs: Long,
-        private val clock: () -> Long,
+        timer: TimerRecord,
         private val onDismissed: () -> Unit,
-    ) : ToastBase(context, durationMs) {
+    ) : ToastBase(context, durationMs, timer::scheduler) {
         override fun onDismiss() = onDismissed()
-        override fun now(): Long = clock()
     }
 
     private class Env {
-        var t = 0L
+        val timer = TimerRecord()
         var dismissCount = 0
             private set
         lateinit var toast: FakeToast
@@ -37,7 +55,7 @@ class ToastTest {
         fun build() {
             renderer = object : Renderer(null) {
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    toast = FakeToast(this, 2000L, { t }) { dismissCount++ }
+                    toast = FakeToast(this, 2000L, timer) { dismissCount++ }
                 }
             }
             renderer.children
@@ -45,19 +63,28 @@ class ToastTest {
     }
 
     @Test
-    fun dismissAfterDurationElapsed() {
+    fun schedulesTimerOnInitWithoutDraw() {
         val env = Env()
         env.build()
-        env.toast.timeoutEffect() // t=0 开始计时
-        assertEquals(0, env.dismissCount, "未到时长不应关闭")
+        assertEquals(2000L, env.timer.delayMs, "init 时即按 durationMs 调度定时器")
+        assertEquals(0, env.dismissCount, "未到时不应关闭")
+    }
 
-        env.t = 1000
-        env.toast.timeoutEffect() // 仍未到
-        assertEquals(0, env.dismissCount)
+    @Test
+    fun timeoutActionTriggersDismiss() {
+        val env = Env()
+        env.build()
+        env.timer.trigger()
+        assertEquals(1, env.dismissCount, "定时器到期应自动关闭")
+    }
 
-        env.t = 2000
-        env.toast.timeoutEffect() // 已到时长
-        assertEquals(1, env.dismissCount, "到时自动关闭")
+    @Test
+    fun destroyCancelsTimer() {
+        val env = Env()
+        env.build()
+        // Renderer.destroy() 级联销毁 root state，触发 addDestroy 注册的取消回调
+        env.renderer.destroy()
+        assertTrue(env.timer.canceled, "节点销毁时应取消定时器")
     }
 
     @Test

@@ -28,38 +28,33 @@ class EventIntegrationTest {
 
     @Test
     fun testSelectionManagerIntegration() {
-        val (_, _, selectionManager) = createTestEnv()
+        val (_, _, _) = createTestEnv()
 
         class TestSelectable(initialText: String) : Selectable {
             var text: String = initialText
-            private var _selected: Boolean = false
-            override val hasSelection: Boolean get() = _selected && text.isNotEmpty()
-            override fun selectionText(): String? = if (_selected) text else null
-            override fun selectionRect(): RectF? = if (_selected) RectF(0f, 0f, 50f, 16f) else null
-            override fun setSelected(selected: Boolean) { _selected = selected }
-            override fun selectAll() { _selected = text.isNotEmpty() }
+            override fun selectionRect(): RectF? = null
+            override val textLength: Int get() = text.length
+            override fun positionForPoint(globalX: Float, globalY: Float): Int = 0
+            override fun textInRange(start: Int, end: Int): String =
+                if (end > start) text.substring(start, end.coerceAtMost(text.length)) else ""
         }
 
-        val item1 = TestSelectable("Hello")
-        val item2 = TestSelectable("World")
+        // headless 无渲染树：经补充清单提供可选集合（等价于挂树）
+        lateinit var item1: TestSelectable
+        val selectionManager = SelectionManager { listOf(item1) }
+        item1 = TestSelectable("Hello")
 
-        selectionManager.select(item1)
-        assertEquals(item1, selectionManager.current)
-        assertFalse(item1.hasSelection)
+        // 初始无选区
+        assertFalse(selectionManager.hasSelection)
 
+        // 全选覆盖集合内所有节点，可聚合读取
         selectionManager.selectAll()
-        assertTrue(item1.hasSelection)
+        assertEquals("Hello", selectionManager.selectedText)
+        assertTrue(selectionManager.hasSelection)
 
-        selectionManager.select(item2)
-        assertEquals(item2, selectionManager.current)
-        assertFalse(item2.hasSelection)
-        assertFalse(item1.hasSelection)
-
-        selectionManager.selectAll()
-        assertTrue(item2.hasSelection)
-
+        // 清除程序化会话
         selectionManager.clear()
-        assertNull(selectionManager.current)
+        assertFalse(selectionManager.hasSelection)
     }
 
     @Test

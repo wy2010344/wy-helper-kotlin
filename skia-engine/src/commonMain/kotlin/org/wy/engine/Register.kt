@@ -57,7 +57,11 @@ internal class Register(context: StateHolder<*, *>?) : EngineGlobal {
         return true
     }
 
-    override val selectionManager = SelectionManager()
+    override val selectionManager = SelectionManager(this)
+
+    /** 渲染树根（由 [Renderer] 构建完成后注入），供全树遍历派生使用。 */
+    override var rootNode: Node? = null
+        internal set
 
     init {
         if (context != null) provide(context)
@@ -69,39 +73,23 @@ internal class Register(context: StateHolder<*, *>?) : EngineGlobal {
         keyPressList.clear(); composingList.clear()
     }
 
-    override var pressed by createSignal<HitestResult?>(null)
+    override var pointerSelect by createSignal<PointerSelect?>(null)
     override var moveHitTest by createSignal<HitestResult?>(null)
-    override var lastPointerDevice by createSignal(PointerDevice.Mouse)
     override var ctrl by createSignal(false)
     override var shift by createSignal(false)
     override var alt by createSignal(false)
     override var meta by createSignal(false)
 
-    /** 活跃编辑器 = 聚焦的 EditableTextNode（派生，无独立存储）。 */
+    /**
+     * 活跃编辑器 = 聚焦的 EditableTextNode（派生，无独立存储）。
+     * 焦点是原始事实，不随节点销毁命令式清理；活性在消费端校验：
+     * 焦点指向已销毁编辑器时视为无活跃编辑器，杜绝死节点几何/信号访问。
+     */
     override val activeEditor: EditableTextNode?
-        get() = focused as? EditableTextNode
-    private var focusedSignal by createSignal<Node?>(null)
-    override var focused: Node?
-        get() = focusedSignal
-        set(value) {
-            focusedSignal = value
-            // 焦点即选中登记：SelectionManager 与焦点单一通道同步
-            syncSelection(value)
-        }
+        get() = (focused as? EditableTextNode)?.takeIf { !it.destroyed }
 
-    /** 沿父链查找可被选中的节点，保证命中最深层叶子不是 Selectable 时也能登记 */
-    private fun findSelectable(node: Node?): Selectable? {
-        var cur = node
-        while (cur != null) {
-            if (cur is Selectable) return cur
-            cur = cur.parent
-        }
-        return null
-    }
-
-    private fun syncSelection(node: Node?) {
-        selectionManager.select(findSelectable(node))
-    }
+    /** 全局焦点信号。选区不随焦点切换隐式清除——指针会话由 pointerSelect/moveHitTest 推导。 */
+    override var focused: Node? by createSignal<Node?>(null)
 
     // ---------- 指针捕获 ----------
 

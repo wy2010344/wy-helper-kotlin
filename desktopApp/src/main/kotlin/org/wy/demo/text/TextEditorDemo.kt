@@ -4,7 +4,10 @@ import com.wy.layout.AlignItem
 import com.wy.layout.DirectionJustify
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
+import org.wy.demo.helper.row
 import org.wy.engine.*
+import org.wy.engine.helper.Button
+import org.wy.engine.helper.ButtonVariant
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.LayoutDirection
@@ -93,7 +96,7 @@ fun StateHolder<Node, List<Node>>.basicEditor() {
         override val gap: Float get() = 4f
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-            hint("点击定位光标 · 拖拽选择 · Ctrl+Z 撤销 · Ctrl+Shift+Z 重做")
+            hint("点击定位光标 · 拖拽选择 · 双击选词 · Ctrl+Z 撤销 · Ctrl+Shift+Z 重做")
 
             val editor = object : EditableTextNode(this) {
                 override var text by createSignal("Hello, World!\n这是一个多行编辑器。\n试试拖拽选择文本。")
@@ -101,6 +104,20 @@ fun StateHolder<Node, List<Node>>.basicEditor() {
                 override val color: ColorInt get() = rgba(30, 30, 30)
                 override val cursorColor: ColorInt get() = rgba(0, 80, 200)
                 override val selectionColor: ColorInt get() = rgba(0, 100, 220, 70)
+            }
+
+            row {
+                hint("编程式（需先点击编辑器聚焦）：")
+                object : Button(this@row) {
+                    override val label: String get() = "选中第一行"
+                    override val variant: ButtonVariant get() = ButtonVariant.Secondary
+                    override fun onClick() { editor.selectRange(0, "Hello, World!".length) }
+                }
+                object : Button(this@row) {
+                    override val label: String get() = "光标到末尾"
+                    override val variant: ButtonVariant get() = ButtonVariant.Secondary
+                    override fun onClick() { editor.moveCursorTo(editor.text.length) }
+                }
             }
 
             object : WrappedTextNode(this) {

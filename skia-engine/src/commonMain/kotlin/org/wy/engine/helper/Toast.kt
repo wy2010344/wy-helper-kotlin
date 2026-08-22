@@ -14,11 +14,12 @@ import org.wy.engine.StartEnd
 import org.wy.engine.Toast
 import org.wy.engine.engineGlobalContext
 import org.wy.engine.fillOuterRoundRect
-import org.wy.engine.innerSize
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.LayoutDirection
+import org.wy.engine.postDelayed
 import org.wy.engine.strokeOuterRoundRect
+import org.wy.lib.EmptyFun
 
 /**
  * 轻提示浮层基类：铺满窗口但整层不拦截命中（点击穿透到主界面），
@@ -27,37 +28,23 @@ import org.wy.engine.strokeOuterRoundRect
  * 通过 [Toast] 机制全局挂载，始终在 Pop 之上；非重叠（新 toast 替换旧 toast）。
  * 不管理焦点；点击内容立即关闭；到时自动消失。
  *
- * 构造即显示，[durationMs] 到时自动调 [onDismiss] 移除。
+ * 构造即显示；init 时即按 [durationMs] 调度定时器开始倒计时（与渲染无关，
+ * 即使没有后续重绘也会按时触发），节点销毁时取消定时器。
  */
 open class ToastBase(
     context: StateHolder<Node, List<Node>>,
     protected val durationMs: Long = 2000L,
+    private val scheduler: (delayMs: Long, action: () -> Unit) -> EmptyFun = ::postDelayed,
 ) : RectNode(context), FlexParam {
     override val layout: LayoutDirection = FlexObject(this)
-    override val direction: Direction get() = Direction.y
-    override val directionJustify: DirectionJustify get() = DirectionJustify.grow
-    override val alignItem: AlignItem get() = AlignItem.center
-    override val alignFix: Boolean get() = true
+
     /** 关闭回调（到时自动消失 / 点击内容）。 */
     open fun onDismiss() {}
 
-    /** 时间源，测试可覆盖。 */
-    protected open fun now(): Long = System.currentTimeMillis()
-
-    private var shownAt: Long? = null
-
-    /**
-     * 超时效果：每帧由 draw 注册，渲染后同步消费，
-     * 到时调 [onDismiss] 自动移除。
-     */
-    internal fun timeoutEffect() {
-        val start = shownAt
-        if (start == null) {
-            shownAt = now()
-        } else if (now() - start >= durationMs) {
-            shownAt = null
-            onDismiss()
-        }
+    init {
+        // 挂载即开始倒计时（与渲染无关）；节点销毁时经 addDestroy 取消定时器。
+        // 注意：init 中只调用构造参数与非 open 成员，避免虚调用穿透到未初始化的子类。
+        addDestroy(scheduler(durationMs) { onDismiss() })
     }
 
     override val hide: Boolean get() = false
@@ -70,40 +57,19 @@ open class ToastBase(
         onDismiss()
     }
 
+    override val gap: Float get() = 4f
+
+    override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
+        if (direction == Direction.x) 16f else 10f
+
     override fun draw(canvas: PlatformCanvas) {
-        engineGlobal.addPostRenderEffect { timeoutEffect() }
+        fillOuterRoundRect(
+            canvas,
+            Theme.current.radius.control,
+            Theme.current.colors.inverseSurface
+        )
         super.draw(canvas)
     }
-
-    /** 内容条：点击命中即关闭，默认绘制暗色圆角条。 */
-    protected open fun StateHolderWithNode<Node, List<Node>>.body() {
-        object : RectNode(this), FlexParam {
-            override val layout: LayoutDirection = FlexObject(this)
-            override val direction: Direction get() = Direction.y
-            override val directionJustify: DirectionJustify get() = DirectionJustify.grow
-            override val alignItem: AlignItem get() = AlignItem.stretch
-            override val gap: Float get() = 4f
-
-            override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
-                if (direction == Direction.x) 16f else 10f
-
-            override fun draw(canvas: PlatformCanvas) {
-                fillOuterRoundRect(canvas, Theme.current.radius.control, Theme.current.colors.inverseSurface)
-                super.draw(canvas)
-            }
-
-            override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                contentChildren()
-            }
-        }
-    }
-
-    override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-        body()
-    }
-
-    /** 提示内容（在内容条中声明），由子类 / 工厂提供。 */
-    open fun StateHolderWithNode<Node, List<Node>>.contentChildren() {}
 }
 
 /**
@@ -125,7 +91,8 @@ fun StateHolder<Node, List<Node>>.toast(
             override fun onDismiss() {
                 g.removeToast(toast)
             }
-            override fun StateHolderWithNode<Node, List<Node>>.contentChildren() = content()
+
+            override fun StateHolderWithNode<Node, List<Node>>.argChildren() = content()
         }
     }
 }

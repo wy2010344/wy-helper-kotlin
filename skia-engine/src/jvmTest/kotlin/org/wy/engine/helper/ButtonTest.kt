@@ -34,7 +34,8 @@ class ButtonTest {
         return state to g
     }
 
-    private fun hit(btn: Node) = HitestResult(listOf(NodeWithPosition(btn, 0f, 0f)), 0L)
+    private fun hit(btn: Node, device: PointerDevice = PointerDevice.Mouse) =
+        HitestResult(listOf(NodeWithPosition(btn, 0f, 0f)), 0L, 0f, 0f, device)
 
     @Test
     fun clickTriggersOnClick() {
@@ -69,7 +70,7 @@ class ButtonTest {
         assertEquals(0, btn.clickCount, "disabled 不应响应点击与键盘")
 
         g.moveHitTest = hit(btn)
-        g.pressed = hit(btn)
+        g.pointerSelect = PointerSelect(hit(btn), null)
         assertFalse(btn.isHovered(), "disabled 不应有 hover 状态")
         assertFalse(btn.isPressed(), "disabled 不应有 pressed 状态")
     }
@@ -80,10 +81,11 @@ class ButtonTest {
         val btn = ExposedButton(state)
         g.moveHitTest = hit(btn)
 
-        g.lastPointerDevice = PointerDevice.Touch
+        // 设备类型随命中结果携带（HitestResult.device），触摸不产生 hover
+        g.moveHitTest = hit(btn, PointerDevice.Touch)
         assertFalse(btn.isHovered(), "触摸设备不应产生 hover")
 
-        g.lastPointerDevice = PointerDevice.Mouse
+        g.moveHitTest = hit(btn, PointerDevice.Mouse)
         assertTrue(btn.isHovered(), "鼠标设备应产生 hover")
     }
 
@@ -94,10 +96,10 @@ class ButtonTest {
         g.moveHitTest = hit(btn)
         assertFalse(btn.isPressed())
 
-        g.pressed = hit(btn)
+        g.pointerSelect = PointerSelect(hit(btn), null)
         assertTrue(btn.isPressed(), "命中且按下时 pressed 置位")
 
-        g.pressed = null
+        g.pointerSelect = null
         assertFalse(btn.isPressed(), "松开后 pressed 复位")
     }
 }

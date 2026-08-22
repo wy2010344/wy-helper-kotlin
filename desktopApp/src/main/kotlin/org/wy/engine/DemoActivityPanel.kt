@@ -42,7 +42,7 @@ internal fun StateHolder<Node,List<Node>>.dActivityPanel(
 
         object : SimpleScrollNode(this) {
             override fun argGrow(direction: Direction): Float = if (direction == Direction.y) 1f else 0f
-            override val containerGap: Float get() = 6f
+            override val gap: Float get() = 6f
             override val contentGap: Float get() = 6f
 
             override fun StateHolderWithNode<Node, List<Node>>.contentChildren() {

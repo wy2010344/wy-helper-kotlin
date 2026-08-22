@@ -19,12 +19,17 @@ import org.wy.engine.engineGlobalContext
  *
  * 捕获指针后，Move 事件持续回调 [change]（全局坐标 rootX/rootY），
  * Up 时回调最后一次并自动结束捕获。
+ *
+ * 捕获生命周期与宿主 [StateHolder] 绑定：宿主销毁（如列表删除行）时
+ * 自动释放捕获，死节点不会再收到拖拽回调。
  */
 fun StateHolder<*, *>.drag(down: PointerEvent, change: (e: PointerEvent) -> Unit): PointerCapture {
     val g = consume(engineGlobalContext)!!
-    return g.capturePointer(
+    val capture = g.capturePointer(
         id = down.id,
         onMove = change,
         onUp = change
     )
+    addDestroy { capture.release() }
+    return capture
 }

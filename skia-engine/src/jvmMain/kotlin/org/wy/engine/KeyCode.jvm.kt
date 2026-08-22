@@ -12,6 +12,8 @@ actual enum class KeyCode(val awtCode: Int) {
     Enter(java.awt.event.KeyEvent.VK_ENTER),
     Tab(java.awt.event.KeyEvent.VK_TAB),
     Escape(java.awt.event.KeyEvent.VK_ESCAPE),
+    PageUp(java.awt.event.KeyEvent.VK_PAGE_UP),
+    PageDown(java.awt.event.KeyEvent.VK_PAGE_DOWN),
     Unknown(-1);
 
     companion object {
