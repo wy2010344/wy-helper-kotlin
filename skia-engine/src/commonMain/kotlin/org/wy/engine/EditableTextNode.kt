@@ -34,7 +34,16 @@ open class EditableTextNode(
 
     /**
      * 本地光标对：活跃编辑器的选区真相源，SelectionManager 派生时直接读取。
-     * anchor/focus 均已初始化（>= 0）才有效；塌缩即清除其他节点的跨节点选区。
+     *
+     * SelectionManager 需要区分"非塌缩（真选区）"与"塌缩（光标待命态）"两种状态：
+     *   - 非塌缩：用户正在编辑器里做选择（键盘扩选 / 双击选词 / selectRange），
+     *     优先级应高于"已定格的指针选区"和"旧 programmatic 选区"；
+     *   - 塌缩：编辑器只是待命，光标已定位，但没有选中文本。
+     *     优先级应**低于**"已定格的指针选区"（否则用户拖选释放后，只要焦点
+     *     在编辑器上，选区就消失——Bug 1），但仍**高于** programmatic 选区
+     *     （保证编辑器的编辑动作能吸收跨节点全选）。
+     *
+     * 具体优先级链见 SelectionManager.currentPair。
      */
     internal val cursorSelPair: SelPair?
         get() {
@@ -654,6 +663,11 @@ open class EditableTextNode(
     override fun onPointerDownCapture(e: PointerEvent) {
         super.onPointerDownCapture(e)
         preferredX = Float.NaN
+        // 若当前已存在给本编辑器分配的非塌缩选区，说明是"双击/三击等路径先由引擎
+        // 调用 select() 写入了本地选区"，此时再 setCursor(collapsed) 会覆盖掉选词/
+        // 选段结果，因此直接跳过（光标位置由 SelectionManager 的焦点端决定）。
+        val existing = assignedRange
+        if (existing != null && existing.second > existing.first) return
         // 点击定位光标，并塌缩全局会话清除其他节点选区
         // （拖拽中的选区由 SelectionManager 按指针信号接管，与本地光标互不干扰）
         val p = paragraph ?: return

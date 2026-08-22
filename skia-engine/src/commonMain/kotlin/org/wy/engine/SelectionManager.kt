@@ -154,16 +154,27 @@ class SelectionManager(
     /**
      * 当前生效端点对。优先级从高到低（后者被前者自动压制，无需失效命令）：
      * 1. 按住中的指针会话 —— 编辑器内拖拽同样由此驱动；
-     * 2. 活跃编辑器的本地光标 —— 键盘选择 / 点击定位的真相源；
+     * 2. 活跃编辑器的**非塌缩**本地光标 —— 键盘扩选 / 双击选词 / selectRange 等显式选择；
      * 3. 已定格的指针会话 —— 松手后保留，hover 不影响；
-     * 4. 程序化会话 —— Cmd+A 等，任何交互发生即让位。
+     * 4. 活跃编辑器的**塌缩**本地光标 —— 编辑器待命、光标位已确定，但无选中；
+     *    仅压制 programmatic（保证编辑器接管跨节点全选），不压制定格指针（避免
+     *    编辑器聚焦导致拖选→释放后的选区消失）。
+     * 5. 程序化会话 —— Cmd+A 等，任何交互发生即让位。
      */
     private val currentPair: SelPair?
         get() {
             val s = g?.pointerSelect
+            // #1 按住中：实时跟随 moveHit
             if (s != null && s.release == null) return pointerPair(s)
-            g?.activeEditor?.cursorSelPair?.let { return it }
+            // #2 非塌缩光标：用户正在编辑器里显式选择（高于定格指针，显式选择优先）
+            val cursorPair = g?.activeEditor?.cursorSelPair
+            val cursorExpanded = cursorPair?.takeIf { it.anchor.offset != it.focus.offset }
+            if (cursorExpanded != null) return cursorExpanded
+            // #3 定格指针：拖选释放后的保留选区（高于塌缩光标，不被编辑器待命态压制）
             if (s != null) return pointerPair(s)
+            // #4 塌缩光标：编辑器已聚焦但无选中（仅压制 #5 programmatic）
+            if (cursorPair != null) return cursorPair
+            // #5 programmatic（全选 / 代码发起的 select）
             return programmatic
         }
 
