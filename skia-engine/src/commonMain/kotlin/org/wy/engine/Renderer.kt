@@ -217,11 +217,10 @@ open class Renderer private constructor(
 
     private val clicks = ClickTracker()
 
-    /** 双击后的按住拖拽会话：以双击词为锚，移动端点按词粒度扩展。 */
+    /** 双击后的按住拖拽会话：以双击词为锚，移动端点按词粒度扩展。
+     *  会话存活本身即蕴含"指针按住中"——它在 mouseDown 时建立、mouseUp / mouseExit
+     *  时销毁，无需独立的按压布尔来重复跟踪该生命周期。 */
     private var wordDragSession: WordDragSession? = null
-
-    /** 指针是否按下中（双击 / 三击路径不开 pointerSelect 会话，需独立跟踪）。 */
-    private var pointerDown = false
 
     private class WordDragSession(
         val sel: Selectable,
@@ -239,7 +238,6 @@ open class Renderer private constructor(
             val leaf = hit.chain.lastOrNull()?.node
             // 连击判定：同一可选节点、400ms 内、位移极小（双击 → 三击递增，否则重置单击）
             val clickCount = clicks.recordDown(leaf, x, y, now)
-            pointerDown = true
             wordDragSession = null
 
             // 平台惯例：按下落在活跃编辑器之外时，其本地显式选区立即塌缩让位——
@@ -303,8 +301,7 @@ open class Renderer private constructor(
 
     fun mouseUp(x: Float, y: Float, device: PointerDevice = PointerDevice.Mouse) {
         try {
-            // 松手：词拖扩展会话随按住状态一起结束（选区保持最后一次扩展结果）
-            pointerDown = false
+            // 松手：词拖扩展会话结束（选区保持最后一次扩展结果）
             wordDragSession = null
             // 按压态先快照并立即清除（Up 之后按住结束），供下方 click 判定使用
             val down = register.pointerDownHit
@@ -368,7 +365,7 @@ open class Renderer private constructor(
             register.moveHitTest = hit
             // 双击后按住拖动：以锚词为基准按词粒度扩展选区（仅同节点内生效）
             val drag = wordDragSession
-            if (drag != null && pointerDown && hit.chain.any { it.node === drag.sel }) {
+            if (drag != null && hit.chain.any { it.node === drag.sel }) {
                 val off = drag.sel.positionForPoint(x, y)
                 val (a, b) = expandWordSelection(drag.anchorStart, drag.anchorEnd, off) {
                     drag.sel.wordRangeAt(it)
