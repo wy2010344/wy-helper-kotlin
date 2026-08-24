@@ -50,7 +50,7 @@ fun main() {
                             val target = if (barWidth.getTarget() > 240f) 140f else 340f
                             barWidth.animateTo(
                                 target,
-                                spring(SpringAnimationArg(config = SpringBaseArg(omega0 = 10f, zta = 0.5f))),
+                                spring(SpringAnimationArg(config = SpringBaseArg(omega0 = 10f, zeta = 0.5f))),
                             )
                         }
 

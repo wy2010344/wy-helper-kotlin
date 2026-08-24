@@ -3,9 +3,12 @@ package org.wy.engine.animation
 /**
  * 帧源抽象：由平台提供节拍（desktop≈16ms EDT 节拍 / android=Choreographer vsync）。
  *
+ * 线程约束：所有方法必须在 UI 线程调用（与引擎渲染/事件同线程）。
+ *
  * 契约（移植自 TS createSubscribeRequestAnimationFrame）：
  * - [callback] 仅以 diffTime > 0 调用（自订阅时刻起的毫秒数），且不会在
  *   subscribe 的调用栈内同步触发，因此订阅方可以先登记再订阅；
+ * - callback 抛异常视为打断：帧链终止并回调 onFinish(false)；
  * - callback 返回 true = 动画自然结束 → onFinish(true)；
  * - [FrameSubscription.cancel] = 外部取消 → onFinish(false)；
  * - onFinish 至多回调一次。
@@ -49,9 +52,21 @@ internal fun loopFrameSource(): FrameSource = object : FrameSource {
         tick = { nowMs ->
             if (!canceled && !finished) {
                 val diff = (nowMs - start).toFloat()
-                if (diff > 0f && callback(diff)) {
+                // 用户回调异常不得产生僵尸动画：视为打断，
+                // 帧链终止且 onFinish(false) 必达，Deferred/onAnimation 状态正常收尾
+                var ok = true
+                val stop = if (diff <= 0f) false else {
+                    try {
+                        callback(diff)
+                    } catch (err: Throwable) {
+                        ok = false
+                        println("animation frame error--$err")
+                        true
+                    }
+                }
+                if (stop) {
                     finished = true
-                    onFinish(true)
+                    onFinish(ok)
                 } else {
                     scheduleAnimFrame(tick)
                 }

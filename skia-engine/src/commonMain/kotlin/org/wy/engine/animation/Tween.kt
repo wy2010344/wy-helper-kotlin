@@ -77,11 +77,13 @@ object EaseFns {
     }
 
     /**
-     * 可调振幅/频率的弹性缓动（简化自 tween.js）。
+     * 弹性缓动的 easeIn 形态（逐字对应 tween.js Elastic.easeIn）：
+     * 振荡幅度随进度增大，接近结尾时最猛。
+     * out 形态用 [easeOutFn] 包装：`easeOutFn(elasticIn())`。
      * @param a 振幅
      * @param p 频率（越小周期越多）
      */
-    fun elastic(a: Float = 1f, p: Float = 0.3f): EaseFn {
+    fun elasticIn(a: Float = 1f, p: Float = 0.3f): EaseFn {
         val (amplitude, s) = if (a < 1f) {
             1f to p / 4f
         } else {
@@ -115,17 +117,21 @@ fun easeOutInFn(easeIn: EaseFn): EaseFn = { t ->
 /**
  * 时长缓动动画工厂：tween(durationMs)(deltaX) 得到动画配置。
  * 进度 pc>=1 时精确落在目标值并自然结束。
+ * @param durationMs 必须为正数（负数会使进度恒为负、动画永不结束）
  * @param fn 缓动曲线，默认线性
  */
-fun tween(durationMs: Float, fn: EaseFn = EaseFns.linear): DeltaXAnimateConfig = { deltaX ->
-    animationTime { diffTime, setDisplacement ->
-        val pc = diffTime / durationMs
-        if (pc < 1f) {
-            setDisplacement(deltaX * fn(pc))
-            false
-        } else {
-            setDisplacement(deltaX)
-            true
+fun tween(durationMs: Float, fn: EaseFn = EaseFns.linear): DeltaXAnimateConfig {
+    require(durationMs > 0f) { "tween durationMs 必须为正数，实际 $durationMs" }
+    return { deltaX ->
+        animationTime { diffTime, setDisplacement ->
+            val pc = diffTime / durationMs
+            if (pc < 1f) {
+                setDisplacement(deltaX * fn(pc))
+                false
+            } else {
+                setDisplacement(deltaX)
+                true
+            }
         }
     }
 }

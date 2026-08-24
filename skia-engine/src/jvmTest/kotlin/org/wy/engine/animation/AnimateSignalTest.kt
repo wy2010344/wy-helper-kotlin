@@ -5,6 +5,7 @@ import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
@@ -19,14 +20,20 @@ private class FakeFrameSource : FrameSource {
         var canceled = false
         var finished = false
 
-        fun fire(diff: Float): Boolean {
-            if (canceled || finished) return false
-            if (callback(diff)) {
+        fun fire(diff: Float) {
+            if (canceled || finished) return
+            // 与 loopFrameSource 契约一致：回调异常视为打断
+            val stop = try {
+                callback(diff)
+            } catch (err: Throwable) {
+                finished = true
+                onFinish(false)
+                return
+            }
+            if (stop) {
                 finished = true
                 onFinish(true)
-                return true
             }
-            return false
         }
     }
 
@@ -90,13 +97,19 @@ class AnimateSignalTest {
         assertEquals(50f, a.value, "线性 ease 在半程应为半位移")
     }
 
+    @Test
+    fun tweenRejectsNonPositiveDuration() {
+        assertFailsWith<IllegalArgumentException> { tween(0f) }
+        assertFailsWith<IllegalArgumentException> { tween(-100f) }
+    }
+
     // ---------- spring：物理弹簧收敛 ----------
 
     @Test
     fun springConvergesWithinThreshold() {
         val frames = FakeFrameSource()
         val a = AnimateSignal(0f, frames)
-        a.animateTo(200f, spring(SpringAnimationArg(config = SpringBaseArg(omega0 = 20f, zta = 1f))))
+        a.animateTo(200f, spring(SpringAnimationArg(config = SpringBaseArg(omega0 = 20f, zeta = 1f))))
         frames.pump(2000f)
         assertTrue(abs(a.value - 200f) < 0.5f, "弹簧应收敛到目标附近，实际 ${a.value}")
         assertFalse(a.onAnimation)
@@ -109,6 +122,70 @@ class AnimateSignalTest {
         a.animateTo(80f, spring())
         frames.pump(1500f)
         assertEquals(80f, a.value, "停止判定后应精确落在目标值")
+    }
+
+    @Test
+    fun springNearUnityzetaStaysFiniteAndConverges() {
+        val frames = FakeFrameSource()
+        val a = AnimateSignal(0f, frames)
+        // ζ 极接近 1 时欠阻尼分支数值不稳，应归并入临界阻尼处理
+        a.animateTo(200f, spring(SpringAnimationArg(config = SpringBaseArg(omega0 = 20f, zeta = 0.99995f))))
+        frames.pump(3000f)
+        assertTrue(a.value.isFinite(), "数值不得发散")
+        assertEquals(200f, a.value, "snap 应保证精确落点")
+    }
+
+    // ---------- 帧回调异常兜底（僵尸动画） ----------
+
+    @Test
+    fun frameCallbackExceptionResolvesAsInterrupted() = runBlocking {
+        val frames = FakeFrameSource()
+        val a = AnimateSignal(0f, frames)
+        var calls = 0
+        val done = a.change(object : AnimateSignalConfig {
+            override fun create(out: SilentDiff): ((Float) -> Boolean)? = { _ ->
+                calls++
+                if (calls == 2) error("boom")
+                out.setDisplacement(10f)
+                false
+            }
+        })
+
+        frames.pump(100f)
+        assertFalse(a.onAnimation, "异常后必须退出动画态，不得卡死")
+        assertFalse(done.await(), "异常视为打断（回报 false），Deferred 必须完成")
+        assertEquals(10f, a.value, "第一帧已写入的值保留")
+
+        val frozen = a.value
+        frames.pump(100f)
+        assertEquals(frozen, a.value, "异常后帧链不得续期")
+    }
+
+    // ---------- 锁内 animateTo：先检查再产生副作用 ----------
+
+    @Test
+    fun animateToInsideFrameCallbackThrowsButSurvivesIfCaught() {
+        val frames = FakeFrameSource()
+        val a = AnimateSignal(0f, frames)
+        var caught: Throwable? = null
+        var n = 0
+        a.change(object : AnimateSignalConfig {
+            override fun create(out: SilentDiff): ((Float) -> Boolean)? = { _ ->
+                try {
+                    a.animateTo(50f)
+                } catch (t: Throwable) {
+                    caught = t
+                }
+                // setDisplacement 是绝对位移（相对基准），按帧数递增验证帧链仍在续期
+                n++
+                out.setDisplacement(n * 10f)
+                false
+            }
+        })
+        frames.pump(32f)
+        assertTrue(caught is IllegalStateException, "锁内启动新动画应抛异常")
+        assertTrue(a.onAnimation, "调用方捕获异常后当前动画应存活（副作用不得先行）")
+        assertEquals(20f, a.value, "存活动画的后续帧继续推进")
     }
 
     // ---------- 打断与直接写 ----------

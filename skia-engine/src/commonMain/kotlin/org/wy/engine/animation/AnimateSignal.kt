@@ -25,10 +25,10 @@ class SilentDiff internal constructor(
     private var initValue: Float = getCurrent()
 
     /** 当前动画位移量（相对基准） */
-    fun getDisplayment(): Float = getCurrent() - initValue
+    fun getDisplacement(): Float = getCurrent() - initValue
 
     /** 输出动画位移 */
-    fun setDisplayment(n: Float) {
+    fun setDisplacement(n: Float) {
         val nv = initValue + n
         valueSet(nv)
         onProcess?.invoke(nv)
@@ -64,7 +64,7 @@ fun interface AnimateSignalConfig {
 inline fun animationTime(
     crossinline frame: (diffTimeMs: Float, setDisplacement: (Float) -> Unit) -> Boolean,
 ): AnimateSignalConfig = AnimateSignalConfig { out ->
-    { diffTime -> frame(diffTime) { n -> out.setDisplayment(n) } }
+    { diffTime -> frame(diffTime) { n -> out.setDisplacement(n) } }
 }
 
 /** deltaX 配置工厂：tween(durationMs)/spring(...) 的产物类型 */
@@ -73,9 +73,12 @@ typealias DeltaXAnimateConfig = (deltaX: Float) -> AnimateSignalConfig
 /**
  * 动画信号（移植自 TS AnimateSignal）：把"值随时间平滑变化"表达为响应式信号。
  *
+ * 线程约束：非线程安全。必须在单一 UI 线程创建与操作（与引擎渲染/事件同线程），
+ * lock/lastCancel 等状态均无同步保护。
+ *
  * - 渲染/memo 中读取 [value] 即建立依赖，每帧写值自动触发重绘；
  * - 函数式动画：每帧由 diffTime 纯计算位移，可随时打断、无状态漂移；
- * - [animateTo] 返回 Deferred：true=自然完成，false=被打断。
+ * - [animateTo] 返回 Deferred：true=自然完成，false=被打断（含帧回调异常）。
  */
 class AnimateSignal private constructor(
     ref: OneSetStoreRef<Float>,
@@ -205,6 +208,8 @@ class AnimateSignal private constructor(
         config: DeltaXAnimateConfig = defaultSpringAnimationConfig,
         onProcess: ((Float) -> Unit)? = null,
     ): Deferred<Boolean> {
+        // 先检查锁再打断旧动画：锁内调用抛异常时，进行中的动画不受副作用影响
+        check(!lock) { "禁止在此时修改" }
         finish(false)
         val diff = n - value
         if (diff != 0f) return change(config(diff), onProcess, n)
