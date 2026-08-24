@@ -3,6 +3,7 @@ package org.wy.engine.animation
 import android.os.Handler
 import android.os.Looper
 import android.view.Choreographer
+import org.wy.engine.engineLogError
 
 internal actual fun animNowMs(): Long = android.os.SystemClock.uptimeMillis()
 
@@ -19,11 +20,11 @@ internal actual fun scheduleAnimFrame(callback: (nowMs: Long) -> Unit) {
                 try {
                     callback(animNowMs())
                 } catch (err: Throwable) {
-                    println("frame callback error--$err")
+                    engineLogError("frame callback error", err)
                 }
             }
         } catch (err: Throwable) {
-            println("schedule frame error--$err")
+            engineLogError("schedule frame error", err)
         }
     }
 }

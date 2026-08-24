@@ -138,7 +138,7 @@ open class Renderer private constructor(
             }
             register.drainPostRenderEffects()
         } catch (err: Throwable) {
-            println("render error--$err")
+            engineLogError("render error", err)
         }
         scheduled = false
     }
@@ -191,9 +191,8 @@ open class Renderer private constructor(
      * 连击跟踪：记录"上一次按下"快照（目标 / 位置 / 时刻），判定同目标、时间窗内、
      * 近距再次按下即递增计数（单击 → 双击 → 三击）。
      *
-     * 不能用 [EngineGlobal.pressed] 替代：pressed 是"当下按住"的派生信号
-     * （来自 pointerSelect 会话，双击/三击路径刻意不开会话时恒为 null），
-     * 而连击判定需要离散的历史按下记录。
+     * 不能用 [EngineGlobal.pressed] 替代：pressed 是"当下按住"的实时状态
+     * （Up 即清除），而连击判定需要离散的历史按下记录。
      */
     private class ClickTracker {
         var node: Selectable? = null
@@ -235,12 +234,20 @@ open class Renderer private constructor(
             val hit = hitTestResult(x, y, device)
             // 让 moveHitest 始终反映最近的指针位置（含按下瞬间）
             register.moveHitTest = hit
+            register.pointerDownHit = hit
             val now = System.currentTimeMillis()
             val leaf = hit.chain.lastOrNull()?.node
             // 连击判定：同一可选节点、400ms 内、位移极小（双击 → 三击递增，否则重置单击）
             val clickCount = clicks.recordDown(leaf, x, y, now)
             pointerDown = true
             wordDragSession = null
+
+            // 平台惯例：按下落在活跃编辑器之外时，其本地显式选区立即塌缩让位——
+            // 否则旧的非塌缩选区会在选区派生（#2 优先级）中遮蔽随后的拖选 / 选词结果。
+            val ed = register.activeEditor
+            if (ed != null && hit.chain.none { it.node === ed }) {
+                ed.collapseExternalSelection()
+            }
 
             if (clickCount >= 3) {
                 // 三击选段：一次性物化整个逻辑段落（'\n' 分隔），不开拖拽会话。
@@ -290,7 +297,7 @@ open class Renderer private constructor(
             setFocused(hit.chain.lastOrNull()?.node)
             dispatchPointer(hit, PointerType.Down, x, y, device = device)
         } catch (e: Throwable) {
-            println("mouseDown error--$e")
+            engineLogError("mouseDown error", e)
         }
     }
 
@@ -299,8 +306,9 @@ open class Renderer private constructor(
             // 松手：词拖扩展会话随按住状态一起结束（选区保持最后一次扩展结果）
             pointerDown = false
             wordDragSession = null
-            // 按压态（release 未填）先快照，供下方 click 判定使用
-            val down = register.pressed
+            // 按压态先快照并立即清除（Up 之后按住结束），供下方 click 判定使用
+            val down = register.pointerDownHit
+            register.pointerDownHit = null
             val hit = hitTestResult(x, y, device)
             register.moveHitTest = hit
             // 松手定格：填入 release 后 hover 不再影响选区（纯数据变化，无命令）
@@ -334,7 +342,7 @@ open class Renderer private constructor(
             }
             // 注意：修饰键反映真实键盘状态，松开鼠标不清空
         } catch (e: Throwable) {
-            println("mouseUp error--$e")
+            engineLogError("mouseUp error", e)
         }
     }
 
@@ -371,7 +379,7 @@ open class Renderer private constructor(
             }
             dispatchPointer(hit, PointerType.Move, x, y, device = device)
         } catch (e: Throwable) {
-            println("mouseMove error--$e")
+            engineLogError("mouseMove error", e)
         }
     }
 
@@ -383,6 +391,8 @@ open class Renderer private constructor(
         }
         // 词拖扩展同理结束（已物化的选区原样保留）
         wordDragSession = null
+        // 按住拖出窗口：按压态与会话一同定格（与旧派生语义保持一致）
+        register.pointerDownHit = null
         register.moveHitTest = null
     }
 
@@ -391,7 +401,7 @@ open class Renderer private constructor(
             val hit = hitTestResult(x, y)
             dispatchPointer(hit, PointerType.Wheel, x, y, wheelDelta = delta)
         } catch (e: Throwable) {
-            println("mouseWheel error--$e")
+            engineLogError("mouseWheel error", e)
         }
     }
 
@@ -406,9 +416,10 @@ open class Renderer private constructor(
         try {
             val e = KeyEvent(key, code, ctrl, shift, alt, meta)
 
-            // 检查是否是全局选择快捷键（Cmd+A/C/X/V）
+            // 检查是否是全局选择快捷键（Cmd+A/C/X/V）；
+            // 大小写归一：CapsLock 开启时平台上报大写字符
             if (ctrl && !shift && !alt && !meta) {
-                when (key) {
+                when (key.lowercaseChar()) {
                     'a' -> {
                         register.selectionManager.selectAll()
                         return
@@ -450,7 +461,7 @@ open class Renderer private constructor(
                 register.dispatchKeyPress(e)
             }
         } catch (e: Throwable) {
-            println("keyboard error--$e")
+            engineLogError("keyboard error", e)
         }
     }
 
@@ -463,7 +474,7 @@ open class Renderer private constructor(
                 register.dispatchComposingText(text, cursorPosition)
             }
         } catch (e: Throwable) {
-            println("IME error--$e")
+            engineLogError("IME error", e)
         }
     }
 
@@ -476,7 +487,7 @@ open class Renderer private constructor(
         try {
             register.applyModifiers(ctrl, shift, alt, meta)
         } catch (e: Throwable) {
-            println("keyboard error--$e")
+            engineLogError("keyboard error", e)
         }
     }
 

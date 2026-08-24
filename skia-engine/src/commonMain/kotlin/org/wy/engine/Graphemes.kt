@@ -27,6 +27,11 @@ object Graphemes {
         0x10000 + ((hi.code - 0xD800) shl 10) + (lo.code - 0xDC00)
     private fun isRegionalIndicator(v: Int) = v in 0x1F1E6..0x1F1FF
 
+    /** Emoji 肤色修饰符（U+1F3FB..U+1F3FF，代理对形态）：依附于前一个 emoji 核心。 */
+    private fun isEmojiModifier(v: Int) = v in 0x1F3FB..0x1F3FF
+    private fun isEmojiModifierPair(hi: Char, lo: Char): Boolean =
+        isHigh(hi) && isLow(lo) && isEmojiModifier(cp(hi, lo))
+
     /** 组合标记（Mn/Me 及常见 Mc 区段）：附加到前簇。 */
     private fun isCombining(c: Char) =
         c in '\u0300'..'\u036F' ||   // 拉丁/希腊/西里尔组合附加符号
@@ -76,13 +81,14 @@ object Graphemes {
                 isVariationSelector(c) || isCombining(c) || c == ZWJ -> i++
                 isHigh(c) -> {
                     if (i + 1 >= n || !isLow(text[i + 1])) break
-                    if (isRegionalIndicator(cp(c, text[i + 1]))) {
-                        // RI 两两配对（UAX29 GB12/13）：待配对则并入，已成对则另起一簇
-                        if (riCount % 2 == 1) { riCount++; i += 2 } else break
-                    } else if (text[i - 1] == ZWJ) {
-                        i += 2                             // 仅当 ZWJ 连接时并入 emoji 核心（👨‍👩‍👧‍👦）
-                    } else {
-                        break                              // 相邻的普通 emoji 另起一簇
+                    when {
+                        // 肤色修饰符依附前簇（👋🏽），无论是否经 ZWJ 连接
+                        isEmojiModifierPair(c, text[i + 1]) -> i += 2
+                        isRegionalIndicator(cp(c, text[i + 1])) ->
+                            // RI 两两配对（UAX29 GB12/13）：待配对则并入，已成对则另起一簇
+                            if (riCount % 2 == 1) { riCount++; i += 2 } else break
+                        text[i - 1] == ZWJ -> i += 2       // 仅当 ZWJ 连接时并入 emoji 核心（👨‍👩‍👧‍👦）
+                        else -> break                      // 相邻的普通 emoji 另起一簇
                     }
                 }
                 else -> break                              // 普通字符另起一簇
@@ -94,17 +100,24 @@ object Graphemes {
     /** [index] 前一个簇边界；[index] <= 0 时返回 0。约定调用方传入合法索引。 */
     fun prevBoundary(text: String, index: Int): Int {
         if (index <= 0) return 0
+        val n = text.length
         var j = index - 1
         // CRLF 整体回退
         if (text[j] == '\n' && j > 0 && text[j - 1] == '\r') return j - 1
-        // 从 index-1 向前逐格判定，三种情况继续回退：
+        // 从 index-1 向前逐格判定，以下情况继续回退：
         // ① j 在代理对低半 → 回到对首；② j 自身是依附字符（Extend/VS/ZWJ）；
-        // ③ j 是被 ZWJ 连接的核心（其前恰为 ZWJ）→ ZWJ 链整体一簇（👨‍👩‍👧‍👦）。
+        // ③ j 是被 ZWJ 连接的核心（其前恰为 ZWJ）→ ZWJ 链整体一簇（👨‍👩‍👧‍👦）；
+        // ④ j 是肤色修饰符对的高位 → 整对依附前簇（👋🏽）；
+        // ⑤ j 是普通 emoji 对的高位、且其后紧跟肤色修饰符对 → 基础+肤色不可拆。
         while (j > 0) {
             val back = when {
                 isLow(text[j]) && isHigh(text[j - 1]) -> true
                 isAttach(text[j]) -> true
                 isHigh(text[j]) && text[j - 1] == ZWJ -> true
+                j + 1 < n && isEmojiModifierPair(text[j], text[j + 1]) -> true
+                isHigh(text[j]) && j + 3 < n &&
+                    isLow(text[j + 1]) &&
+                    isEmojiModifierPair(text[j + 2], text[j + 3]) -> true
                 else -> false
             }
             if (!back) break

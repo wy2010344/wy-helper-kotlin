@@ -1,5 +1,7 @@
 package org.wy.engine.animation
 
+import org.wy.engine.engineLogError
+
 /**
  * 帧源抽象：由平台提供节拍（desktop≈16ms EDT 节拍 / android=Choreographer vsync）。
  *
@@ -60,7 +62,7 @@ internal fun loopFrameSource(): FrameSource = object : FrameSource {
                         callback(diff)
                     } catch (err: Throwable) {
                         ok = false
-                        println("animation frame error--$err")
+                        engineLogError("animation frame error", err)
                         true
                     }
                 }

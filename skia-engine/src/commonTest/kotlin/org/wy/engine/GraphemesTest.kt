@@ -92,6 +92,38 @@ class GraphemesTest {
     }
 
     @Test
+    fun skinToneModifierStaysWithBase() {
+        // 基础 emoji + 肤色修饰符（U+1F3FB..1F3FF）：修饰符依附前簇，整体一簇
+        val waveTone = "\uD83D\uDE4B\uD83C\uDFFC"
+        assertEquals(4, waveTone.length)
+        assertEquals(listOf(4), boundaries(waveTone))
+        assertEquals(1, Graphemes.clusterCount(waveTone))
+
+        // 相邻两个 emoji：带肤色的与不带的各自成簇
+        assertEquals(listOf(4, 6), boundaries(waveTone + "\uD83D\uDE4B"))
+    }
+
+    @Test
+    fun skinToneInsideZwjSequenceIsOneCluster() {
+        // 👨🏽‍🦰 = 男(D83D DC68) + 肤色(D83C DFFD) + ZWJ + 红发(D83E DDB0)，一簇
+        val seq = "\uD83D\uDC68\uD83C\uDFFD\u200D\uD83E\uDDB0"
+        assertEquals(7, seq.length)
+        assertEquals(listOf(7), boundaries(seq))
+    }
+
+    @Test
+    fun prevBoundaryHandlesSkinTone() {
+        // a + 肤色修饰符：一簇三单元
+        assertEquals(listOf(3), boundaries("a\uD83C\uDFFC"))
+        // emoji+肤色 簇的起点回退到 0
+        assertEquals(
+            0,
+            Graphemes.prevBoundary("\uD83D\uDE4B\uD83C\uDFFC!", 4),
+            "肤色簇应整体回退到基础 emoji 起点"
+        )
+    }
+
+    @Test
     fun prevBoundaryRoundTripsThroughNext() {
         val samples = listOf(
             "hello",
@@ -99,7 +131,9 @@ class GraphemesTest {
             "\uD83D\uDC68\u200D\uD83D\uDC69x",
             "e\u0301f\r\ng",
             "\uD83C\uDDE8\uD83C\uDDF3!",
-            "☀\uFE0Fok"
+            "☀\uFE0Fok",
+            "\uD83D\uDE4B\uD83C\uDFFCok",
+            "a\uD83C\uDFFCb"
         )
         for (text in samples) {
             assertEquals(0, Graphemes.prevBoundary(text, 0))

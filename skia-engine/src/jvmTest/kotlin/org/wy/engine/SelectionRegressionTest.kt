@@ -203,6 +203,50 @@ class SelectionRegressionTest {
         assertEquals("Hello", env.m.selectedText)
     }
 
+    // ===== 回归：外部按下塌缩编辑器旧选区，拖选 / 选词不被遮蔽 =====
+    //
+    // 根因：currentPair 的 #2（活跃编辑器非塌缩光标）高于 #3（定格指针会话）。
+    // 若编辑器持有扩展选区后指针在别处完成一次拖选，旧派生链会让编辑器旧选区
+    // 遮蔽新拖选结果（rangeOf(plain) 为 null）。修复：mouseDown 在建立会话前，
+    // 按下落点不在活跃编辑器内时先调用 collapseExternalSelection() 塌缩其选区
+    // （平台惯例"外部按下即让位"）。下面按生产等价步骤驱动。
+    @Test
+    fun externalPressCollapsesEditorSelectionSoFrozenDragWins() {
+        val env = Env().also { it.build() }
+        env.g.focused = env.editor
+        env.editor.selectAll() // 编辑器内非塌缩选区
+        assertEquals(env.editor.text, env.m.selectedText)
+
+        // 拖选 plain [0,3)：按下瞬间 mouseDown 先塌缩外部编辑器选区
+        env.g.pointerSelect = PointerSelect(env.hit(env.plain, 0f), null)
+        env.editor.collapseExternalSelection()
+        env.g.moveHitTest = env.hit(env.plain, 3f)
+        assertEquals("Foo", env.m.selectedText, "拖选中应即时生效")
+
+        // 定格释放后不被任何残留选区压制
+        env.g.pointerSelect = PointerSelect(env.hit(env.plain, 0f), env.hit(env.plain, 3f))
+        assertEquals(0 to 3, env.m.rangeOf(env.plain), "定格拖选应胜过旧编辑器扩展选区")
+        assertEquals("Foo", env.m.selectedText)
+    }
+
+    // ===== 回归：双击普通文本选词同样不被旧编辑器选区遮蔽 =====
+    //
+    // 双击路径不开 pointerSelect 会话；若编辑器旧的非塌缩选区未被塌缩，
+    // #2 会压制刚物化的词选区。mouseDown 现在会在双击分支前统一塌缩。
+    @Test
+    fun externalPressCollapsesEditorSelectionBeforeDoubleClickWordPick() {
+        val env = Env().also { it.build() }
+        env.g.focused = env.editor
+        env.editor.selectAll()
+
+        // 双击 plain 中 "bar"（生产等价：先塌缩，再 setFocused(leaf)，最后物化词选区）
+        env.editor.collapseExternalSelection()
+        env.g.focused = env.plain
+        assertTrue(env.m.select(env.plain, 4, env.plain, 7))
+
+        assertEquals("bar", env.m.selectedText, "词选区不应被旧编辑器选区遮蔽")
+    }
+
     // ===== 回归：编辑器本地键盘非塌缩扩选仍优先 =====
     @Test
     fun keyboardExtendedSelectionStillTakesPrecedence() {

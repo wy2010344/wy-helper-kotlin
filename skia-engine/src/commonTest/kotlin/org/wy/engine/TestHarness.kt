@@ -144,6 +144,7 @@ class TestEngineGlobal : EngineGlobal {
     }
 
     override var pointerSelect: PointerSelect? by createSignal(null)
+    override var pointerDownHit: HitestResult? by createSignal(null)
     override var moveHitTest: HitestResult? by createSignal(null)
     override var ctrl: Boolean by createSignal(false)
     override var shift: Boolean by createSignal(false)

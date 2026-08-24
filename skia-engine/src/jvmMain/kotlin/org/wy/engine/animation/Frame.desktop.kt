@@ -1,5 +1,6 @@
 package org.wy.engine.animation
 
+import org.wy.engine.engineLogError
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import javax.swing.SwingUtilities
@@ -20,7 +21,7 @@ internal actual fun scheduleAnimFrame(callback: (nowMs: Long) -> Unit) {
             try {
                 callback(animNowMs())
             } catch (err: Throwable) {
-                println("frame callback error--$err")
+                engineLogError("frame callback error", err)
             }
         }
     }, 16, TimeUnit.MILLISECONDS)

@@ -229,8 +229,20 @@ open class EditableTextNode(
     }
 
     fun redo() {
+        if (inComposing) return
         val current = TextState(text, cursor())
         undoRedo.redo(current)?.let { applyState(it) }
+    }
+
+    /**
+     * 塌缩本地显式选区（由引擎在指针按下落点不在本编辑器时调用）。
+     * 平台惯例：外部按下即让位——否则旧的非塌缩选区会在选区派生中
+     * 遮蔽随后的拖选 / 双击选词结果。光标锚点保持不动，仅取消高亮范围。
+     */
+    fun collapseExternalSelection() {
+        if (anchorIndex >= 0 && focusIndex != anchorIndex) {
+            focusIndex = anchorIndex
+        }
     }
     fun insertText(inserted: String) {
         val textToInsert = if (singleLine) inserted.replace("\n", "").replace("\r", "") else inserted
@@ -516,9 +528,11 @@ open class EditableTextNode(
 
     override fun handleKey(e: KeyEvent): Boolean {
         absorbGlobalSelection()
+        // 快捷键匹配对大小写归一：CapsLock 开启或 Shift 参与时平台上报大写（'Z'/'Y'）
+        val key = e.key.lowercaseChar()
         when {
-            e.ctrl && !e.shift && e.key == 'z' -> { undo(); return true }
-            (e.ctrl && e.key == 'y') || (e.ctrl && e.shift && e.key == 'z') -> { redo(); return true }
+            e.ctrl && !e.shift && key == 'z' -> { undo(); return true }
+            (e.ctrl && key == 'y') || (e.ctrl && e.shift && key == 'z') -> { redo(); return true }
 
             e.code == KeyCode.Backspace -> {
                 if (e.ctrl || e.alt) deleteWordBackward() else backspace()

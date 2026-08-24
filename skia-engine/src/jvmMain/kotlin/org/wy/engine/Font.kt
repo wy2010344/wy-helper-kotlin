@@ -18,7 +18,7 @@ fun loadSystemFont(
 ): Typeface {
     val t = FontMgr.default.matchFamilyStyle(familyName, style)
     if (t != null) return t
-    println("Font not found: $familyName, fallback to default")
+    engineLogWarn("Font not found: $familyName, fallback to default")
     return FontMgr.default.matchFamilyStyle(null, style)!!
 }
 

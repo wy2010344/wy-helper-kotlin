@@ -70,7 +70,7 @@ class ButtonTest {
         assertEquals(0, btn.clickCount, "disabled 不应响应点击与键盘")
 
         g.moveHitTest = hit(btn)
-        g.pointerSelect = PointerSelect(hit(btn), null)
+        g.pointerDownHit = hit(btn)
         assertFalse(btn.isHovered(), "disabled 不应有 hover 状态")
         assertFalse(btn.isPressed(), "disabled 不应有 pressed 状态")
     }
@@ -96,10 +96,10 @@ class ButtonTest {
         g.moveHitTest = hit(btn)
         assertFalse(btn.isPressed())
 
-        g.pointerSelect = PointerSelect(hit(btn), null)
+        g.pointerDownHit = hit(btn)
         assertTrue(btn.isPressed(), "命中且按下时 pressed 置位")
 
-        g.pointerSelect = null
+        g.pointerDownHit = null
         assertFalse(btn.isPressed(), "松开后 pressed 复位")
     }
 }

@@ -106,11 +106,15 @@ interface EngineGlobal {
     var moveHitTest: HitestResult?
 
     /**
-     * 当前是否按住中：从 [pointerSelect] 派生（release 未填 = 按住），
-     * 供按压态视觉反馈等使用；非独立信号。
+     * 最近一次指针按下的命中链（响应式信号）。引擎在每次 Down 写入，
+     * Up / mouseExit 清空；与 [pointerSelect] 选区会话解耦——双击 / 三击
+     * 等刻意不开会话的按下同样驱动按压态与点击派发。
      */
+    var pointerDownHit: HitestResult?
+
+    /** 当前是否按住中：即 [pointerDownHit] 尚未被 Up / mouseExit 清除。供按压态视觉反馈等使用。 */
     val pressed: HitestResult?
-        get() = pointerSelect?.takeIf { it.release == null }?.press
+        get() = pointerDownHit
 
     /**
      * 修饰键实时状态（响应式信号，四个键独立可观察）。

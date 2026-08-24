@@ -74,6 +74,7 @@ internal class Register(context: StateHolder<*, *>?) : EngineGlobal {
     }
 
     override var pointerSelect by createSignal<PointerSelect?>(null)
+    override var pointerDownHit by createSignal<HitestResult?>(null)
     override var moveHitTest by createSignal<HitestResult?>(null)
     override var ctrl by createSignal(false)
     override var shift by createSignal(false)
