@@ -241,6 +241,9 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*
                         }
                         val committedCount = e.committedCharacterCount
                         if (committedCount > 0) {
+                            // 先结束组合态（移除预编辑窗口），再写入已确认文本——
+                            // 顺序颠倒会让最终文本落进即将被移除的窗口内
+                            this@SkiaApp.composingText("", 0)
                             val committed = if (iter != null) {
                                 val sb = StringBuilder()
                                 iter.setIndex(iter.beginIndex)
@@ -255,7 +258,6 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*
                             for (ch in committed) {
                                 this@SkiaApp.keyPress(ch, KeyCode.Unknown, false, false, false)
                             }
-                            this@SkiaApp.composingText("", 0)
                         } else {
                             this@SkiaApp.composingText(composingText, composingText.length)
                         }

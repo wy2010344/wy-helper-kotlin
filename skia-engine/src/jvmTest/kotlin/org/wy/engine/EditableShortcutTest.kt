@@ -20,24 +20,17 @@ class EditableShortcutTest {
         batchSignalEnd()
     }
 
-    /** 暴露受保护三段式组合入口的测试编辑器（生产由 IME 桥接驱动）。 */
-    private class TestEditor(context: StateHolderWithNode<Node, List<Node>>) : EditableTextNode(context) {
-        fun compose(committed: String, composing: String, cursorInComposing: Int) {
-            super.onComposing(committed, composing, cursorInComposing)
-        }
-    }
-
     /** 单编辑器环境：真渲染树挂一个编辑器。 */
     private class Env {
         lateinit var renderer: Renderer
-        lateinit var editor: TestEditor
+        lateinit var editor: EditableTextNode
 
         val g: EngineGlobal get() = renderer.engineGlobal
 
         init {
             renderer = object : Renderer(null) {
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    editor = TestEditor(this)
+                    editor = object : EditableTextNode(this) {}
                     editor.text = ""
                 }
             }
@@ -48,9 +41,9 @@ class EditableShortcutTest {
 
     // ===== 组合进行中 redo 必须被抑制（undo 已有同款守卫，redo 此前缺失） =====
     //
-    // 流程：插入 "Hello" → 撤销（redo 栈备好 "Hello"）→ 进入组合态（预编辑 "pin"）
+    // 流程：插入 "Hello" → 撤销（redo 栈备好 "Hello"）→ 进入组合态（预编辑 "pin" 上屏）
     //       → 触发 redo。
-    // 期望：组合中文本保持 "pin"；若守卫缺失，applyState 会把文本改写为 "Hello"，
+    // 期望：组合中文本保持预编辑态；若守卫缺失，applyState 会把文本整体改写，
     //       光标与组合区间全部错乱。
     @Test
     fun redoSuppressedDuringComposing() {
@@ -59,7 +52,7 @@ class EditableShortcutTest {
         env.editor.undo()
         assertEquals("", env.editor.text, "撤销后应为空文本")
 
-        env.editor.compose("", "pin", 3)
+        env.editor.onComposing("pin", 3)
         assertEquals("pin", env.editor.text, "组合文本应已上屏")
 
         env.editor.redo()

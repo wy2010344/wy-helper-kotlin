@@ -27,10 +27,25 @@ open class EditableTextNode(
         rawText = newValue
     }
 
-    /** 本地光标状态（编辑器私有）：anchor 即光标位置，键盘扩选时 focus 随之移动。
-     *  高亮绘制不读它们——选区真相由 SelectionManager 从 cursorSelPair 派生分配。 */
-    protected var anchorIndex by createSignal(-1)
-    protected var focusIndex by createSignal(-1)
+    // ---------- 本地光标 / 选区 ----------
+    //
+    // 唯一可变事实是 caretPair：(anchor, focus) 二元组；null = 光标未落位。
+    // 不变量由"单信号整体写入"保证——anchor 与 focus 永远同步更新，
+    // 不存在半新半旧的中间态。下方 anchorIndex / focusIndex 只读访问器
+    // 供既有逻辑按旧习惯读取。
+
+    /** 本地选区事实；(anchor, focus)，null = 未定位。 */
+    private var caretPair by createSignal<Pair<Int, Int>?>(null)
+
+    /** 锚点（按下端 / 保持端）；-1 = 未定位。 */
+    private val anchorIndex: Int get() = caretPair?.first ?: -1
+
+    /** 焦点（活动端 / 插入点）；-1 = 未定位。 */
+    private val focusIndex: Int get() = caretPair?.second ?: -1
+
+    /** 扩选起点：已定位用 anchor，否则塌缩为当前光标。 */
+    private val selAnchor: Int
+        get() = if (anchorIndex >= 0) anchorIndex else cursor()
 
     /**
      * 本地光标对：活跃编辑器的选区真相源，SelectionManager 派生时直接读取。
@@ -69,8 +84,7 @@ open class EditableTextNode(
     private fun absorbGlobalSelection() {
         if (anchorIndex >= 0 && focusIndex >= 0) return
         selectionManager?.rangeOf(this)?.let { (s, e) ->
-            anchorIndex = s
-            focusIndex = e
+            caretPair = s to e
         }
     }
 
@@ -97,11 +111,31 @@ open class EditableTextNode(
     /** 密码模式：每个字素簇显示为一个圆点，编辑仍作用于逻辑文本。 */
     var obscureText by createSignal(false)
 
-    private var composingStart by createSignal(0)
-    private var composingLength by createSignal(0)
-    private var compositionBase:Pair<Int,String>?=null
+    // ---------- 输入法组合态（预编辑上屏） ----------
+    //
+    // 可变事实只有三个：预编辑串、串内 IME 光标、组合基座（插入点 + 被替换原文）。
+    // 组合区间 / 组合中判定全部由事实即时派生，不维护独立的 start/len 计数。
+
+    /** 当前预编辑串（未确认部分）；空串 = 非组合态。 */
     internal var composingText by createSignal("")
+
+    /** 预编辑串内的 IME 光标偏移（overlay 定位参考）。 */
     internal var composingCursorPos by createSignal(0)
+
+    /** 组合基座：插入点 + 被窗口替换的原文（取消时还原）；null = 非组合态。 */
+    private var compositionBase: Pair<Int, String>? = null
+
+    /** 是否组合进行中（有未确认的预编辑串）。 */
+    private val inComposing: Boolean
+        get() = composingText.isNotEmpty()
+
+    /** 组合区间起点 = 基座插入点（派生）。 */
+    private val composingStart: Int
+        get() = (compositionBase?.first ?: cursor()).coerceIn(0, text.length)
+
+    /** 组合区间长度 = 预编辑串长度（派生）。 */
+    private val composingLength: Int
+        get() = composingText.length
 
     private val undoRedo = UndoRedo(maxHistorySize)
     val canUndo: Boolean get() = undoRedo.canUndo
@@ -211,16 +245,12 @@ open class EditableTextNode(
         return InputOverlayData(ox, oy, 1f, 1f, fontSize)
     }
 
-    private fun cursor(): Int = if (anchorIndex >= 0) anchorIndex.coerceIn(0, text.length) else 0
+    internal fun cursor(): Int = if (anchorIndex >= 0) anchorIndex.coerceIn(0, text.length) else 0
 
     private fun setCursor(idx: Int) {
         val c = idx.coerceIn(0, text.length)
-        anchorIndex = c
-        focusIndex = c
+        caretPair = c to c
     }
-
-    private val inComposing: Boolean
-        get() = composingLength > 0
 
     fun undo() {
         if(inComposing)return
@@ -241,7 +271,7 @@ open class EditableTextNode(
      */
     fun collapseExternalSelection() {
         if (anchorIndex >= 0 && focusIndex != anchorIndex) {
-            focusIndex = anchorIndex
+            caretPair = anchorIndex to anchorIndex
         }
     }
     fun insertText(inserted: String) {
@@ -345,8 +375,7 @@ open class EditableTextNode(
 
     /** 扩选到 [newPos]：anchor 保持（未初始化则取当前光标），focus 移动。 */
     private fun extendTo(newPos: Int) {
-        anchorIndex = if (anchorIndex >= 0) anchorIndex else cursor()
-        focusIndex = newPos.coerceIn(0, text.length)
+        caretPair = selAnchor to newPos.coerceIn(0, text.length)
     }
 
     private fun moveTo(newPos: Int, extend: Boolean) {
@@ -501,11 +530,10 @@ open class EditableTextNode(
         if (rects.isEmpty()) return
         val r = rects[0]
         if (preferredX.isNaN()) preferredX = r.left + r.width / 2f
-        val a = if (anchorIndex >= 0) anchorIndex else cursor()
+        val a = selAnchor
         val step = r.bottom - r.top
         val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.top - step)
-        anchorIndex = a
-        focusIndex = displayToLogicIndex(newPos)
+        caretPair = a to displayToLogicIndex(newPos)
     }
 
     fun selectDown() {
@@ -514,11 +542,10 @@ open class EditableTextNode(
         if (rects.isEmpty()) return
         val r = rects[0]
         if (preferredX.isNaN()) preferredX = r.left + r.width / 2f
-        val a = if (anchorIndex >= 0) anchorIndex else cursor()
+        val a = selAnchor
         val step = r.bottom - r.top
         val newPos = p.getGlyphPositionAtCoordinate(preferredX, r.bottom + step)
-        anchorIndex = a
-        focusIndex = displayToLogicIndex(newPos)
+        caretPair = a to displayToLogicIndex(newPos)
     }
 
     private fun applyState(state: TextState) {
@@ -592,7 +619,7 @@ open class EditableTextNode(
             e.key.code < 0x20 || e.key.code == 0x7F -> return false
             else -> {
                 preferredX = Float.NaN
-                composingText = ""
+                endComposition(restore = false) // 裸字符键放行时放弃进行中的组合
                 insertText(e.key.toString())
                 return true
             }
@@ -616,35 +643,86 @@ open class EditableTextNode(
         val t = clipboardGetText() ?: return
         if (t.isEmpty()) return
         preferredX = Float.NaN
-        composingText = ""
+        endComposition(restore = false)
         insertText(t)
     }
 
+    /**
+     * 平台上报组合文本（完整预编辑串；空串 = 本次组合结束）。
+     *
+     * 预编辑以"窗口替换"写入逻辑文本：
+     * - 首帧在基座（当前光标 / 本地选区）处插入，被其替换的原文记入 [compositionBase]；
+     * - 后续帧整体替换上一帧预编辑窗口，不追加、不残留；
+     * - 空串上报（提交完成）仅移除窗口——已确认文本由平台经常规插入路径另行写入。
+     */
     override fun onComposing(text: String, cursorPosition: Int) {
+        if (text.isEmpty()) {
+            endComposition(restore = false)
+            return
+        }
+        absorbGlobalSelection()
+        val cur = this.text
+        val (start, winLen) = compositionBase?.let { it.first to composingText.length }
+            ?: run {
+                val (s, e) = if (localHasSel) localSelStart to localSelEnd else {
+                    val c = cursor().coerceIn(0, cur.length)
+                    c to c
+                }
+                compositionBase = s to cur.substring(s, e)
+                s to (e - s)
+            }
+        val headEnd = start.coerceAtMost(cur.length)
+        val tailStart = (start + winLen).coerceAtMost(cur.length)
+        this.text = cur.substring(0, headEnd) + text + cur.substring(tailStart)
+        setCursor(start + text.length)
         composingText = text
-        composingCursorPos = cursorPosition
+        composingCursorPos = cursorPosition.coerceIn(0, text.length)
+    }
+
+    /**
+     * 结束组合态。[restore] 为 true 时还原被预编辑窗口替换的原文（取消语义），
+     * 否则仅移除窗口（正常提交）。非组合态下为无害空操作。
+     */
+    fun endComposition(restore: Boolean) {
+        val base = compositionBase
+        val winLen = composingLength
+        compositionBase = null
+        composingText = ""
+        composingCursorPos = 0
+        preferredX = Float.NaN
+        if (base == null && winLen == 0) return
+
+        val start = base?.first ?: cursor().coerceIn(0, text.length)
+        val restored = if (restore) (base?.second ?: "") else ""
+        val cur = text
+        if (start <= cur.length) {
+            val newText = cur.substring(0, start) + restored +
+                cur.substring((start + winLen).coerceAtMost(cur.length))
+            if (newText != cur) this.text = newText
+        }
+        // 还原/移除窗口后，光标一律回到基座插入点
+        setCursor(start)
     }
 
     fun selectLeft() {
-        val a = if (anchorIndex >= 0) anchorIndex else cursor()
+        val a = selAnchor
         val f = focusIndex.coerceIn(0, text.length)
         if (f > 0) {
-            anchorIndex = a; focusIndex = Graphemes.prevBoundary(text, f)
+            caretPair = a to Graphemes.prevBoundary(text, f)
         }
     }
 
     fun selectRight() {
-        val a = if (anchorIndex >= 0) anchorIndex else cursor()
+        val a = selAnchor
         val f = focusIndex.coerceIn(0, text.length)
         if (f < text.length) {
-            anchorIndex = a; focusIndex = Graphemes.nextBoundary(text, f)
+            caretPair = a to Graphemes.nextBoundary(text, f)
         }
     }
 
-    /** 编辑器内全选：写本地光标信号，全局派生自动跟随。 */
+    /** 编辑器内全选：整体写入本地光标信号，全局派生自动跟随。 */
     fun selectAll() {
-        anchorIndex = 0
-        focusIndex = text.length
+        caretPair = 0 to text.length
     }
 
     // 以下查询面向逻辑文本（占位 / 掩码下与段落显示文本不同）
@@ -669,9 +747,7 @@ open class EditableTextNode(
 
     /** 编辑器内设置任意选区区间 [start, end)（编程式）：写本地光标信号，两端相等即光标定位。 */
     fun selectRange(start: Int, end: Int) {
-        val len = text.length
-        anchorIndex = start.coerceIn(0, len)
-        focusIndex = end.coerceIn(0, len)
+        caretPair = start.coerceIn(0, text.length) to end.coerceIn(0, text.length)
     }
 
     override fun onPointerDownCapture(e: PointerEvent) {
@@ -762,64 +838,6 @@ open class EditableTextNode(
         for (rect in p.getRectsForRange(s, e, RectStyle.TIGHT)) {
             canvas.fillRect(rect.left + px, rect.top + py, rect.width, rect.height, composingBackgroundColor)
             canvas.fillRect(rect.left + px, rect.bottom - 2f + py, rect.width, 2f, composingUnderlineColor)
-        }
-    }
-
-    fun cancelComposition() {
-        val start = composingStart
-        val len = composingLength
-        val base = compositionBase
-        if (base != null && len > 0) {
-            val restored = text.substring(0, start) + base.second + text.substring(start + len)
-            if (restored != text) text = restored
-            setCursor(base.first.coerceIn(0, restored.length))
-        }
-        composingStart = 0
-        composingLength = 0
-        compositionBase = null
-        composingText = ""
-        composingCursorPos = 0
-        preferredX = Float.NaN
-    }
-
-    fun commitComposition() {
-        composingStart = 0
-        composingLength = 0
-        compositionBase = null
-        composingText = ""
-        composingCursorPos = 0
-    }
-    protected open fun onComposing(committed: String,composing: String,cursorInComposing:Int){
-        if(committed.isEmpty() && composing.isEmpty()){
-            cancelComposition()
-            return
-        }
-        if(compositionBase==null){
-            absorbGlobalSelection()
-            val (start,oldLen)=when{
-                localHasSel -> localSelStart to (localSelEnd-localSelStart)
-                else -> cursor().coerceIn(0,text.length) to 0
-            }
-            compositionBase=start to text.substring(start,start+oldLen)
-            composingStart=start
-        }
-        val inserted=committed+composing
-        val start=composingStart
-        val oldLen=composingLength
-        if(inserted.isNotEmpty() || oldLen>0){
-            val newText=text.substring(0,start)+inserted+text.substring(start+oldLen)
-            if(newText!=text){
-                text=newText
-            }
-        }
-        composingStart=start+committed.length
-        composingLength=composing.length
-        val caret=composingStart+cursorInComposing.coerceIn(0,composing.length)
-        anchorIndex=caret
-        focusIndex=caret
-        preferredX= Float.NaN
-        if(composing.isEmpty()){
-            commitComposition()
         }
     }
 }
