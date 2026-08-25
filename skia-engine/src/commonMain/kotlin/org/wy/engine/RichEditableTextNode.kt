@@ -174,12 +174,12 @@ open class RichEditableTextNode(
         for ((end, style) in segmentList) {
             val e = min(end, t.length)
             if (e > prev) {
-                out.add(RichTextSpan(t.substring(prev, e), style ?: baseStyle))
+                out.add(RichTextSpan(t.substring(prev, e).replace("\t", "    "), style ?: baseStyle))
                 prev = e
                 if (prev >= t.length) break
             }
         }
-        if (prev < t.length) out.add(RichTextSpan(t.substring(prev), baseStyle))
+        if (prev < t.length) out.add(RichTextSpan(t.substring(prev).replace("\t", "    "), baseStyle))
         return out
     }
 }
