@@ -47,18 +47,8 @@ open class EditableTextNode(
     private val selAnchor: Int
         get() = if (anchorIndex >= 0) anchorIndex else cursor()
 
-    // ---------- 显示层 tab 展开 ----------
-    //
-    // SkParagraph 无 tabstop 实现：'\t' 字体字形缺失会整形为 notdef 方块，
-    // 行首尤其明显。策略：在文本进入段落前把 '\t' 替换为固定空格串，
-    // 同时双向索引映射计入展开宽度——保证光标定位、选区、组合区间
-    // 的像素坐标在展开空间中仍然正确。
-
-    /** 单个 tab 展开的等效空格数（固定 4）。 */
-    private val tabSpaces: String = "    "
-
-    /** 显示层 tab 展开：逐字符累加；掩码分支由 [displayText] 另行处理。 */
-    private fun String.expandTabs(): String = replace("\t", tabSpaces)
+    // ---------- 显示层 tab 层展开（TabRender 集中实现） ----------
+    // 显示文本：[displayText] 已做展开；索引映射复用 [TabRender] 共享逻辑。
 
     /**
      * 本地光标对：活跃编辑器的选区真相源，SelectionManager 派生时直接读取。
@@ -171,7 +161,7 @@ open class EditableTextNode(
                     i = Graphemes.nextBoundary(text, i)
                 }
             }
-            else -> text.expandTabs()
+            else -> TabRender.expandTabs(text)
         }
 
     /** 编辑器段落：占位时显示灰色占位文本，否则由 [displaySpans] 提供正文。 */
@@ -216,17 +206,7 @@ open class EditableTextNode(
     /** 显示索引 → 逻辑索引：占位塌缩为 0；掩码下第 k 个圆点对应第 k 个字素簇起点。 */
     override fun displayToLogicIndex(displayPos: Int): Int = when {
         showingPlaceholder -> 0
-        !obscureText -> {
-            // 反向扫描：走到逻辑位 disp >= displayPos 时停止，即落在展开区间中间时吸附到 tab 之后
-            val len = text.length
-            var logic = 0
-            var disp = 0
-            while (logic < len && disp < displayPos) {
-                disp += if (text[logic] == '\t') tabSpaces.length else 1
-                logic++
-            }
-            logic
-        }
+        !obscureText -> TabRender.displayToLogic(text, displayPos)
         else -> {
             var i = 0
             var n = 0
@@ -241,15 +221,7 @@ open class EditableTextNode(
     /** 逻辑索引 → 显示索引：落在字素簇内部时归到该簇的圆点左缘。 */
     override fun logicToDisplayIndex(logicPos: Int): Int = when {
         showingPlaceholder -> 0
-        !obscureText -> {
-            // 逐字符累加：每个 '\t' 贡献 tabSpaces.length 个显示位，其余 1 个
-            val limit = logicPos.coerceIn(0, text.length)
-            var display = 0
-            for (i in 0 until limit) {
-                display += if (text[i] == '\t') tabSpaces.length else 1
-            }
-            display
-        }
+        !obscureText -> TabRender.logicToDisplay(text, logicPos)
         else -> {
             var i = 0
             var n = 0
