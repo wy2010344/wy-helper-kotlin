@@ -24,7 +24,11 @@ open class RichTextNode(
     open val spans: List<RichTextSpan> = emptyList()
     open val selectionColor: ColorInt = rgba(100, 100, 200, 60)
 
-    protected val fullText by memo { spans.joinToString("") { it.text } }
+    /** 当前全部文本（占位 / 掩码下为显示文本；只读富文本由 spans 拼接）。 */
+    protected val fullText by memo {
+        val sep = ""
+        spans.joinToString(sep) { it.text.replace("\t", "    ") }
+    }
 
     open val autoWidth = false
     open val maxLines: Int = Int.MAX_VALUE
@@ -33,8 +37,11 @@ open class RichTextNode(
 
     protected val paragraph by memo {
         if (fullText.isEmpty()) return@memo null
-        else buildParagraph(
-            spans,
+        val expandedSpans = spans.map {
+            if ('\t' in it.text) it.copy(text = it.text.replace("\t", "    ")) else it
+        }
+        buildParagraph(
+            expandedSpans,
             if (autoWidth) Float.MAX_VALUE else innerWidth,
             maxLines,
             ellipsis,
