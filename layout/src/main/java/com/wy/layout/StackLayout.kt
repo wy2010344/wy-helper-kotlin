@@ -1,5 +1,6 @@
 package com.wy.layout
 
+import org.wy.signal.Memo
 import org.wy.signal.memo
 import kotlin.math.max
 
@@ -40,18 +41,25 @@ class StackLayout<T>(
     private val convert: StackChildConvert<T>
 ) : Layout {
 
-    private val size = memo {
-        if(arg.alignFix){
-            return@memo inside.innerSize
-        }
-        var width = 0f
-        val alignChildren = inside.children.filter { !convert.ignore(it) }
-        alignChildren.forEach {
-            if (convert.align(it) == null) {
-                width = max(width, convert.outerSize(it))
+    private val size = object : Memo<Float>() {
+        override fun get(old: Float?, inited: Boolean): Float {
+            if(arg.alignFix){
+                return inside.innerSize
             }
+            var width = 0f
+            val alignChildren = inside.children.filter { !convert.ignore(it) }
+            alignChildren.forEach {
+                if (convert.align(it) == null) {
+                    width = max(width, convert.outerSize(it))
+                }
+            }
+            return width
         }
-        return@memo width
+
+        override fun toString(): String {
+            val mode = if (arg.alignFix) "alignFix" else "auto"
+            return "StackLayout.size[mode=$mode]"
+        }
     }
 
 

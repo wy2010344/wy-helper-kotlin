@@ -350,13 +350,23 @@ fun LayoutNode.createLayout(direction: Direction): GetValue<Layout> {
             get() = innerSize(direction)
     }
 
-    return memo {
-        val layout = when (direction) {
-            //延迟到运行时去取值
-            Direction.x -> layout.layoutX
-            Direction.y -> layout.layoutY
+    val node = this
+    return object : Memo<Layout>() {
+        override fun get(old: Layout?, inited: Boolean): Layout {
+            val layout = when (direction) {
+                //延迟到运行时去取值
+                Direction.x -> node.layout.layoutX
+                Direction.y -> node.layout.layoutY
+            }
+            return layout(insideObject)
         }
-        layout(insideObject)
+
+        override fun toString(): String {
+            val nodeDesc = node::class.simpleName ?: "Node"
+            val nodeIdx = try { node.layoutIndex } catch (_: Throwable) { "?" }
+            val parentDesc = node.layoutParent?.let { it::class.simpleName ?: "Node" } ?: "无"
+            return "LayoutMemo[$nodeDesc#$nodeIdx, dir=$direction, parent=$parentDesc]"
+        }
     }
 }
 

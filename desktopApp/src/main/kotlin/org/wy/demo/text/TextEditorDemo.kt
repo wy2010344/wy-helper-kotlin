@@ -10,6 +10,7 @@ import org.wy.engine.helper.Button
 import org.wy.engine.helper.ButtonVariant
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
+import org.wy.engine.layout.GrowChild
 import org.wy.engine.layout.LayoutDirection
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
@@ -67,6 +68,8 @@ fun StateHolder<Node, List<Node>>.separator() {
 
 fun StateHolder<Node, List<Node>>.label(text: String, w: Float = 100f) {
     object : WrappedTextNode(this) {
+        override val autoWidth: Boolean
+            get() = true
         override val text: String get() = text
         override val fontSize: Float get() = 12f
         override val color: ColorInt get() = rgba(100, 100, 120)
@@ -153,19 +156,31 @@ fun StateHolder<Node, List<Node>>.multiLineEditor() {
 }
 
 // ---- 3. 单行输入框 ----
-
+/**
+ * 这个地方，
+ */
 fun StateHolder<Node, List<Node>>.singleLineField() {
     object : RectNode(this), FlexParam {
         override val direction: Direction = Direction.x
         override val layout: LayoutDirection = FlexObject(this)
-        override val alignFix: Boolean get() = true
-        override val alignItem: AlignItem get() = AlignItem.stretch
+        override val alignItem: AlignItem get() = AlignItem.center
+        override val directionJustify: DirectionJustify
+            get() = DirectionJustify.start
+        override val alignFix: Boolean
+            get() = false
         override val gap: Float get() = 8f
-
+        override fun toString(): String {
+            return "singleLineField"
+        }
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
             label("姓名:")
-
-            object : EditableTextNode(this) {
+            object : EditableTextNode(this), GrowChild {
+                override fun toString(): String {
+                    return "bbb"
+                }
+                override fun argGrow(direction: Direction): Float {
+                    return 1f
+                }
                 override var text by createSignal("")
                 override val singleLine: Boolean get() = true
                 override val fontSize: Float get() = 14f
@@ -179,14 +194,17 @@ fun StateHolder<Node, List<Node>>.singleLineField() {
     object : RectNode(this), FlexParam {
         override val direction: Direction = Direction.x
         override val layout: LayoutDirection = FlexObject(this)
-        override val alignFix: Boolean get() = true
+        override val directionJustify: DirectionJustify
+            get() = DirectionJustify.start
         override val alignItem: AlignItem get() = AlignItem.stretch
         override val gap: Float get() = 8f
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
             label("邮箱:")
-
-            object : EditableTextNode(this) {
+            object : EditableTextNode(this), GrowChild {
+                override fun argGrow(direction: Direction): Float {
+                    return 1f
+                }
                 override var text by createSignal("")
                 override val singleLine: Boolean get() = true
                 override val fontSize: Float get() = 14f
