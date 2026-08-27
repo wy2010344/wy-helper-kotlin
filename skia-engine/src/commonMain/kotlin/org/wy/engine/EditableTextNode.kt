@@ -364,13 +364,14 @@ open class EditableTextNode(
     private fun lineRangeAt(pos: Int): Pair<Int, Int>? {
         val p = paragraph ?: return null
         if (text.isEmpty()) return null
-        val m = p.getLineMetrics().firstOrNull { pos >= it.startIndex && pos < it.endIndex }
+        val displayPos = logicToDisplayIndex(pos)
+        val m = p.getLineMetrics().firstOrNull { displayPos >= it.startIndex && displayPos < it.endIndex }
             ?: p.getLineMetrics().lastOrNull()?.takeIf { pos == text.length }
             ?: return null
-        var end = m.endIndex.coerceIn(m.startIndex, text.length)
-        if (end > m.startIndex && text[end - 1] == '\n') end--
-        if (end > m.startIndex && text[end - 1] == '\r') end--
-        return m.startIndex to end
+        var displayEnd = m.endIndex.coerceIn(m.startIndex, fullText.length)
+        if (displayEnd > m.startIndex && fullText[displayEnd - 1] == '\n') displayEnd--
+        if (displayEnd > m.startIndex && fullText[displayEnd - 1] == '\r') displayEnd--
+        return displayToLogicIndex(m.startIndex) to displayToLogicIndex(displayEnd)
     }
 
     private fun lineStart(pos: Int): Int = lineRangeAt(pos)?.first ?: 0
@@ -840,7 +841,7 @@ open class EditableTextNode(
         val e = logicToDisplayIndex(composingStart + composingLength)
         for (rect in p.getRectsForRange(s, e, RectStyle.TIGHT)) {
             canvas.fillRect(rect.left + px, rect.top + py, rect.width, rect.height, composingBackgroundColor)
-            canvas.fillRect(rect.left + px, rect.bottom - 2f + py, rect.width, 2f, composingUnderlineColor)
+            canvas.fillRect(rect.left + px, max(rect.top, rect.bottom - 2f) + py, rect.width, 2f, composingUnderlineColor)
         }
     }
 }

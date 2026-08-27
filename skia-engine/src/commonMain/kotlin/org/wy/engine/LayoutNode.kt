@@ -2,6 +2,7 @@ package org.wy.engine
 
 import com.wy.layout.Align
 import com.wy.layout.Layout
+import com.wy.layout.LayoutError
 import com.wy.layout.LayoutInsideObject
 import com.wy.mve.StateHolder
 import org.wy.engine.layout.LayoutDirection
@@ -82,10 +83,10 @@ open class LayoutNode(
         internal set
         get() {
             if (hide) {
-                throw Error("已经隐藏不再显示")
+                throw LayoutError("已经隐藏不再显示")
             }
             if (notInLayout) {
-                throw Error("当前节点不在Layout中")
+                throw LayoutError("当前节点不在Layout中")
             }
             layoutParent?.layoutChildren
             return field
@@ -145,7 +146,7 @@ fun LayoutNode.clipAtGradParentNode(border: Float = 0f): Boolean {
     val ny = y + p.y - border
     val nw = outerWidth + border * 2
     val nh = outerHeight + border * 2
-    val cx = gp.paddingBlockStart
+    val cx = gp.paddingInlineStart
     val cy = gp.paddingBlockStart
     val cw = gp.innerWidth
     val ch = gp.innerHeight
