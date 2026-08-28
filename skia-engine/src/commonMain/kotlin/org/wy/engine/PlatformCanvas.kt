@@ -29,7 +29,7 @@ expect class PlatformCanvas {
         w: Float,
         h: Float,
         color: Int = rgba(0, 0, 0),
-        gradient: LinearGradient? = null,
+        gradient: Gradient? = null,
     )
 
     fun strokeRect(
@@ -48,7 +48,7 @@ expect class PlatformCanvas {
         h: Float,
         radius: Float,
         color: Int = rgba(0, 0, 0),
-        gradient: LinearGradient? = null,
+        gradient: Gradient? = null,
     )
 
     fun strokeRoundRect(
@@ -67,7 +67,7 @@ expect class PlatformCanvas {
         w: Float,
         h: Float,
         color: Int = rgba(0, 0, 0),
-        gradient: LinearGradient? = null,
+        gradient: Gradient? = null,
     )
 
     fun strokeOval(
@@ -95,16 +95,19 @@ expect class PlatformCanvas {
     fun fillPath(
         path: Path,
         color: Int = rgba(0, 0, 0),
-        gradient: LinearGradient? = null,
+        gradient: Gradient? = null,
     )
 
     /**
      * 描边路径：沿 [path] 绘制 strokeWidth 宽度线条。
+     * [dash] 非 null 时为虚线，格式 [实线长, 空白长, ...]，phase 为起始偏移。
      */
     fun strokePath(
         path: Path,
         color: Int = rgba(0, 0, 0),
         strokeWidth: Float = 1f,
+        dash: FloatArray? = null,
+        phase: Float = 0f,
     )
 
     /**

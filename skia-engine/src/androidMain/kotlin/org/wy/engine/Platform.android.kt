@@ -52,7 +52,7 @@ actual class PlatformCanvas(val canvas: Canvas) {
         w: Float,
         h: Float,
         color: Int,
-        gradient: LinearGradient?,
+        gradient: Gradient?,
     ) {
         canvas.drawRect(x, y, x + w, y + h, Paint().apply {
             applyShaderOrColor(gradient, color)
@@ -76,7 +76,7 @@ actual class PlatformCanvas(val canvas: Canvas) {
         h: Float,
         radius: Float,
         color: Int,
-        gradient: LinearGradient?,
+        gradient: Gradient?,
     ) {
         canvas.drawRoundRect(x, y, x + w, y + h, radius, radius, Paint().apply {
             applyShaderOrColor(gradient, color)
@@ -101,7 +101,7 @@ actual class PlatformCanvas(val canvas: Canvas) {
         })
     }
 
-    actual fun fillOval(x: Float, y: Float, w: Float, h: Float, color: Int, gradient: LinearGradient?) {
+    actual fun fillOval(x: Float, y: Float, w: Float, h: Float, color: Int, gradient: Gradient?) {
         canvas.drawOval(x, y, x + w, y + h, Paint().apply {
             applyShaderOrColor(gradient, color)
             isAntiAlias = true
@@ -140,18 +140,21 @@ actual class PlatformCanvas(val canvas: Canvas) {
         })
     }
 
-    actual fun fillPath(path: Path, color: Int, gradient: LinearGradient?) {
+    actual fun fillPath(path: Path, color: Int, gradient: Gradient?) {
         canvas.drawPath(toAndroidPath(path), Paint().apply {
             applyShaderOrColor(gradient, color)
             isAntiAlias = true
         })
     }
 
-    actual fun strokePath(path: Path, color: Int, strokeWidth: Float) {
+    actual fun strokePath(path: Path, color: Int, strokeWidth: Float, dash: FloatArray?, phase: Float) {
         canvas.drawPath(toAndroidPath(path), Paint().apply {
             this.color = color
             this.strokeWidth = strokeWidth
             style = Paint.Style.STROKE
+            if (dash != null) {
+                pathEffect = android.graphics.DashPathEffect(dash, phase)
+            }
             isAntiAlias = true
         })
     }
@@ -184,17 +187,22 @@ actual class PlatformCanvas(val canvas: Canvas) {
         canvas.restore()
     }
 
-    private fun applyShaderOrColor(paint: Paint, gradient: LinearGradient?, color: Int) {
-        if (gradient != null) {
-            paint.shader = android.graphics.LinearGradient(
+    private fun applyShaderOrColor(paint: Paint, gradient: Gradient?, color: Int) {
+        when (gradient) {
+            null -> paint.color = color
+            is LinearGradient -> paint.shader = android.graphics.LinearGradient(
                 gradient.startX, gradient.startY,
                 gradient.endX, gradient.endY,
                 gradient.colors.toIntArray(),
                 gradient.stops?.toFloatArray(),
                 Shader.TileMode.CLAMP,
             )
-        } else {
-            paint.color = color
+            is RadialGradient -> paint.shader = android.graphics.RadialGradient(
+                gradient.centerX, gradient.centerY, gradient.radius,
+                gradient.colors.toIntArray(),
+                gradient.stops?.toFloatArray(),
+                Shader.TileMode.CLAMP,
+            )
         }
     }
 

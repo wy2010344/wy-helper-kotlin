@@ -53,6 +53,42 @@ class PlatformCanvasRenderTest {
     }
 
     @Test
+    fun dashedStrokeShowsGaps() {
+        val pix = render(160) {
+            val path = Path()
+                .moveTo(10f, 80f)
+                .lineTo(150f, 80f)
+            it.strokePath(path, rgba(0, 0, 200), strokeWidth = 6f, dash = floatArrayOf(10f, 10f))
+        }
+        // 沿直线采样：条文起点在 dash 命中处（有蓝），间隙处应回白底
+        // 实线处为纯蓝 (0,0,255)，空白处为白底 (255,255,255)：以「蓝且非红」区分
+        var painted = 0
+        var gap = 0
+        for (x in 10..150 step 2) {
+            val c = pix.color(x, 80)
+            val isDash = (c and 0xFF > 100) && (c ushr 16 and 0xFF < 100)
+            if (isDash) painted++ else gap++
+        }
+        assertTrue(painted > 0, "虚线应绘出实线段")
+        assertTrue(gap > 0, "虚线应存在空白间隙")
+    }
+
+    @Test
+    fun fillRectWithRadialGradient() {
+        val pix = render {
+            it.fillRect(
+                20f, 20f, 80f, 80f,
+                gradient = RadialGradient(60f, 60f, 50f, listOf(rgba(255, 0, 0), rgba(0, 0, 255))),
+            )
+        }
+        // 圆心处偏红，边缘处偏蓝
+        val center = pix.color(60, 60)
+        val edge = pix.color(20, 60)
+        assertTrue(center ushr 16 and 0xFF > center and 0xFF, "圆心应偏红")
+        assertTrue(edge and 0xFF > edge ushr 16 and 0xFF, "边缘应偏蓝")
+    }
+
+    @Test
     fun fillRectWithLinearGradient() {
         val pix = render {
             it.fillRect(

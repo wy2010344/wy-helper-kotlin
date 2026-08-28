@@ -148,6 +148,12 @@ class Path {
 }
 
 /**
+ * 渐变抽象：`fill` 系列方法的 `gradient` 参数统一接收此类型。
+ * 实现：`LinearGradient`（线性）、`RadialGradient`（径向）。
+ */
+interface Gradient
+
+/**
  * 线性渐变定义：从 (startX, startY) 到 (endX, endY) 的颜色渐变。
  *
  * - [colors] 至少两个颜色，按 [stops] 分布（0..1）；[stops] 传 null 时均匀分布。
@@ -163,13 +169,37 @@ class LinearGradient(
     val endY: Float,
     val colors: List<Int>,
     val stops: List<Float>? = null,
-) {
+) : Gradient {
     init {
         require(colors.size >= 2) { "LinearGradient 至少需要两个颜色，实际 ${colors.size}" }
-        if (stops != null) {
-            require(stops.size == colors.size) { "stops 数量必须与 colors 一致：${stops.size} vs ${colors.size}" }
-            require(stops.all { it in 0f..1f }) { "stops 必须在 0..1 区间" }
-        }
+        requireValidStops(colors, stops, "LinearGradient")
+    }
+}
+
+/**
+ * 径向渐变定义：从圆心 (centerX, centerY) 以半径 [radius] 向外扩散的颜色渐变。
+ * 圆外区域使用最后一个颜色延伸（TileMode.CLAMP）。
+ *
+ * - [colors] 至少两个颜色，按 [stops] 分布（0..1）；[stops] 传 null 时均匀分布。
+ */
+class RadialGradient(
+    val centerX: Float,
+    val centerY: Float,
+    val radius: Float,
+    val colors: List<Int>,
+    val stops: List<Float>? = null,
+) : Gradient {
+    init {
+        require(colors.size >= 2) { "RadialGradient 至少需要两个颜色，实际 ${colors.size}" }
+        require(radius > 0f) { "RadialGradient radius 必须为正数，实际 $radius" }
+        requireValidStops(colors, stops, "RadialGradient")
+    }
+}
+
+internal fun requireValidStops(colors: List<Int>, stops: List<Float>?, name: String) {
+    if (stops != null) {
+        require(stops.size == colors.size) { "$name stops 数量必须与 colors 一致：${stops.size} vs ${colors.size}" }
+        require(stops.all { it in 0f..1f }) { "$name stops 必须在 0..1 区间" }
     }
 }
 

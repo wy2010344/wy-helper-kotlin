@@ -3,6 +3,7 @@ package org.wy.engine
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -156,6 +157,31 @@ class PathTest {
         assertNull(g.stops)
         val withStops = LinearGradient(0f, 0f, 100f, 0f, listOf(0xFF0000, 0x00FF00), listOf(0f, 1f))
         assertEquals(listOf(0f, 1f), withStops.stops)
+    }
+
+    @Test
+    fun testRadialGradientRequiresColorsRadius() {
+        assertFails { RadialGradient(50f, 50f, 40f, listOf(0xFF0000)) }
+        assertFails { RadialGradient(50f, 50f, 0f, listOf(0xFF0000, 0x00FF00)) }
+        assertFails { RadialGradient(50f, 50f, 40f, listOf(0xFF0000, 0x00FF00), listOf(0f, 1.5f)) }
+    }
+
+    @Test
+    fun testRadialGradientValid() {
+        val g = RadialGradient(50f, 50f, 40f, listOf(0xFF0000, 0x00FF00))
+        assertEquals(0xFF0000, g.colors[0])
+        assertEquals(40f, g.radius)
+        assertNotNull(g)
+    }
+
+    @Test
+    fun testGradientHierarchy() {
+        // fill 系列 gradient 参数接收的是公共接口 Gradient
+        val gradients: List<Gradient> = listOf(
+            LinearGradient(0f, 0f, 100f, 0f, listOf(0xFF0000, 0x00FF00)),
+            RadialGradient(50f, 50f, 40f, listOf(0xFF0000, 0x00FF00)),
+        )
+        assertEquals(2, gradients.size)
     }
 
     private fun assertFails(block: () -> Unit) {

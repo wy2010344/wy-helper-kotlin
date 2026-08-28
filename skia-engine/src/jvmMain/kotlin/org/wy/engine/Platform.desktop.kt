@@ -4,6 +4,7 @@ import org.jetbrains.skia.Canvas
 import org.jetbrains.skia.ClipMode
 import org.jetbrains.skia.FilterTileMode
 import org.jetbrains.skia.Paint
+import org.jetbrains.skia.PathEffect
 import org.jetbrains.skia.RRect
 import org.jetbrains.skia.Rect
 import org.jetbrains.skia.Shader
@@ -49,7 +50,7 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
         skCanvas.clipRRect(RRect.makeXYWH(x, y, w, h, radius.coerceAtLeast(0f)), ClipMode.INTERSECT, false)
     }
 
-    actual fun fillRect(x: Float, y: Float, w: Float, h: Float, color: Int, gradient: LinearGradient?) {
+    actual fun fillRect(x: Float, y: Float, w: Float, h: Float, color: Int, gradient: Gradient?) {
         skCanvas.drawRect(x, y, x + w, y + h, Paint().apply {
             isAntiAlias = true
         }.also { paint ->
@@ -80,7 +81,7 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
         h: Float,
         radius: Float,
         color: Int,
-        gradient: LinearGradient?,
+        gradient: Gradient?,
     ) {
         skCanvas.drawRRect(RRect.makeXYWH(x, y, w, h, radius.coerceAtLeast(0f)), Paint().apply {
             isAntiAlias = true
@@ -106,7 +107,7 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
         })
     }
 
-    actual fun fillOval(x: Float, y: Float, w: Float, h: Float, color: Int, gradient: LinearGradient?) {
+    actual fun fillOval(x: Float, y: Float, w: Float, h: Float, color: Int, gradient: Gradient?) {
         skCanvas.drawOval(x, y, x + w, y + h, Paint().apply {
             isAntiAlias = true
         }.also { paint ->
@@ -114,16 +115,20 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
         })
     }
 
-    private fun applyShaderOrColor(paint: Paint, gradient: LinearGradient?, color: Int) {
-        if (gradient != null) {
-            paint.shader = Shader.makeLinearGradient(
+    private fun applyShaderOrColor(paint: Paint, gradient: Gradient?, color: Int) {
+        when (gradient) {
+            null -> paint.color = color
+            is LinearGradient -> paint.shader = Shader.makeLinearGradient(
                 gradient.startX, gradient.startY,
                 gradient.endX, gradient.endY,
                 gradient.colors.toIntArray(),
                 gradient.stops?.toFloatArray(),
             )
-        } else {
-            paint.color = color
+            is RadialGradient -> paint.shader = Shader.makeRadialGradient(
+                gradient.centerX, gradient.centerY, gradient.radius,
+                gradient.colors.toIntArray(),
+                gradient.stops?.toFloatArray(),
+            )
         }
     }
 
@@ -159,17 +164,20 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
         })
     }
 
-    actual fun fillPath(path: Path, color: Int, gradient: LinearGradient?) {
+    actual fun fillPath(path: Path, color: Int, gradient: Gradient?) {
         val paint = Paint().apply { isAntiAlias = true }
         applyShaderOrColor(paint, gradient, color)
         skCanvas.drawPath(toSkiaPath(path), paint)
     }
 
-    actual fun strokePath(path: Path, color: Int, strokeWidth: Float) {
+    actual fun strokePath(path: Path, color: Int, strokeWidth: Float, dash: FloatArray?, phase: Float) {
         skCanvas.drawPath(toSkiaPath(path), Paint().apply {
             this.color = color
             this.strokeWidth = strokeWidth
             setStroke(true)
+            if (dash != null) {
+                pathEffect = PathEffect.makeDash(dash, phase)
+            }
             isAntiAlias = true
         })
     }
