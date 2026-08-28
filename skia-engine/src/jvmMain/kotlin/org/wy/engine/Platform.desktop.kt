@@ -129,6 +129,11 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
                 gradient.colors.toIntArray(),
                 gradient.stops?.toFloatArray(),
             )
+            is SweepGradient -> paint.shader = Shader.makeSweepGradient(
+                gradient.centerX, gradient.centerY,
+                gradient.colors.toIntArray(),
+                gradient.stops?.toFloatArray(),
+            )
         }
     }
 

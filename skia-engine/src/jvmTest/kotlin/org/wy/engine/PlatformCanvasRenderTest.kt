@@ -127,6 +127,27 @@ class PlatformCanvasRenderTest {
         assertTrue(outside != 0xFFFFFFFF.toInt(), "阴影应扩散到形状外，实际 $outside")
     }
 
+    @Test
+    fun fillRectWithSweepGradient() {
+        val pix = render {
+            it.fillRect(
+                20f, 20f, 80f, 80f,
+                gradient = SweepGradient(
+                    60f, 60f,
+                    listOf(rgba(255, 0, 0), rgba(0, 200, 0), rgba(0, 0, 255)),
+                ),
+            )
+        }
+        // 三色均匀分布：0°（正右）= 红，180°（正左）= 中点绿（0/1/2 → 绿在中间档）
+        val right = pix.color(99, 60)
+        val left = pix.color(21, 60)
+        assertTrue(right ushr 16 and 0xFF > right and 0xFF, "正右 0° 应偏红")
+        val g = left ushr 8 and 0xFF
+        val r = left ushr 16 and 0xFF
+        val b = left and 0xFF
+        assertTrue(g > r && g > b, "正左 180° 应偏绿，实际 r=$r g=$g b=$b")
+    }
+
     private class SurfaceHelper(private val pixmap: org.jetbrains.skia.Pixmap?) {
         fun color(x: Int, y: Int): Int =
             pixmap?.getColor(x, y) ?: 0xFF000000.toInt()

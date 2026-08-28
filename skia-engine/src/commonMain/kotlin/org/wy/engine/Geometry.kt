@@ -149,7 +149,7 @@ class Path {
 
 /**
  * 渐变抽象：`fill` 系列方法的 `gradient` 参数统一接收此类型。
- * 实现：`LinearGradient`（线性）、`RadialGradient`（径向）。
+ * 实现：`LinearGradient`（线性）、`RadialGradient`（径向）、`SweepGradient`（扫描）。
  */
 interface Gradient
 
@@ -193,6 +193,24 @@ class RadialGradient(
         require(colors.size >= 2) { "RadialGradient 至少需要两个颜色，实际 ${colors.size}" }
         require(radius > 0f) { "RadialGradient radius 必须为正数，实际 $radius" }
         requireValidStops(colors, stops, "RadialGradient")
+    }
+}
+
+/**
+ * 扫描渐变定义：绕圆心 (centerX, centerY) 按角度扫过的颜色渐变。
+ * 从正 x 轴方向起顺时针一圈，角度 0°（正右）对应第一个颜色，360° 回到第一个颜色。
+ *
+ * - [colors] 至少两个颜色，按 [stops] 分布（0..1）；[stops] 传 null 时均匀分布。
+ */
+class SweepGradient(
+    val centerX: Float,
+    val centerY: Float,
+    val colors: List<Int>,
+    val stops: List<Float>? = null,
+) : Gradient {
+    init {
+        require(colors.size >= 2) { "SweepGradient 至少需要两个颜色，实际 ${colors.size}" }
+        requireValidStops(colors, stops, "SweepGradient")
     }
 }
 

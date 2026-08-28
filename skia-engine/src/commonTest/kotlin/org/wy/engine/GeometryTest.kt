@@ -175,13 +175,36 @@ class PathTest {
     }
 
     @Test
+    fun testSweepGradientRequiresColors() {
+        assertFails { SweepGradient(50f, 50f, listOf(0xFF0000)) }
+        // stops 数量与 colors 不一致
+        assertFails {
+            SweepGradient(50f, 50f, listOf(0xFF0000, 0x00FF00), listOf(0.5f))
+        }
+        // stops 越界
+        assertFails {
+            SweepGradient(50f, 50f, listOf(0xFF0000, 0x00FF00), listOf(0f, 1.5f))
+        }
+    }
+
+    @Test
+    fun testSweepGradientValid() {
+        val g = SweepGradient(50f, 50f, listOf(0xFF0000, 0x00FF00, 0x0000FF))
+        assertEquals(3, g.colors.size)
+        assertEquals(50f, g.centerX)
+        assertEquals(50f, g.centerY)
+        assertNull(g.stops)
+    }
+
+    @Test
     fun testGradientHierarchy() {
         // fill 系列 gradient 参数接收的是公共接口 Gradient
         val gradients: List<Gradient> = listOf(
             LinearGradient(0f, 0f, 100f, 0f, listOf(0xFF0000, 0x00FF00)),
             RadialGradient(50f, 50f, 40f, listOf(0xFF0000, 0x00FF00)),
+            SweepGradient(50f, 50f, listOf(0xFF0000, 0x00FF00)),
         )
-        assertEquals(2, gradients.size)
+        assertEquals(3, gradients.size)
     }
 
     private fun assertFails(block: () -> Unit) {

@@ -203,6 +203,11 @@ actual class PlatformCanvas(val canvas: Canvas) {
                 gradient.stops?.toFloatArray(),
                 Shader.TileMode.CLAMP,
             )
+            is SweepGradient -> paint.shader = android.graphics.SweepGradient(
+                gradient.centerX, gradient.centerY,
+                gradient.colors.toIntArray(),
+                gradient.stops?.toFloatArray(),
+            )
         }
     }
 
