@@ -106,22 +106,29 @@ private fun StateHolder<Node, List<Node>>.asyncCard(
                 super.draw(canvas)
             }
 
+            // argChildren 只执行一次：节点结构固定，不随 signal 重建。
+            // 显隐 / 内容 / 图片全部通过"属性 getter 读 signal"精确更新到对应的 memo（hide / text / contentSize）。
             override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                val img = imageStore.get()
-                if (img != null) {
-                    object : ImageNode(this) {
-                        override val image: PlatformImage? get() = img
-                        override val size: LayoutSizeDirection get() = LayoutSizeDirection(Direction.x, 96f, true)
-                        override val radius: Float get() = 8f
-                    }
-                } else {
-                    val label: String = when (state.get()) {
-                        CardState.Idle -> "未加载"
-                        CardState.Loading -> "加载中…"
-                        CardState.Success -> "已加载"
-                        CardState.Failed -> "加载失败\n可重试"
-                    }
-                    text({ label }, 12f, if (state.get() == CardState.Failed) rgba(200, 70, 70) else rgba(140, 142, 156), 400)
+                // 占位文字：图片加载成功后隐藏（hide 是受 mve 列表过滤追踪的 getter）
+                object : WrappedTextNode(this) {
+                    override val autoWidth: Boolean get() = true
+                    override val text: String
+                        get() = when (state.get()) {
+                            CardState.Idle -> "未加载"
+                            CardState.Loading -> "加载中…"
+                            CardState.Success -> "已加载"
+                            CardState.Failed -> "加载失败\n可重试"
+                        }
+                    override val fontSize: Float get() = 12f
+                    override val color: ColorInt
+                        get() = if (state.get() == CardState.Failed) rgba(200, 70, 70) else rgba(140, 142, 156)
+                    override val hide: Boolean get() = imageStore.get() != null
+                }
+                // 图片节点：固定创建，image getter 读 signal —— contentSize 等 memo 随之重算
+                object : ImageNode(this) {
+                    override val image: PlatformImage? get() = imageStore.get()
+                    override val size: LayoutSizeDirection get() = LayoutSizeDirection(Direction.x, 96f, true)
+                    override val radius: Float get() = 8f
                 }
             }
         }
