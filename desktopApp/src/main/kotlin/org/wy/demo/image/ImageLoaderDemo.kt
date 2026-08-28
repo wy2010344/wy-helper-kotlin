@@ -19,11 +19,13 @@ import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.setValue
 import java.awt.EventQueue
+import java.net.HttpURLConnection
+import java.net.URL
 
 // 演示：ImageLoader 图片异步加载薄层
 // 1) 四张卡片分别演示：异步加载 / 并发去重（同 URL 只 fetch 一次）/ 缓存命中 / 失败重试
 // 2) B 与 C 共用同一 URL，观察去重与缓存
-// 3) 图片资源：resources/images 下的真实照片（由 fetcher 从 classpath 读取字节，模拟网络返回）
+// 3) fetcher 走真实 web 链接（JVM HttpURLConnection 下载字节），需要能访问 picsum.photos
 
 private sealed interface CardState {
     data object Loading : CardState
@@ -36,18 +38,25 @@ private fun main() {
     var totalFetches by createSignal(0)
     loader.fetcher = { url, onBytes ->
         totalFetches += 1   // 请求计数（信号，UI 自动刷新）
-        // 模拟网络：后台线程延迟读取真实图片字节后投递回主线程再回调
+        // 后台线程真实网络下载，完成后投递回主线程再回调
         Thread {
-            Thread.sleep(400)   // 模拟网络延迟
-            val bytes = when {
-                url.contains("bad") -> null                      // 演示失败重试
-                url.contains("red") -> readResource("real-red.jpg")
-                url.contains("blue") -> readResource("real-blue.jpg")
-                else -> readResource("real-landscape.jpg")
+            val bytes = try {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.instanceFollowRedirects = true
+                if (conn.responseCode == HttpURLConnection.HTTP_OK) {
+                    conn.inputStream.use { it.readBytes() }
+                } else null
+            } catch (e: Throwable) {
+                null
             }
             EventQueue.invokeLater { onBytes(bytes) }
         }.start()
     }
+
+    // D 卡用无法连接的 URL 演示失败重试
+    val badUrl = "http://127.0.0.1:9/nonexistent.png"
 
     object : SkiaApp(860, 640), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)
@@ -59,11 +68,11 @@ private fun main() {
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
             page {
                 sectionTitle("图片异步加载 ImageLoader")
-                hint("点击卡片按钮异步加载图片。B 与 C 共用同一 URL，可观察：并发去重（同 URL 只 fetch 一次）、缓存命中（成功后不再请求）、失败重试")
-                asyncCard("A · 异步加载", "img://red/avatar.png", loader, { totalFetches })
-                asyncCard("B · 并发去重", "img://blue/avatar.png", loader, { totalFetches })
-                asyncCard("C · 同一 URL(与 B)", "img://blue/avatar.png", loader, { totalFetches })
-                asyncCard("D · 失败重试", "img://bad/x.png", loader, { totalFetches })
+                hint("点击卡片按钮从 web 异步下载图片。需直连 picsum.photos。B 与 C 共用同一 URL，可观察：并发去重（同 URL 只 fetch 一次）、缓存命中（成功后不再请求）、失败重试")
+                asyncCard("A · 异步加载", "https://picsum.photos/seed/wyhelper-red/600/400", loader, { totalFetches })
+                asyncCard("B · 并发去重", "https://picsum.photos/seed/wyhelper-blue/600/400", loader, { totalFetches })
+                asyncCard("C · 同一 URL(与 B)", "https://picsum.photos/seed/wyhelper-blue/600/400", loader, { totalFetches })
+                asyncCard("D · 失败重试", badUrl, loader, { totalFetches })
             }
         }
     }
@@ -116,7 +125,7 @@ private fun StateHolder<Node, List<Node>>.asyncCard(
 
         // 右侧：描述 + 状态 + 操作按钮（直接平铺，避免 flex 嵌套）
         text(
-            { "$title  ($url)" },
+            { "$title\n$url" },
             13f, rgba(40, 44, 60), 600,
         )
         text(
@@ -149,11 +158,3 @@ private fun StateHolder<Node, List<Node>>.asyncCard(
         }
     }
 }
-
-/** 从 classpath 资源目录读取图片字节（模拟网络返回真实图片内容）。 */
-private fun readResource(name: String): ByteArray {
-    val stream = ImageLoaderDemoEntryPoint::class.java.classLoader.getResourceAsStream("images/$name")
-    return stream?.use { it.readBytes() } ?: byteArrayOf()
-}
-
-private object ImageLoaderDemoEntryPoint
