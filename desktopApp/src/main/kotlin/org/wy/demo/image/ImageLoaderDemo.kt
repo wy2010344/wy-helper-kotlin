@@ -4,8 +4,6 @@ import com.wy.layout.AlignItem
 import com.wy.layout.DirectionJustify
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
-import org.jetbrains.skia.EncodedImageFormat
-import org.jetbrains.skia.Surface
 import org.wy.demo.helper.hint
 import org.wy.demo.helper.page
 import org.wy.demo.helper.row
@@ -25,6 +23,7 @@ import java.awt.EventQueue
 // 演示：ImageLoader 图片异步加载薄层
 // 1) 四张卡片分别演示：异步加载 / 并发去重（同 URL 只 fetch 一次）/ 缓存命中 / 失败重试
 // 2) B 与 C 共用同一 URL，观察去重与缓存
+// 3) 图片资源：resources/images 下的真实照片（由 fetcher 从 classpath 读取字节，模拟网络返回）
 
 private sealed interface CardState {
     data object Loading : CardState
@@ -37,15 +36,15 @@ private fun main() {
     var totalFetches by createSignal(0)
     loader.fetcher = { url, onBytes ->
         totalFetches += 1   // 请求计数（信号，UI 自动刷新）
-        val color = when {
-            url.contains("red") -> rgba(220, 60, 60)
-            url.contains("blue") -> rgba(60, 110, 220)
-            else -> rgba(80, 180, 100)
-        }
-        // 模拟网络：后台线程延迟取字节后投递回主线程再回调
+        // 模拟网络：后台线程延迟读取真实图片字节后投递回主线程再回调
         Thread {
             Thread.sleep(400)   // 模拟网络延迟
-            val bytes = if (url.contains("bad")) null else renderPng(color)
+            val bytes = when {
+                url.contains("bad") -> null                      // 演示失败重试
+                url.contains("red") -> readResource("real-red.jpg")
+                url.contains("blue") -> readResource("real-blue.jpg")
+                else -> readResource("real-landscape.jpg")
+            }
             EventQueue.invokeLater { onBytes(bytes) }
         }.start()
     }
@@ -151,11 +150,10 @@ private fun StateHolder<Node, List<Node>>.asyncCard(
     }
 }
 
-/** 运行时用 Skia 生成一张测试位图返回 PNG 字节，模拟网络图片内容。 */
-private fun renderPng(color: Int): ByteArray {
-    val surface = Surface.makeRasterN32Premul(96, 96)
-    val c = surface.canvas
-    c.drawRect(0f, 0f, 96f, 96f, org.jetbrains.skia.Paint().apply { this.color = color })
-    c.drawCircle(48f, 48f, 30f, org.jetbrains.skia.Paint().apply { this.color = 0xFFFFFFFF.toInt() })
-    return surface.makeImageSnapshot().encodeToData(EncodedImageFormat.PNG)!!.bytes
+/** 从 classpath 资源目录读取图片字节（模拟网络返回真实图片内容）。 */
+private fun readResource(name: String): ByteArray {
+    val stream = ImageLoaderDemoEntryPoint::class.java.classLoader.getResourceAsStream("images/$name")
+    return stream?.use { it.readBytes() } ?: byteArrayOf()
 }
+
+private object ImageLoaderDemoEntryPoint
