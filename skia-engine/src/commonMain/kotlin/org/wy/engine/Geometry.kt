@@ -24,10 +24,19 @@ data class RectF(
 }
 
 class Path {
+    /**
+     * 命中近似用的多边形顶点：线段取端点，曲线按固定细分采样。
+     * [contains] 基于这些点做点是否在多边形内判定。
+     */
     private val points = mutableListOf<Point>()
-    private val commands = mutableListOf<PathCommand>()
 
-    val isEmpty: Boolean get() = points.isEmpty()
+    /** 实际的路径命令序列，供平台端翻译成 Skia / Android Path。 */
+    internal val commands = mutableListOf<PathCommand>()
+
+    val isEmpty: Boolean get() = commands.isEmpty() || (commands.size == 1 && commands[0] is PathCommand.MoveTo)
+
+    val lastX: Float get() = (points.lastOrNull()?.x) ?: 0f
+    val lastY: Float get() = (points.lastOrNull()?.y) ?: 0f
 
     fun moveTo(x: Float, y: Float): Path {
         points.add(Point(x, y))
@@ -38,6 +47,41 @@ class Path {
     fun lineTo(x: Float, y: Float): Path {
         points.add(Point(x, y))
         commands.add(PathCommand.LineTo(x, y))
+        return this
+    }
+
+    /**
+     * 二次贝塞尔曲线：控制点 (cx, cy)，终点 (x, y)。
+     * 命中近似按 4 段均匀细分采样。
+     */
+    fun quadTo(cx: Float, cy: Float, x: Float, y: Float): Path {
+        val px0 = lastX
+        val py0 = lastY
+        for (i in 1..SEGMENTS_QUAD) {
+            val t = i / SEGMENTS_QUAD.toFloat()
+            val px = (1 - t) * (1 - t) * px0 + 2 * (1 - t) * t * cx + t * t * x
+            val py = (1 - t) * (1 - t) * py0 + 2 * (1 - t) * t * cy + t * t * y
+            points.add(Point(px, py))
+        }
+        commands.add(PathCommand.QuadTo(cx, cy, x, y))
+        return this
+    }
+
+    /**
+     * 三次贝塞尔曲线：两个控制点，终点 (x, y)。
+     * 命中近似按 6 段均匀细分采样。
+     */
+    fun cubicTo(cx1: Float, cy1: Float, cx2: Float, cy2: Float, x: Float, y: Float): Path {
+        val px0 = lastX
+        val py0 = lastY
+        for (i in 1..SEGMENTS_CUBIC) {
+            val t = i / SEGMENTS_CUBIC.toFloat()
+            val mt = 1 - t
+            val px = mt * mt * mt * px0 + 3 * mt * mt * t * cx1 + 3 * mt * t * t * cx2 + t * t * t * x
+            val py = mt * mt * mt * py0 + 3 * mt * mt * t * cy1 + 3 * mt * t * t * cy2 + t * t * t * y
+            points.add(Point(px, py))
+        }
+        commands.add(PathCommand.CubicTo(cx1, cy1, cx2, cy2, x, y))
         return this
     }
 
@@ -70,9 +114,62 @@ class Path {
     private data class Point(val x: Float, val y: Float)
 
     sealed class PathCommand {
-        data class MoveTo(val x: Float, val y: Float) : PathCommand()
-        data class LineTo(val x: Float, val y: Float) : PathCommand()
-        data object Close : PathCommand()
+        abstract val x: Float
+        abstract val y: Float
+
+        data class MoveTo(override val x: Float, override val y: Float) : PathCommand()
+        data class LineTo(override val x: Float, override val y: Float) : PathCommand()
+        data class QuadTo(
+            val cx: Float,
+            val cy: Float,
+            override val x: Float,
+            override val y: Float,
+        ) : PathCommand()
+
+        data class CubicTo(
+            val cx1: Float,
+            val cy1: Float,
+            val cx2: Float,
+            val cy2: Float,
+            override val x: Float,
+            override val y: Float,
+        ) : PathCommand()
+
+        data object Close : PathCommand() {
+            override val x: Float get() = 0f
+            override val y: Float get() = 0f
+        }
+    }
+
+    private companion object {
+        const val SEGMENTS_QUAD = 4
+        const val SEGMENTS_CUBIC = 6
+    }
+}
+
+/**
+ * 线性渐变定义：从 (startX, startY) 到 (endX, endY) 的颜色渐变。
+ *
+ * - [colors] 至少两个颜色，按 [stops] 分布（0..1）；[stops] 传 null 时均匀分布。
+ * - 颜色为 [rgba] 结果（ARGB Int）。
+ *
+ * 用于 `fillRect` / `fillRoundRect` / `fillOval` / `fillPath` 等方法的 `gradient` 参数。
+ * 设置 gradient 后忽略对应方法的 color 参数。
+ */
+class LinearGradient(
+    val startX: Float,
+    val startY: Float,
+    val endX: Float,
+    val endY: Float,
+    val colors: List<Int>,
+    val stops: List<Float>? = null,
+) {
+    init {
+        require(colors.size >= 2) { "LinearGradient 至少需要两个颜色，实际 ${colors.size}" }
+        if (stops != null) {
+            require(stops.size == colors.size) { "stops 数量必须与 colors 一致：${stops.size} vs ${colors.size}" }
+            require(stops.all { it in 0f..1f }) { "stops 必须在 0..1 区间" }
+        }
     }
 }
 

@@ -3,6 +3,7 @@ package org.wy.engine
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class RectFTest {
@@ -52,5 +53,117 @@ class RectFTest {
         assertEquals(15f, inflated.top)
         assertEquals(35f, inflated.right)
         assertEquals(45f, inflated.bottom)
+    }
+}
+
+class PathTest {
+    @Test
+    fun testPolylineContains() {
+        // 矩形路径（逆时针均可）
+        val path = Path()
+            .moveTo(0f, 0f)
+            .lineTo(100f, 0f)
+            .lineTo(100f, 100f)
+            .lineTo(0f, 100f)
+            .close()
+        assertTrue(path.contains(50f, 50f))
+        assertFalse(path.contains(150f, 50f))
+        assertFalse(path.contains(-10f, -10f))
+    }
+
+    @Test
+    fun testQuadBulgesAboveBaseline() {
+        // 二次曲线：控制点拉高，命中近似点应越过起点到终点的连线
+        val path = Path()
+            .moveTo(0f, 100f)
+            .quadTo(50f, 0f, 100f, 100f)
+            .lineTo(0f, 100f)
+            .close()
+        // 拱形内部
+        assertTrue(path.contains(50f, 60f))
+        // 起点-终点连线上方但在弓外下沿
+        assertFalse(path.contains(100f, 200f))
+    }
+
+    @Test
+    fun testCubicContainsCenter() {
+        val path = Path()
+            .moveTo(0f, 0f)
+            .cubicTo(0f, 100f, 100f, 100f, 100f, 0f)
+            .lineTo(100f, 100f)
+            .lineTo(0f, 100f)
+            .close()
+        // 弓形高 y≈75（x=50），内部为 [弓顶, 底线 100]
+        assertTrue(path.contains(50f, 90f))
+        assertFalse(path.contains(50f, 40f))
+    }
+
+    @Test
+    fun testCommandsRecordedInOrder() {
+        val path = Path()
+            .moveTo(1f, 2f)
+            .lineTo(3f, 4f)
+            .quadTo(5f, 6f, 7f, 8f)
+            .cubicTo(9f, 10f, 11f, 12f, 13f, 14f)
+            .close()
+        val cmds = path.commands
+        assertEquals(5, cmds.size)
+        assertTrue(cmds[0] is Path.PathCommand.MoveTo)
+        assertTrue(cmds[1] is Path.PathCommand.LineTo)
+        val q = cmds[2] as Path.PathCommand.QuadTo
+        assertEquals(5f, q.cx)
+        assertEquals(7f, q.x)
+        val c = cmds[3] as Path.PathCommand.CubicTo
+        assertEquals(9f, c.cx1)
+        assertEquals(11f, c.cx2)
+        assertEquals(13f, c.x)
+        assertTrue(cmds[4] is Path.PathCommand.Close)
+    }
+
+    @Test
+    fun testReset() {
+        val path = Path().moveTo(0f, 0f).lineTo(10f, 10f)
+        assertTrue(path.commands.isNotEmpty())
+        path.reset()
+        assertTrue(path.commands.isEmpty())
+    }
+
+    @Test
+    fun testEmptyFromSingleMoveTo() {
+        // 只有 moveTo 视为空路径（无实际绘制指令）
+        val path = Path().moveTo(0f, 0f)
+        val cmds = path.commands
+        assertTrue(cmds.size == 1 && cmds[0] is Path.PathCommand.MoveTo)
+    }
+
+    @Test
+    fun testLinearGradientRequiresColors() {
+        assertFails { LinearGradient(0f, 0f, 100f, 0f, listOf(0xFF0000)) }
+        // stops 数量与 colors 不一致
+        assertFails {
+            LinearGradient(0f, 0f, 100f, 0f, listOf(0xFF0000, 0x00FF00), listOf(0.5f))
+        }
+        // stops 越界
+        assertFails {
+            LinearGradient(0f, 0f, 100f, 0f, listOf(0xFF0000, 0x00FF00), listOf(0f, 1.5f))
+        }
+    }
+
+    @Test
+    fun testLinearGradientValid() {
+        val g = LinearGradient(0f, 0f, 100f, 0f, listOf(0xFF0000, 0x00FF00, 0x0000FF))
+        assertEquals(3, g.colors.size)
+        assertNull(g.stops)
+        val withStops = LinearGradient(0f, 0f, 100f, 0f, listOf(0xFF0000, 0x00FF00), listOf(0f, 1f))
+        assertEquals(listOf(0f, 1f), withStops.stops)
+    }
+
+    private fun assertFails(block: () -> Unit) {
+        try {
+            block()
+        } catch (_: IllegalArgumentException) {
+            return
+        }
+        error("expected IllegalArgumentException")
     }
 }

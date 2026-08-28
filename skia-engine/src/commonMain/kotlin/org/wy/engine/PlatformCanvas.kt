@@ -28,7 +28,8 @@ expect class PlatformCanvas {
         y: Float = 0f,
         w: Float,
         h: Float,
-        color: Int = rgba(0, 0, 0)
+        color: Int = rgba(0, 0, 0),
+        gradient: LinearGradient? = null,
     )
 
     fun strokeRect(
@@ -46,7 +47,8 @@ expect class PlatformCanvas {
         w: Float,
         h: Float,
         radius: Float,
-        color: Int = rgba(0, 0, 0)
+        color: Int = rgba(0, 0, 0),
+        gradient: LinearGradient? = null,
     )
 
     fun strokeRoundRect(
@@ -64,7 +66,8 @@ expect class PlatformCanvas {
         y: Float,
         w: Float,
         h: Float,
-        color: Int = rgba(0, 0, 0)
+        color: Int = rgba(0, 0, 0),
+        gradient: LinearGradient? = null,
     )
 
     fun strokeOval(
@@ -83,6 +86,40 @@ expect class PlatformCanvas {
         y2: Float,
         color: Int = rgba(0, 0, 0),
         strokeWidth: Float = 1f,
+    )
+
+    /**
+     * 填充路径：[path] 的当前子路径（moveTo/lineTo/quadTo/cubicTo/close）围成的区域。
+     * [gradient] 非 null 时用线性渐变填充，忽略 [color]。
+     */
+    fun fillPath(
+        path: Path,
+        color: Int = rgba(0, 0, 0),
+        gradient: LinearGradient? = null,
+    )
+
+    /**
+     * 描边路径：沿 [path] 绘制 strokeWidth 宽度线条。
+     */
+    fun strokePath(
+        path: Path,
+        color: Int = rgba(0, 0, 0),
+        strokeWidth: Float = 1f,
+    )
+
+    /**
+     * 软阴影：在 (x, y, w, h) 圆角矩形上绘制模糊阴影（结果合成到画布）。
+     * 阴影经 saveLayer + blur 实时合成，圆角由 [radius] 决定，模糊强度由 [blurSigma] 决定。
+     * [color] 建议带透明度的阴影色（如 rgba(0,0,0,60)）。
+     */
+    fun drawShadow(
+        x: Float,
+        y: Float,
+        w: Float,
+        h: Float,
+        radius: Float,
+        blurSigma: Float,
+        color: Int,
     )
 
     fun drawImage(image: PlatformImage, x: Float, y: Float, w: Float, h: Float)
