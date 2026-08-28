@@ -2,7 +2,6 @@ package org.wy.engine
 
 import com.wy.layout.Align
 import com.wy.layout.Layout
-import com.wy.layout.LayoutError
 import com.wy.layout.LayoutInsideObject
 import com.wy.mve.StateHolder
 import org.wy.engine.layout.LayoutDirection
@@ -83,10 +82,10 @@ open class LayoutNode(
         internal set
         get() {
             if (hide) {
-                throw LayoutError("已经隐藏不再显示")
+                throw Error("已经隐藏不再显示")
             }
             if (notInLayout) {
-                throw LayoutError("当前节点不在Layout中")
+                throw Error("当前节点不在Layout中")
             }
             layoutParent?.layoutChildren
             return field

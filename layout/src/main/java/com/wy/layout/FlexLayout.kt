@@ -55,8 +55,10 @@ class FlexLayout<T>(
     private val convert: FlexChildConvert<T>
 ) : Layout {
 
-    private val hasGrowChildren = memo {
-        inside.children.any { !convert.ignore(it) && convert.grow(it) > 0 }
+    /** 一次遍历同时得到：过滤掉 ignore 的子节点 + 是否有 grow 子节点。 */
+    private val flexChildInfo = memo {
+        val children = inside.children.filter { !convert.ignore(it) }
+        children to children.any { convert.grow(it) > 0 }
     }
 
     private val cache = object : Memo<FlexInfo>() {
@@ -66,9 +68,8 @@ class FlexLayout<T>(
             var length = 0f
             val childLengths = mutableMapOf<Int, Float>()
             val positions = mutableMapOf<Int, Float>()
-            val children = inside.children
 
-            val flexChildren = children.filter { !convert.ignore(it) }
+            val (flexChildren, hasGrowChildren) = flexChildInfo()
             val flexCount = flexChildren.size
 
             fun place(child: T, childLength: Float, childGap: Float) {
@@ -81,7 +82,7 @@ class FlexLayout<T>(
             val forEach: (action: (T) -> Unit) -> Unit =
                 if (reverse) { action -> flexChildren.asReversed().forEach(action) } else flexChildren::forEach
 
-            if (hasGrowChildren()) {
+            if (hasGrowChildren) {
                 val insideSize = inside.innerSize
                 val growIndex = mutableMapOf<Int, Float>()
                 var growAll = 0f
@@ -171,11 +172,15 @@ class FlexLayout<T>(
 
     override val sizeFromChildren: Float
         get() {
-            if (arg.directionJustify == DirectionJustify.grow && !hasGrowChildren()) {
+            val (_, hasGrowChildren) = flexChildInfo()
+            if (arg.directionJustify == DirectionJustify.grow && !hasGrowChildren) {
                 return cache().length
             }
             return inside.innerSize
         }
     override val allowSizeFromChildren: Boolean
-        get() = arg.directionJustify == DirectionJustify.grow && !hasGrowChildren()
+        get() {
+            val (_, hasGrowChildren) = flexChildInfo()
+            return arg.directionJustify == DirectionJustify.grow && !hasGrowChildren
+        }
 }
