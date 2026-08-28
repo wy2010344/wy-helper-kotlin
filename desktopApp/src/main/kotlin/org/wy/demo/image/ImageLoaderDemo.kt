@@ -28,6 +28,7 @@ import java.net.URL
 // 3) fetcher 走真实 web 链接（JVM HttpURLConnection 下载字节），需要能访问 picsum.photos
 
 private sealed interface CardState {
+    data object Idle : CardState
     data object Loading : CardState
     data object Success : CardState
     data object Failed : CardState
@@ -45,7 +46,8 @@ private fun main() {
                 conn.connectTimeout = 8000
                 conn.readTimeout = 8000
                 conn.instanceFollowRedirects = true
-                if (conn.responseCode == HttpURLConnection.HTTP_OK) {
+                val code = conn.responseCode
+                if (code == HttpURLConnection.HTTP_OK) {
                     conn.inputStream.use { it.readBytes() }
                 } else null
             } catch (e: Throwable) {
@@ -85,7 +87,7 @@ private fun StateHolder<Node, List<Node>>.asyncCard(
     totalFetches: () -> Int,
 ) {
     val imageStore = createSignal<PlatformImage?>(null)
-    val state = createSignal<CardState>(CardState.Loading)
+    val state = createSignal<CardState>(CardState.Idle)
 
     row {
         // 左侧：96x96 图片区（仿 Button：固定尺寸 + alignFix，内部居中放文本/图片）
@@ -114,6 +116,7 @@ private fun StateHolder<Node, List<Node>>.asyncCard(
                     }
                 } else {
                     val label: String = when (state.get()) {
+                        CardState.Idle -> "未加载"
                         CardState.Loading -> "加载中…"
                         CardState.Success -> "已加载"
                         CardState.Failed -> "加载失败\n可重试"
@@ -131,6 +134,7 @@ private fun StateHolder<Node, List<Node>>.asyncCard(
         text(
             {
                 "当前状态：${when (state.get()) {
+                    CardState.Idle -> "未开始"
                     CardState.Loading -> "加载中"
                     CardState.Success -> "成功"
                     CardState.Failed -> "失败"
@@ -141,6 +145,7 @@ private fun StateHolder<Node, List<Node>>.asyncCard(
         object : Button(this@row) {
             override val label: String get() =
                 when (state.get()) {
+                    CardState.Idle -> "加载"
                     CardState.Loading -> "加载中…"
                     CardState.Success -> "重新加载（命中缓存）"
                     CardState.Failed -> "重试"
