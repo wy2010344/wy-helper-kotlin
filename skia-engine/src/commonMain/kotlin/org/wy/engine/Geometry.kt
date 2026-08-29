@@ -1,8 +1,5 @@
 package org.wy.engine
 
-import kotlin.math.cos
-import kotlin.math.sin
-
 /** 二维点（窗口 / 节点坐标通用）。 */
 data class PointF(val x: Float, val y: Float)
 
@@ -185,75 +182,5 @@ internal fun requireValidStops(colors: List<Int>, stops: List<Float>?, name: Str
     if (stops != null) {
         require(stops.size == colors.size) { "$name stops 数量必须与 colors 一致：${stops.size} vs ${colors.size}" }
         require(stops.all { it in 0f..1f }) { "$name stops 必须在 0..1 区间" }
-    }
-}
-
-class Matrix3f {
-    private val m = FloatArray(6)
-
-    init {
-        m[0] = 1f; m[1] = 0f
-        m[2] = 0f; m[3] = 1f
-        m[4] = 0f; m[5] = 0f
-    }
-
-    fun translate(dx: Float, dy: Float): Matrix3f {
-        val tx = m[0] * dx + m[2] * dy + m[4]
-        val ty = m[1] * dx + m[3] * dy + m[5]
-        m[4] = tx; m[5] = ty
-        return this
-    }
-
-    fun rotate(degrees: Float): Matrix3f {
-        val rad = Math.toRadians(degrees.toDouble())
-        val cos = cos(rad).toFloat()
-        val sin = sin(rad).toFloat()
-        val a00 = m[0] * cos + m[1] * sin
-        val a01 = m[1] * cos + m[3] * sin
-        val a10 = m[0] * (-sin) + m[2] * cos
-        val a11 = m[1] * (-sin) + m[3] * cos
-        m[0] = a00; m[1] = a01
-        m[2] = a10; m[3] = a11
-        return this
-    }
-
-    fun scale(sx: Float, sy: Float): Matrix3f {
-        m[0] *= sx; m[1] *= sx
-        m[2] *= sy; m[3] *= sy
-        return this
-    }
-
-    fun skew(sx: Float, sy: Float): Matrix3f {
-        val a00 = m[0] + m[2] * sy
-        val a01 = m[1] + m[3] * sy
-        val a10 = m[0] * sx + m[2]
-        val a11 = m[1] * sx + m[3]
-        m[0] = a00; m[1] = a01
-        m[2] = a10; m[3] = a11
-        return this
-    }
-
-    fun mapX(x: Float, y: Float): Float = m[0] * x + m[2] * y + m[4]
-    fun mapY(x: Float, y: Float): Float = m[1] * x + m[3] * y + m[5]
-
-    fun inverted(): Matrix3f {
-        val det = m[0] * m[3] - m[1] * m[2]
-        if (kotlin.math.abs(det) < 1e-1f) return Matrix3f()
-        val invDet = 1f / det
-        val result = Matrix3f()
-        result.m[0] = m[3] * invDet
-        result.m[1] = -m[1] * invDet
-        result.m[2] = -m[2] * invDet
-        result.m[3] = m[0] * invDet
-        result.m[4] = (m[2] * m[5] - m[3] * m[4]) * invDet
-        result.m[5] = (m[1] * m[4] - m[0] * m[5]) * invDet
-        return result
-    }
-
-    fun reset(): Matrix3f {
-        m[0] = 1f; m[1] = 0f
-        m[2] = 0f; m[3] = 1f
-        m[4] = 0f; m[5] = 0f
-        return this
     }
 }

@@ -9,7 +9,6 @@ import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.lib.EmptyFun
 import org.wy.lib.GetValue
-import org.wy.lib.kanren.any
 import org.wy.signal.TrackSignal
 import org.wy.signal.createSignal
 import org.wy.signal.memo
