@@ -35,12 +35,6 @@ actual class PlatformParagraph(internal val paragraph: Paragraph) {
         ).map { TextRect(it.rect.left, it.rect.top, it.rect.right, it.rect.bottom) }
     }
 
-    actual fun getWordBoundary(offset: Int): Pair<Int, Int>? {
-        val r = paragraph.getWordBoundary(offset)
-        if (r.end <= r.start) return null
-        return r.start to r.end   // IRange 即半开区间 [start, end)
-    }
-
     actual fun getLineMetrics(): List<PlatformLineMetric> =
         paragraph.lineMetrics.map { PlatformLineMetric(it.startIndex, it.endIndex) }
 }

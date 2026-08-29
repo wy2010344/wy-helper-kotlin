@@ -64,9 +64,6 @@ expect class PlatformParagraph {
     fun getGlyphPositionAtCoordinate(dx: Float, dy: Float): Int
     fun getRectsForRange(start: Int, end: Int, style: RectStyle): List<TextRect>
 
-    /** 包含 [offset] 的词边界（半开区间 [start, end)）；无法分词时返回 null。 */
-    fun getWordBoundary(offset: Int): Pair<Int, Int>?
-
     /** 全部软行度量（按行序）。 */
     fun getLineMetrics(): List<PlatformLineMetric>
 }

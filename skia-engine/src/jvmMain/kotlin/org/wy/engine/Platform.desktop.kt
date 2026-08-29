@@ -210,19 +210,7 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
         skCanvas.restore()
     }
 
-    private fun toSkiaPath(path: Path): org.jetbrains.skia.Path {
-        val builder = org.jetbrains.skia.PathBuilder()
-        for (cmd in path.commands) {
-            when (cmd) {
-                is Path.PathCommand.MoveTo -> builder.moveTo(cmd.x, cmd.y)
-                is Path.PathCommand.LineTo -> builder.lineTo(cmd.x, cmd.y)
-                is Path.PathCommand.QuadTo -> builder.quadTo(cmd.cx, cmd.cy, cmd.x, cmd.y)
-                is Path.PathCommand.CubicTo -> builder.cubicTo(cmd.cx1, cmd.cy1, cmd.cx2, cmd.cy2, cmd.x, cmd.y)
-                is Path.PathCommand.Close -> builder.closePath()
-            }
-        }
-        return builder.detach()
-    }
+    private fun toSkiaPath(path: Path): org.jetbrains.skia.Path = buildSkiaPath(path.commands)
 
     actual fun drawImage(image: PlatformImage, x: Float, y: Float, w: Float, h: Float) {
         skCanvas.drawImageRect(
@@ -239,3 +227,20 @@ actual class PlatformCanvas(val skCanvas: Canvas) {
         paragraph.paragraph.paint(skCanvas, x, y)
     }
 }
+
+internal fun buildSkiaPath(commands: List<Path.PathCommand>): org.jetbrains.skia.Path {
+    val builder = org.jetbrains.skia.PathBuilder()
+    for (cmd in commands) {
+        when (cmd) {
+            is Path.PathCommand.MoveTo -> builder.moveTo(cmd.x, cmd.y)
+            is Path.PathCommand.LineTo -> builder.lineTo(cmd.x, cmd.y)
+            is Path.PathCommand.QuadTo -> builder.quadTo(cmd.cx, cmd.cy, cmd.x, cmd.y)
+            is Path.PathCommand.CubicTo -> builder.cubicTo(cmd.cx1, cmd.cy1, cmd.cx2, cmd.cy2, cmd.x, cmd.y)
+            is Path.PathCommand.Close -> builder.closePath()
+        }
+    }
+    return builder.detach()
+}
+
+internal actual fun pathHitTest(commands: List<Path.PathCommand>, x: Float, y: Float): Boolean =
+    buildSkiaPath(commands).contains(x, y)

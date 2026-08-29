@@ -36,27 +36,6 @@ actual class PlatformParagraph(private val layout: Layout) {
         return layout.getOffsetForHorizontal(clampedLine, dx)
     }
 
-    actual fun getWordBoundary(offset: Int): Pair<Int, Int>? {
-        // StaticLayout 无词边界 API，用 BreakIterator 按当前 locale 分词
-        val text = (layout.text as? CharSequence) ?: return null
-        if (text.isEmpty()) return null
-        val it = java.text.BreakIterator.getWordInstance()
-        it.setText(text.toString())
-        val pos = offset.coerceIn(0, text.length - 1)
-        var start = it.preceding(pos + 1)   // 包含 pos 所在词
-        if (start == java.text.BreakIterator.DONE) start = 0
-        val end = it.following(pos)
-        return if (end == java.text.BreakIterator.DONE || end <= start) null else {
-            // 词内全是空白/标点时仍返回区间，交由上层决定语义
-            start to end
-        }
-    }
-
-    actual fun getLineMetrics(): List<PlatformLineMetric> =
-        (0 until layout.lineCount).map {
-            PlatformLineMetric(layout.getLineStart(it), layout.getLineEnd(it))
-        }
-
     actual fun getRectsForRange(start: Int, end: Int, style: RectStyle): List<TextRect> {
         if (start >= end) return emptyList()
         val result = mutableListOf<TextRect>()
@@ -78,6 +57,11 @@ actual class PlatformParagraph(private val layout: Layout) {
         }
         return result
     }
+
+    actual fun getLineMetrics(): List<PlatformLineMetric> =
+        (0 until layout.lineCount).map {
+            PlatformLineMetric(layout.getLineStart(it), layout.getLineEnd(it))
+        }
 }
 
 private fun toAlignment(textAlign: TextAlign): Layout.Alignment = when (textAlign) {

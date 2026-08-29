@@ -57,3 +57,31 @@ class WordsTest {
         assertEquals(3, Words.nextBoundary("abc", 99))
     }
 }
+
+// 双击选词同样走 Words：与 Ctrl+←/→ 同一套词界，语义完全一致。
+class WordsWordRangeTest {
+
+    @Test
+    fun insideWordReturnsWholeWord() {
+        // "Hello world" 点进 world 中间 → [6, 11)；点进 Hello 中间 → [0, 5)
+        assertEquals(6 to 11, Words.wordRangeAt("Hello world", 8))
+        assertEquals(0 to 5, Words.wordRangeAt("Hello world", 2))
+    }
+
+    @Test
+    fun wordStartOrEndStillWholeWord() {
+        assertEquals(6 to 11, Words.wordRangeAt("Hello world", 6))
+        assertEquals(6 to 11, Words.wordRangeAt("Hello world", 10))
+    }
+
+    @Test
+    fun emptyTextReturnsNull() {
+        assertEquals(null, Words.wordRangeAt("", 0))
+    }
+
+    @Test
+    fun outOfRangeClampsToEdgeCluster() {
+        assertEquals(0 to 5, Words.wordRangeAt("Hello", -1))
+        assertEquals(0 to 5, Words.wordRangeAt("Hello", 99))
+    }
+}

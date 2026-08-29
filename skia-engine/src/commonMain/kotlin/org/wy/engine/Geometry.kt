@@ -24,63 +24,45 @@ data class RectF(
 }
 
 class Path {
-    /**
-     * 命中近似用的多边形顶点：线段取端点，曲线按固定细分采样。
-     * [contains] 基于这些点做点是否在多边形内判定。
-     */
-    private val points = mutableListOf<Point>()
-
     /** 实际的路径命令序列，供平台端翻译成 Skia / Android Path。 */
     internal val commands = mutableListOf<PathCommand>()
 
     val isEmpty: Boolean get() = commands.isEmpty() || (commands.size == 1 && commands[0] is PathCommand.MoveTo)
 
-    val lastX: Float get() = (points.lastOrNull()?.x) ?: 0f
-    val lastY: Float get() = (points.lastOrNull()?.y) ?: 0f
+    /** 最后一个有效命令的终点（Close 不改变当前位置）。 */
+    private val lastPosition: Point
+        get() {
+            val last = commands.lastOrNull { it !is PathCommand.Close }
+            return when (last) {
+                is PathCommand.MoveTo -> Point(last.x, last.y)
+                is PathCommand.LineTo -> Point(last.x, last.y)
+                is PathCommand.QuadTo -> Point(last.x, last.y)
+                is PathCommand.CubicTo -> Point(last.x, last.y)
+                else -> Point(0f, 0f)
+            }
+        }
+
+    val lastX: Float get() = lastPosition.x
+    val lastY: Float get() = lastPosition.y
 
     fun moveTo(x: Float, y: Float): Path {
-        points.add(Point(x, y))
         commands.add(PathCommand.MoveTo(x, y))
         return this
     }
 
     fun lineTo(x: Float, y: Float): Path {
-        points.add(Point(x, y))
         commands.add(PathCommand.LineTo(x, y))
         return this
     }
 
-    /**
-     * 二次贝塞尔曲线：控制点 (cx, cy)，终点 (x, y)。
-     * 命中近似按 4 段均匀细分采样。
-     */
+    /** 二次贝塞尔曲线：控制点 (cx, cy)，终点 (x, y)。 */
     fun quadTo(cx: Float, cy: Float, x: Float, y: Float): Path {
-        val px0 = lastX
-        val py0 = lastY
-        for (i in 1..SEGMENTS_QUAD) {
-            val t = i / SEGMENTS_QUAD.toFloat()
-            val px = (1 - t) * (1 - t) * px0 + 2 * (1 - t) * t * cx + t * t * x
-            val py = (1 - t) * (1 - t) * py0 + 2 * (1 - t) * t * cy + t * t * y
-            points.add(Point(px, py))
-        }
         commands.add(PathCommand.QuadTo(cx, cy, x, y))
         return this
     }
 
-    /**
-     * 三次贝塞尔曲线：两个控制点，终点 (x, y)。
-     * 命中近似按 6 段均匀细分采样。
-     */
+    /** 三次贝塞尔曲线：两个控制点，终点 (x, y)。 */
     fun cubicTo(cx1: Float, cy1: Float, cx2: Float, cy2: Float, x: Float, y: Float): Path {
-        val px0 = lastX
-        val py0 = lastY
-        for (i in 1..SEGMENTS_CUBIC) {
-            val t = i / SEGMENTS_CUBIC.toFloat()
-            val mt = 1 - t
-            val px = mt * mt * mt * px0 + 3 * mt * mt * t * cx1 + 3 * mt * t * t * cx2 + t * t * t * x
-            val py = mt * mt * mt * py0 + 3 * mt * mt * t * cy1 + 3 * mt * t * t * cy2 + t * t * t * y
-            points.add(Point(px, py))
-        }
         commands.add(PathCommand.CubicTo(cx1, cy1, cx2, cy2, x, y))
         return this
     }
@@ -91,25 +73,12 @@ class Path {
     }
 
     fun reset(): Path {
-        points.clear()
         commands.clear()
         return this
     }
 
-    fun contains(x: Float, y: Float): Boolean {
-        var inside = false
-        for (i in points.indices) {
-            val j = (i + 1) % points.size
-            val yi = points[i].y
-            val yj = points[j].y
-            val xi = points[i].x
-            val xj = points[j].x
-            if (((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
-                inside = !inside
-            }
-        }
-        return inside
-    }
+    /** 点 (x, y) 是否落在填充区域内（精确判定，由平台 Path.contains 实现）。 */
+    fun contains(x: Float, y: Float): Boolean = pathHitTest(commands, x, y)
 
     private data class Point(val x: Float, val y: Float)
 
@@ -140,12 +109,10 @@ class Path {
             override val y: Float get() = 0f
         }
     }
-
-    private companion object {
-        const val SEGMENTS_QUAD = 4
-        const val SEGMENTS_CUBIC = 6
-    }
 }
+
+/** 平台路径命中测试：命令序列翻译成原生 Path 后判定点是否落在填充区域内。 */
+internal expect fun pathHitTest(commands: List<Path.PathCommand>, x: Float, y: Float): Boolean
 
 /**
  * 渐变抽象：`fill` 系列方法的 `gradient` 参数统一接收此类型。

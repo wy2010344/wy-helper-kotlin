@@ -9,9 +9,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * 双击选词：词边界来自段落布局（skiko getWordBoundary / Android BreakIterator），
+ * 双击选词：词边界统一走 Words（与 Ctrl+←/→ 词跳同源），
  * 选区物化复用编程式 select（编辑器聚焦时自动分流为其内部选区）。
- * 本文件用真实段落布局验证分词正确性。
  */
 class DoubleClickWordSelectionTest {
 

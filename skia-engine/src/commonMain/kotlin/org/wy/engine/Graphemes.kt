@@ -94,4 +94,41 @@ object Words {
             Graphemes.nextBoundary(text, i)
         }
     }
+
+    /**
+     * 包含 [offset] 的整词区间（半开区间），供**双击选词**使用。
+     *
+     * 语义与导航（[prevBoundary]/[nextBoundary]）完全一致：
+     * - offset 落在词字符（字母/数字/中文等，见 [isWordChar]）上 → 扩展为连续词字符簇区间；
+     * - 落在标点 / 符号 / emoji / 空白上 → 该字素簇单独作为一个"词"。
+     * 这样双击与 Ctrl+←/→ 的边界来自同一规则，杜绝"同一文本两套词界"的分歧。
+     *
+     * [offset] 越界钳制到有效索引；空文本返回 null。
+     */
+    fun wordRangeAt(text: String, offset: Int): Pair<Int, Int>? {
+        val n = text.length
+        if (n == 0) return null
+        val pos = offset.coerceIn(0, n - 1)
+        // 吸附到所在字素簇的起点（offset 可能指向 unicode 双单元簇的内部）
+        val anchor = Graphemes.prevBoundary(text, pos + 1)
+        if (!isWordChar(text[anchor])) {
+            // 标点 / emoji / 空白：该簇自身即一词
+            return anchor to Graphemes.nextBoundary(text, anchor)
+        }
+        // 向前扩展到词首
+        var start = anchor
+        while (start > 0) {
+            val p = Graphemes.prevBoundary(text, start)
+            if (p == start || !isWordChar(text[p])) break
+            start = p
+        }
+        // 向后扩展到词尾
+        var end = Graphemes.nextBoundary(text, anchor)
+        while (end < n) {
+            val q = Graphemes.nextBoundary(text, end)
+            if (q == end || !isWordChar(text[end])) break
+            end = q
+        }
+        return start to end
+    }
 }

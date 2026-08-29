@@ -211,19 +211,7 @@ actual class PlatformCanvas(val canvas: Canvas) {
         }
     }
 
-    private fun toAndroidPath(path: Path): android.graphics.Path {
-        val p = android.graphics.Path()
-        for (cmd in path.commands) {
-            when (cmd) {
-                is Path.PathCommand.MoveTo -> p.moveTo(cmd.x, cmd.y)
-                is Path.PathCommand.LineTo -> p.lineTo(cmd.x, cmd.y)
-                is Path.PathCommand.QuadTo -> p.quadTo(cmd.cx, cmd.cy, cmd.x, cmd.y)
-                is Path.PathCommand.CubicTo -> p.cubicTo(cmd.cx1, cmd.cy1, cmd.cx2, cmd.cy2, cmd.x, cmd.y)
-                is Path.PathCommand.Close -> p.close()
-            }
-        }
-        return p
-    }
+    private fun toAndroidPath(path: Path): android.graphics.Path = buildAndroidPath(path.commands)
 
     actual fun drawImage(image: PlatformImage, x: Float, y: Float, w: Float, h: Float) {
         val src = android.graphics.Rect(0, 0, image.bitmap.width, image.bitmap.height)
@@ -235,3 +223,20 @@ actual class PlatformCanvas(val canvas: Canvas) {
         paragraph.draw(canvas, x, y)
     }
 }
+
+private fun buildAndroidPath(commands: List<Path.PathCommand>): android.graphics.Path {
+    val p = android.graphics.Path()
+    for (cmd in commands) {
+        when (cmd) {
+            is Path.PathCommand.MoveTo -> p.moveTo(cmd.x, cmd.y)
+            is Path.PathCommand.LineTo -> p.lineTo(cmd.x, cmd.y)
+            is Path.PathCommand.QuadTo -> p.quadTo(cmd.cx, cmd.cy, cmd.x, cmd.y)
+            is Path.PathCommand.CubicTo -> p.cubicTo(cmd.cx1, cmd.cy1, cmd.cx2, cmd.cy2, cmd.x, cmd.y)
+            is Path.PathCommand.Close -> p.close()
+        }
+    }
+    return p
+}
+
+internal actual fun pathHitTest(commands: List<Path.PathCommand>, x: Float, y: Float): Boolean =
+    buildAndroidPath(commands).contains(x, y)

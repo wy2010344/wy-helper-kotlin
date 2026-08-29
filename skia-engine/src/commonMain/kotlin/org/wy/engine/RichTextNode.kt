@@ -132,9 +132,13 @@ open class RichTextNode(
         if (end > start) fullText.substring(start, end.coerceAtMost(fullText.length)) else ""
 
     override fun wordRangeAt(offset: Int): Pair<Int, Int>? {
-        val p = paragraph ?: return null
-        return p.getWordBoundary(offset.coerceIn(0, fullText.length - 1))
-            ?.let { (a, b) -> displayToLogicIndex(a) to displayToLogicIndex(b) }
+        // 词边界统一到 Words（与 Ctrl+←/→ 导航同源），双击与词跳不再各用一套切分。
+        // 空文本（含无占位）无词可选；占位 / 掩码经 displayToLogicIndex 塌缩。
+        val t = fullText
+        if (t.isEmpty()) return null
+        return Words.wordRangeAt(t, offset)?.let { (a, b) ->
+            displayToLogicIndex(a) to displayToLogicIndex(b)
+        }
     }
 
     override fun paragraphRangeAt(offset: Int): Pair<Int, Int>? {
