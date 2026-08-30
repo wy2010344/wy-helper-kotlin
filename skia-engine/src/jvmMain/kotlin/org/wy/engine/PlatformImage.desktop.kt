@@ -12,7 +12,8 @@ actual class PlatformImage internal constructor(
 actual fun decodeImage(bytes: ByteArray): PlatformImage? {
     return try {
         Image.makeFromEncoded(bytes)?.let(::PlatformImage)
-    } catch (_: Throwable) {
+    } catch (e: Throwable) {
+        engineLogWarn("decodeImage error--${e.stackTraceToString()}")
         null
     }
 }

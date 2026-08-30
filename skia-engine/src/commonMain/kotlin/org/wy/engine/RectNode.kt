@@ -21,7 +21,7 @@ abstract class RectNode(
                 StartEnd.start
             )
         } catch (err: LayoutError) {
-
+            engineLogError("RectNode.argPosition failure", err)
         }
         return lp.padding(direction, StartEnd.start)
     }
