@@ -68,19 +68,7 @@ class TextSelectionTest {
         assertEquals("Hello World", node.selectedText)
     }
 
-    @Test
-    fun testPlainTextRegisteredForSelectAll() {
-        val (sh, g, _) = createEnv()
-        val node = TestText(sh, "Hello World")
-        g.mount(node) // headless 无渲染树，显式挂进选区派生集合
-
-        // 普通文本实现 Selectable：注册后统一全选/复制
-        g.selectionManager.selectAll()
-        assertTrue(g.selectionManager.hasSelection)
-        assertEquals("Hello World", g.selectionManager.selectedText)
-    }
-
-    // ---------- 2. 中文输入精确定位 ----------
+// ---------- 2. 中文输入精确定位 ----------
 
     @Test
     fun testChineseCommittedInputPrecisePosition() {

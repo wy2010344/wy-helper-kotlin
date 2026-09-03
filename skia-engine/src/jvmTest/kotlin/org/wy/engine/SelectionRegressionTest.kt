@@ -7,6 +7,7 @@ import org.wy.signal.getValue
 import org.wy.signal.setValue
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -138,6 +139,7 @@ class SelectionRegressionTest {
             lateinit var renderer: Renderer
             lateinit var edA: EditableTextNode
             lateinit var edB: EditableTextNode
+            lateinit var plain: MockText
             val g get() = renderer.engineGlobal
             val m get() = renderer.engineGlobal.selectionManager
         }
@@ -149,6 +151,7 @@ class SelectionRegressionTest {
                 env.edB = object : EditableTextNode(this) {
                     init { text = "Beta editor text" }
                 }
+                env.plain = MockText(this, "plain text")
             }
         }
         env.renderer.children
@@ -164,6 +167,10 @@ class SelectionRegressionTest {
 
         assertTrue(ok, "焦点切换后，select 目标等于新 activeEditor 应能成功")
         assertEquals("Beta", env.m.selectedText)
+
+        // 目标不是聚焦编辑器：全局唯一选区会话无第二语境，拒绝
+        assertFalse(env.m.select(env.plain, 0, 5))
+        assertEquals("Beta", env.m.selectedText, "拒绝后原选区不变")
     }
 
     // ===== 双击编辑器：selectRange 写入词选区后不应再被 onPointerDownCapture 的 setCursor 覆盖 =====

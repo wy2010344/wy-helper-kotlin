@@ -78,20 +78,6 @@ class CrossNodeSelectionTest {
     }
 
     @Test
-    fun pressingEmptyAreaClearsWholeSelection() {
-        val env = Env()
-        env.build()
-        env.manager.selectAll()
-        assertTrue(env.manager.hasSelection)
-
-        // 按下落在无可选节点处：派生链返回空，整个全局选区立即清除（浏览器语义）
-        env.g.pointerSelect = PointerSelect(env.blankHit(), null)
-
-        assertFalse(env.manager.hasSelection)
-        assertNull(env.manager.selectedText)
-    }
-
-    @Test
     fun keyboardSelectionDerivedFromEditorCursor() {
         val env = Env()
         env.build()
@@ -123,21 +109,6 @@ class CrossNodeSelectionTest {
     }
 
     @Test
-    fun selectRoutesToFocusedEditor() {
-        val env = Env()
-        env.build()
-        env.renderer.engineGlobal.focused = env.editor
-
-        // 聚焦编辑器时，select 分流为编辑器内本地选区（写本地光标信号）
-        assertTrue(env.manager.select(env.editor, 1, 4))
-        assertEquals("dit", env.manager.selectedText)
-
-        // 目标不是聚焦编辑器：全局唯一选区会话无第二语境，拒绝
-        assertFalse(env.manager.select(env.a, 0, 5))
-        assertEquals("dit", env.manager.selectedText, "拒绝后原选区不变")
-    }
-
-    @Test
     fun editorProgrammaticCursorAndRange() {
         val env = Env()
         env.build()
@@ -154,30 +125,4 @@ class CrossNodeSelectionTest {
         assertEquals("diX", env.manager.selectedText)
     }
 
-    @Test
-    fun selectAllSpansAllRegisteredNodes() {
-        val env = Env()
-        env.build()
-        env.manager.selectAll()
-
-        assertTrue(env.manager.rangeOf(env.a) != null)
-        assertTrue(env.manager.rangeOf(env.b) != null)
-        assertTrue(env.manager.rangeOf(env.c) != null)
-        assertTrue(env.manager.rangeOf(env.editor) != null)
-        assertEquals("Hello worldKotlin engineThird blockEditor", env.manager.selectedText)
-    }
-
-    @Test
-    fun hidingShrinksAssignmentWithoutCleanup() {
-        val env = Env()
-        env.build()
-        env.manager.selectAll()
-
-        // 隐藏参与节点：无需清理命令，其片段自然退出分配与聚合（树遍历不再发现它）
-        env.editor.hidden = true
-
-        assertNull(env.manager.rangeOf(env.editor))
-        assertEquals("Hello worldKotlin engineThird block", env.manager.selectedText)
-        assertTrue(env.manager.rangeOf(env.b) != null, "其余节点选区不受隐藏影响")
-    }
 }

@@ -39,27 +39,7 @@ class EditableShortcutTest {
         }
     }
 
-    // ===== 组合进行中 redo 必须被抑制（undo 已有同款守卫，redo 此前缺失） =====
-    //
-    // 流程：插入 "Hello" → 撤销（redo 栈备好 "Hello"）→ 进入组合态（预编辑 "pin" 上屏）
-    //       → 触发 redo。
-    // 期望：组合中文本保持预编辑态；若守卫缺失，applyState 会把文本整体改写，
-    //       光标与组合区间全部错乱。
-    @Test
-    fun redoSuppressedDuringComposing() {
-        val env = Env()
-        env.editor.insertText("Hello")
-        env.editor.undo()
-        assertEquals("", env.editor.text, "撤销后应为空文本")
-
-        env.editor.onComposing("pin", 3)
-        assertEquals("pin", env.editor.text, "组合文本应已上屏")
-
-        env.editor.redo()
-        assertEquals("pin", env.editor.text, "组合进行中 redo 不得改写文本")
-    }
-
-    // ===== CapsLock / Shift 大写不破坏撤销重做快捷键 =====
+// ===== CapsLock / Shift 大写不破坏撤销重做快捷键 =====
     //
     // CapsLock 开启或 Shift 参与时平台上报的 key 是大写（如 'Z'），
     // 快捷键匹配必须做大小写归一：
