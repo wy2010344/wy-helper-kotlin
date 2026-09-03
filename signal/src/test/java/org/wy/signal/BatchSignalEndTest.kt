@@ -86,4 +86,22 @@ class BatchSignalEndTest {
         assertEquals(1, ran)
         assertFalse(G.beginBatch)
     }
+
+    /**
+     * 同一批次内 effect 按 level 升序执行（level 越小越先）。
+     */
+    @Test
+    fun effectsRunInLevelOrder() {
+        resetGlobalState()
+        val order = mutableListOf<Int>()
+        G.beginBatch = true
+        G.currentBatch.effects.getOrPut(1) { mutableListOf() }.add { order.add(1) }
+        G.currentBatch.effects.getOrPut(0) { mutableListOf() }.add { order.add(0) }
+        G.currentBatch.effects.getOrPut(2) { mutableListOf() }.add { order.add(2) }
+
+        batchSignalEnd()
+
+        assertEquals(listOf(0, 1, 2), order)
+        assertFalse(G.beginBatch)
+    }
 }

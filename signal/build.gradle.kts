@@ -16,6 +16,7 @@ kotlin {
             implementation(projects.lib)
             implementation(libs.kotlinx.coroutines.core)
             testImplementation(libs.kotlin.testJunit)
+            testImplementation(libs.kotlinx.coroutinesSwing)
         }
     }
 }
