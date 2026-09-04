@@ -1,7 +1,6 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolderWithNode
-import org.wy.signal.batchSignalEnd
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.setValue
@@ -20,29 +19,17 @@ import kotlin.test.assertTrue
  * MockText 可编程换算坐标）；本文件的真实 WrappedTextNode 在无布局的测试环境下
  * positionForPoint 无法构建段落，故指针路径仅使用空白命中（空链，不触发定位）。
  */
-class CrossNodeSelectionTest {
+class CrossNodeSelectionTest : SkiaTestBase() {
 
-    /**
-     * 每个用例结束后排干信号批队列：
-     * 本测试大量写信号会触发自动批（异步协程消费），若放任跨测试残留，
-     * 迟到的后台协程会与后续测试的手动 batchSignalEnd 并发竞争全局状态。
-     * 先 sleep 让已提交的消费协程跑完，再 flush 兜底未提交的部分，
-     * 保证进入下一用例时批状态干净、无并发方。
-     */
     private class TestEditor(
         context: StateHolderWithNode<Node, List<Node>>
     ) : EditableTextNode(context) {
+        override val autoWidth: Boolean get() = true
         override var text by createSignal("Editor")
 
         /** 模拟"从树上摘除"：置 true 后由 children 的 purifyList 过滤。 */
         var hidden: Boolean by createSignal(false)
         override val hide: Boolean get() = hidden
-    }
-
-    @org.junit.After
-    fun drainSignalBatch() {
-        Thread.sleep(50)
-        batchSignalEnd()
     }
 
     private class Env {

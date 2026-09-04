@@ -10,11 +10,15 @@ kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
     }
-}
 
-sourceSets{
-    dependencies{
-        implementation(projects.lib)
-        implementation(projects.signal)
+    sourceSets {
+        dependencies {
+            implementation(projects.lib)
+            implementation(projects.signal)
+
+            testImplementation(projects.signal)
+            testImplementation(libs.kotlin.test)
+            testImplementation(libs.kotlin.testJunit)
+        }
     }
 }

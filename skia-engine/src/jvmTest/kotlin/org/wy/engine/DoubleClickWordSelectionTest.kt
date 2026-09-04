@@ -1,7 +1,6 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
-import org.wy.signal.batchSignalEnd
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -12,7 +11,7 @@ import kotlin.test.assertTrue
  * 双击选词：词边界统一走 Words（与 Ctrl+←/→ 词跳同源），
  * 选区物化复用编程式 select（编辑器聚焦时自动分流为其内部选区）。
  */
-class DoubleClickWordSelectionTest {
+class DoubleClickWordSelectionTest : SkiaTestBase() {
 
     private class TestText(
         context: StateHolder<Node, List<Node>>,
@@ -27,12 +26,6 @@ class DoubleClickWordSelectionTest {
         state.provide(engineGlobalContext, g)
         state.provide(selectionManagerContext, g.selectionManager)
         return state to g
-    }
-
-    @org.junit.After
-    fun drainSignalBatch() {
-        Thread.sleep(50)
-        batchSignalEnd()
     }
 
     @Test

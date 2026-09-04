@@ -2,7 +2,6 @@ package org.wy.engine
 
 import com.wy.mve.DuplicateInfo
 import com.wy.mve.StateHolderWithNode
-import org.wy.signal.batchSignalEnd
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.setValue
@@ -16,13 +15,7 @@ import kotlin.test.assertNull
  * - 定格的指针会话仍引用已销毁行时，选区派生必须安全回退（清空），
  *   不得对死节点做几何计算（此前在此处触发 StackLayout 数组越界）。
  */
-class DestroyedSelectionTest {
-
-    @org.junit.After
-    fun drainSignalBatch() {
-        Thread.sleep(50)
-        batchSignalEnd()
-    }
+class DestroyedSelectionTest : SkiaTestBase() {
 
     private class Row(val key: Long)
 
@@ -77,7 +70,7 @@ class DestroyedSelectionTest {
 
         // 删除被定格引用的行：派生链不得触碰死节点（此前此处数组越界）
         env.list = env.list.filter { it.key != 2L }
-        batchSignalEnd()
+        flushBatches()
 
         assertNull(env.manager.anchorSel, "定格端点指向已销毁节点，选区应整体清空")
         assertNull(env.manager.selectedText)
@@ -89,7 +82,7 @@ class DestroyedSelectionTest {
         env.build()
 
         env.list = env.list.filter { it.key != 2L }
-        batchSignalEnd()
+        flushBatches()
 
         env.manager.selectAll()
         assertEquals("row-1row-3", env.manager.selectedText, "全选聚合不应包含已销毁行")
@@ -102,7 +95,7 @@ class DestroyedSelectionTest {
 
         // hide 行由 children 的 purifyList 过滤，树遍历天然不可见
         env.hideSecond = true
-        batchSignalEnd()
+        flushBatches()
 
         env.manager.selectAll()
         assertEquals("row-1row-3", env.manager.selectedText, "全选聚合不应包含隐藏行")

@@ -1,7 +1,6 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
-import org.wy.signal.batchSignalEnd
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -14,7 +13,7 @@ import kotlin.test.assertTrue
  * - 双击拖词扩展：expandWordSelection 以锚词为基准按词粒度扩展；
  * - 物化路径复用编程式 select（与双击选词同构）。
  */
-class MultiClickSelectionTest {
+class MultiClickSelectionTest : SkiaTestBase() {
 
     private class TestText(
         context: StateHolder<Node, List<Node>>,
@@ -30,14 +29,6 @@ class MultiClickSelectionTest {
         state.provide(selectionManagerContext, g.selectionManager)
         return state to g
     }
-
-    @org.junit.After
-    fun drainSignalBatch() {
-        Thread.sleep(50)
-        batchSignalEnd()
-    }
-
-    // ---------- 三击选段：段落边界 ----------
 
     @Test
     fun paragraphRangeSplitsByNewline() {

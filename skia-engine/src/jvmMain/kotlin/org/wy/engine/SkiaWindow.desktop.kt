@@ -65,7 +65,7 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*
     }
 
     override fun setCursor(v: CursorType) {
-        skiaLayer.cursor = cursorOf(v)
+        skiaLayer?.cursor = cursorOf(v)
     }
 
     /** 声明式 IME：EditableTextNode 活跃时由 Renderer 自动调用，把输入框移动到光标位置。 */
@@ -95,7 +95,7 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*
     private var hiddenField: JTextField? = null
     override fun frameCallback() {
         SwingUtilities.invokeLater {
-            skiaLayer.needRender(true)
+            skiaLayer?.needRender(true)
         }
     }
 

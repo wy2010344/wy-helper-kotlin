@@ -51,46 +51,52 @@ class PointerClickDispatchTest {
 
     @org.junit.After
     fun drainSignalBatch() {
-        Thread.sleep(50)
-        batchSignalEnd()
+        runOnUiThread {
+            Thread.sleep(50)
+            batchSignalEnd()
+        }
     }
 
     @Test
     fun everyUpOfMultiClickDispatchesClick() {
-        val env = Env()
+        runOnUiThread {
+            val env = Env()
 
-        // 单击
-        env.renderer.mouseDown(5f, 5f)
-        env.renderer.mouseUp(5f, 5f)
-        assertEquals(1, env.textNode.clicks, "单击应派发一次 Click")
+            // 单击
+            env.renderer.mouseDown(5f, 5f)
+            env.renderer.mouseUp(5f, 5f)
+            assertEquals(1, env.textNode.clicks, "单击应派发一次 Click")
 
-        // 双击的第二下：按下不开会话，但松手仍应派发 Click
-        env.renderer.mouseDown(6f, 4f)
-        env.renderer.mouseUp(6f, 4f)
-        assertEquals(2, env.textNode.clicks, "双击第二次松手也应派发 Click")
+            // 双击的第二下：按下不开会话，但松手仍应派发 Click
+            env.renderer.mouseDown(6f, 4f)
+            env.renderer.mouseUp(6f, 4f)
+            assertEquals(2, env.textNode.clicks, "双击第二次松手也应派发 Click")
 
-        // 三击的第三下同理
-        env.renderer.mouseDown(5f, 5f)
-        env.renderer.mouseUp(5f, 5f)
-        assertEquals(3, env.textNode.clicks, "三击第三次松手也应派发 Click")
+            // 三击的第三下同理
+            env.renderer.mouseDown(5f, 5f)
+            env.renderer.mouseUp(5f, 5f)
+            assertEquals(3, env.textNode.clicks, "三击第三次松手也应派发 Click")
+        }
     }
 
     @Test
     fun pressedReflectsHoldEvenWithoutSession() {
-        val env = Env()
+        runOnUiThread {
+            val env = Env()
 
-        assertNull(env.g.pressed, "未按下时无按压态")
+            assertNull(env.g.pressed, "未按下时无按压态")
 
-        // 单击按住：有会话，按压态生效
-        env.renderer.mouseDown(5f, 5f)
-        assertNotNull(env.g.pressed, "按住期间应有按压态")
-        env.renderer.mouseUp(5f, 5f)
-        assertNull(env.g.pressed, "松手后按压态消失")
+            // 单击按住：有会话，按压态生效
+            env.renderer.mouseDown(5f, 5f)
+            assertNotNull(env.g.pressed, "按住期间应有按压态")
+            env.renderer.mouseUp(5f, 5f)
+            assertNull(env.g.pressed, "松手后按压态消失")
 
-        // 双击第二下按住：无会话，按压态同样必须生效
-        env.renderer.mouseDown(6f, 4f)
-        assertNotNull(env.g.pressed, "双击按住期间（无会话）按压态不应失效")
-        env.renderer.mouseUp(6f, 4f)
-        assertNull(env.g.pressed, "松手后按压态消失")
+            // 双击第二下按住：无会话，按压态同样必须生效
+            env.renderer.mouseDown(6f, 4f)
+            assertNotNull(env.g.pressed, "双击按住期间（无会话）按压态不应失效")
+            env.renderer.mouseUp(6f, 4f)
+            assertNull(env.g.pressed, "松手后按压态消失")
+        }
     }
 }

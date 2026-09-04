@@ -1,7 +1,6 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolderWithNode
-import org.wy.signal.batchSignalEnd
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -12,13 +11,7 @@ import kotlin.test.assertTrue
  * - 输入法组合进行中（composingLength > 0）redo 与 undo 同样必须被抑制，
  *   否则会把组合文本整体改写、破坏 IME 会话。
  */
-class EditableShortcutTest {
-
-    @org.junit.After
-    fun drainSignalBatch() {
-        Thread.sleep(50)
-        batchSignalEnd()
-    }
+class EditableShortcutTest : SkiaTestBase() {
 
     /** 单编辑器环境：真渲染树挂一个编辑器。 */
     private class Env {
@@ -30,7 +23,9 @@ class EditableShortcutTest {
         init {
             renderer = object : Renderer(null) {
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    editor = object : EditableTextNode(this) {}
+                    editor = object : EditableTextNode(this) {
+                        override val autoWidth: Boolean get() = true
+                    }
                     editor.text = ""
                 }
             }

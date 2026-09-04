@@ -2,7 +2,6 @@ package org.wy.engine
 
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
-import org.wy.signal.batchSignalEnd
 import org.wy.signal.getValue
 import org.wy.signal.setValue
 import kotlin.test.Test
@@ -17,7 +16,7 @@ import kotlin.test.assertTrue
  * - 容器声明 selectionEnabled = false 时，本节点及整个子树退出可选集合
  *   （如按钮内嵌文本、装饰性标签），拖选 / 双击 / 全选均不可波及。
  */
-class SelectionScopeTest {
+class SelectionScopeTest : SkiaTestBase() {
 
     private class TestText(
         context: StateHolder<Node, List<Node>>,
@@ -58,12 +57,6 @@ class SelectionScopeTest {
             // headless 下显式展开按钮子树，content 声明才会执行
             button.children
         }
-    }
-
-    @org.junit.After
-    fun drainSignalBatch() {
-        Thread.sleep(50)
-        batchSignalEnd()
     }
 
     @Test

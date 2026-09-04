@@ -1,0 +1,90 @@
+﻿Reusing configuration cache.
+> Task :mve:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :signal:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :skia-engine:generateComposeResClass SKIPPED
+> Task :mve:processResources NO-SOURCE
+> Task :skia-engine:generateExpectResourceCollectorsForCommonMain SKIPPED
+> Task :lib:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :signal:processResources NO-SOURCE
+> Task :layout:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :lib:processResources NO-SOURCE
+> Task :skia-engine:convertXmlValueResourcesForJvmMain NO-SOURCE
+> Task :skia-engine:convertXmlValueResourcesForCommonMain NO-SOURCE
+> Task :skia-engine:kmpPartiallyResolvedDependenciesChecker
+> Task :skia-engine:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :layout:processResources NO-SOURCE
+> Task :skia-engine:convertXmlValueResourcesForCommonTest NO-SOURCE
+> Task :skia-engine:checkJvmTestComposeLibrariesCompatibility
+> Task :skia-engine:copyNonXmlValueResourcesForJvmMain NO-SOURCE
+> Task :skia-engine:copyNonXmlValueResourcesForCommonMain NO-SOURCE
+> Task :skia-engine:checkJvmMainComposeLibrariesCompatibility
+> Task :skia-engine:convertXmlValueResourcesForJvmTest NO-SOURCE
+> Task :skia-engine:copyNonXmlValueResourcesForCommonTest NO-SOURCE
+> Task :skia-engine:copyNonXmlValueResourcesForJvmTest NO-SOURCE
+> Task :skia-engine:prepareComposeResourcesTaskForJvmMain NO-SOURCE
+> Task :skia-engine:prepareComposeResourcesTaskForJvmTest NO-SOURCE
+> Task :skia-engine:generateResourceAccessorsForJvmMain SKIPPED
+> Task :skia-engine:generateResourceAccessorsForJvmTest SKIPPED
+> Task :skia-engine:prepareComposeResourcesTaskForCommonTest NO-SOURCE
+> Task :skia-engine:generateResourceAccessorsForCommonTest SKIPPED
+> Task :lib:compileKotlin UP-TO-DATE
+> Task :skia-engine:prepareComposeResourcesTaskForCommonMain NO-SOURCE
+> Task :skia-engine:generateResourceAccessorsForCommonMain SKIPPED
+> Task :skia-engine:generateActualResourceCollectorsForJvmMain SKIPPED
+> Task :skia-engine:assembleJvmMainResources UP-TO-DATE
+> Task :lib:compileJava NO-SOURCE
+> Task :skia-engine:assembleJvmTestResources UP-TO-DATE
+> Task :lib:classes UP-TO-DATE
+> Task :skia-engine:jvmProcessResources UP-TO-DATE
+> Task :skia-engine:processJvmMainResources SKIPPED
+> Task :lib:jar UP-TO-DATE
+> Task :skia-engine:jvmTestProcessResources UP-TO-DATE
+> Task :skia-engine:processJvmTestResources SKIPPED
+> Task :signal:compileKotlin UP-TO-DATE
+> Task :signal:compileJava NO-SOURCE
+> Task :signal:classes UP-TO-DATE
+> Task :signal:jar UP-TO-DATE
+> Task :mve:compileKotlin UP-TO-DATE
+> Task :layout:compileKotlin UP-TO-DATE
+> Task :mve:compileJava NO-SOURCE
+> Task :mve:classes UP-TO-DATE
+> Task :layout:compileJava NO-SOURCE
+> Task :layout:classes UP-TO-DATE
+> Task :mve:jar UP-TO-DATE
+> Task :layout:jar UP-TO-DATE
+> Task :skia-engine:compileKotlinJvm UP-TO-DATE
+> Task :skia-engine:compileJvmMainJava NO-SOURCE
+> Task :skia-engine:jvmMainClasses UP-TO-DATE
+> Task :skia-engine:jvmJar UP-TO-DATE
+> Task :skia-engine:compileTestKotlinJvm UP-TO-DATE
+> Task :skia-engine:compileJvmTestJava NO-SOURCE
+> Task :skia-engine:jvmTestClasses UP-TO-DATE
+
+> Task :skia-engine:jvmTest
+
+EventIntegrationTest[jvm] > testModifiersOnlyMaintainedByKeyboard[jvm] FAILED
+    java.lang.AssertionError at EventIntegrationTest.kt:187
+.\gradlew : 
+所在位置 行:1 字符: 66
++ ... oid Studio1\jbr"; .\gradlew :skia-engine:jvmTest --rerun 2>&1 | Out-F ...
++                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+235 tests completed, 1 failed
+
+> Task :skia-engine:jvmTest FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':skia-engine:jvmTest'.
+> There were failing tests. See the report at: file:///C:/github/wy-helper/skia-engine/build/reports/tests/jvmTest/inde
+x.html
+
+* Try:
+> Run with --scan to generate a Build Scan (Powered by Develocity).
+
+BUILD FAILED in 5s
+19 actionable tasks: 4 executed, 15 up-to-date
+Configuration cache entry reused.

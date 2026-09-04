@@ -14,6 +14,10 @@ internal fun checkMemoStack(){
         throw Error("之前有memo没有正常退出--${stackMemos.size}")
     }
 }
+
+internal fun resetStackMemos(){
+    stackMemos.clear()
+}
 //有一种可能，重入循环
 abstract class Memo<T> : GetValue<T> {
     abstract fun get(old: T?, inited: Boolean): T

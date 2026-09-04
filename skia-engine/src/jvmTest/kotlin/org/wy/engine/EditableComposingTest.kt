@@ -1,7 +1,6 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolderWithNode
-import org.wy.signal.batchSignalEnd
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -13,7 +12,7 @@ import kotlin.test.assertTrue
  * - 取消（restore）还原被预编辑替换的原选区文本；
  * - 组合进行中 undo / redo 被抑制。
  */
-class EditableComposingTest {
+class EditableComposingTest : SkiaTestBase() {
 
     /** 单编辑器环境。 */
     private class Env {
@@ -25,7 +24,9 @@ class EditableComposingTest {
         init {
             renderer = object : Renderer(null) {
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    editor = object : EditableTextNode(this) {}
+                    editor = object : EditableTextNode(this) {
+                        override val autoWidth: Boolean get() = true
+                    }
                     editor.text = "abXY"
                     editor.moveCursorTo(2) // 光标落在 X 前，组合将替换 [2,4) 之外的零宽窗口
                 }
@@ -33,12 +34,6 @@ class EditableComposingTest {
             renderer.children
             g.focused = editor
         }
-    }
-
-    @org.junit.After
-    fun drainSignalBatch() {
-        Thread.sleep(50)
-        batchSignalEnd()
     }
 
     // ===== 多帧演进：后一帧整体替换前一帧的预编辑窗口 =====

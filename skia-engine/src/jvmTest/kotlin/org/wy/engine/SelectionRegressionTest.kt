@@ -2,7 +2,6 @@ package org.wy.engine
 
 import com.wy.mve.StateHolderWithNode
 import org.wy.signal.createSignal
-import org.wy.signal.batchSignalEnd
 import org.wy.signal.getValue
 import org.wy.signal.setValue
 import kotlin.test.Test
@@ -30,13 +29,7 @@ import kotlin.test.assertTrue
  *   - select 的编辑器分流路由跟随最新焦点（activeEditor 即时派生）；
  *   - 编辑器本地键盘非塌缩扩选（Shift+→）仍压制定格指针选区。
  */
-class SelectionRegressionTest {
-
-    @org.junit.After
-    fun drainSignalBatch() {
-        Thread.sleep(50)
-        batchSignalEnd()
-    }
+class SelectionRegressionTest : SkiaTestBase() {
 
     /**
      * 可编程换算坐标的 MockText（不依赖 paragraph、纯 Selectable 实现，不会触发 Layout
@@ -84,6 +77,9 @@ class SelectionRegressionTest {
                     plain.posResolver = { x, _ -> x.toInt() }
                     editor = object : EditableTextNode(this) {
                         init { text = editorText }
+
+                        override val autoWidth: Boolean
+                            get() = true
                     }
                 }
             }
@@ -147,9 +143,11 @@ class SelectionRegressionTest {
             override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
                 env.edA = object : EditableTextNode(this) {
                     init { text = "Alpha editor" }
+                    override val autoWidth: Boolean get() = true
                 }
                 env.edB = object : EditableTextNode(this) {
                     init { text = "Beta editor text" }
+                    override val autoWidth: Boolean get() = true
                 }
                 env.plain = MockText(this, "plain text")
             }

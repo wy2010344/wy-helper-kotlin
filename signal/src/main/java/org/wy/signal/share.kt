@@ -31,14 +31,32 @@ internal object G {
 // Batch System
 // ═══════════════════════════════════════════
 
-val batchScope by lazy {
-    val d = try {
+var batchScope: CoroutineScope = CoroutineScope(
+    SupervisorJob() + try {
         Dispatchers.Main
     } catch (_: IllegalStateException) {
         Dispatchers.Default
     }
-    CoroutineScope(SupervisorJob() + d)
-}
+)
 
 
 fun signalOnUpdate(): Boolean = G.onWorkBatch != null
+
+/**
+ * 重置所有 signal 全局状态。供跨模块测试基类调用，
+ * 防止测试间 G / stackMemos 残留导致状态污染。
+ */
+fun resetSignalGlobalState() {
+    G.currentFun = null
+    G.beginBatch = false
+    G.currentBatch = CurrentBatch()
+    G.nextBatch = CurrentBatch()
+    G.onWorkBatch = null
+    G.onEffectRun = false
+    G.onEffectLevel = 0
+    G.onEffectKeys = mutableListOf()
+    G.callGet = false
+    G.stateVersion = Any()
+    G.currentRelay = null
+    resetStackMemos()
+}

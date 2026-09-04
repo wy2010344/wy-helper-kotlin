@@ -14,8 +14,15 @@ abstract class TrackSignal<T>{
     private var destroy: EmptyFun = {}
 
     init {
-        val deps = G.onWorkBatch?.deps ?: G.currentBatch.deps
-        deps.add(this)
+        val deps = G.onWorkBatch?.deps
+        if (deps != null) {
+            // 批次执行中（受观察）：加入当前 onWorkBatch 的 deps
+            deps.add(this)
+        } else {
+            // 非执行期创建：启动批次并加入 currentBatch 的 deps，随后续批次同步求值
+            beginCurrentBatch()
+            G.currentBatch.deps.add(this)
+        }
     }
 
     fun addFun() {

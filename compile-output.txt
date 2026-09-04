@@ -1,0 +1,98 @@
+﻿Reusing configuration cache.
+> Task :mve:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :skia-engine:convertXmlValueResourcesForJvmMain NO-SOURCE
+> Task :signal:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :skia-engine:generateComposeResClass SKIPPED
+> Task :skia-engine:generateExpectResourceCollectorsForCommonMain SKIPPED
+> Task :skia-engine:checkJvmTestComposeLibrariesCompatibility
+> Task :lib:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :skia-engine:convertXmlValueResourcesForCommonMain NO-SOURCE
+> Task :skia-engine:checkJvmMainComposeLibrariesCompatibility
+> Task :mve:processResources NO-SOURCE
+> Task :skia-engine:kmpPartiallyResolvedDependenciesChecker
+> Task :skia-engine:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :signal:processResources NO-SOURCE
+> Task :skia-engine:copyNonXmlValueResourcesForCommonMain NO-SOURCE
+> Task :layout:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :layout:processResources NO-SOURCE
+> Task :lib:processResources NO-SOURCE
+> Task :lib:compileKotlin UP-TO-DATE
+> Task :skia-engine:copyNonXmlValueResourcesForJvmMain NO-SOURCE
+> Task :lib:compileJava NO-SOURCE
+> Task :lib:classes UP-TO-DATE
+> Task :lib:jar UP-TO-DATE
+> Task :skia-engine:copyNonXmlValueResourcesForJvmTest NO-SOURCE
+> Task :skia-engine:convertXmlValueResourcesForCommonTest NO-SOURCE
+> Task :skia-engine:prepareComposeResourcesTaskForJvmMain NO-SOURCE
+> Task :skia-engine:generateResourceAccessorsForJvmMain SKIPPED
+> Task :signal:compileKotlin UP-TO-DATE
+> Task :skia-engine:prepareComposeResourcesTaskForCommonMain NO-SOURCE
+> Task :skia-engine:generateResourceAccessorsForCommonMain SKIPPED
+> Task :skia-engine:generateActualResourceCollectorsForJvmMain SKIPPED
+> Task :skia-engine:assembleJvmMainResources UP-TO-DATE
+> Task :skia-engine:jvmProcessResources UP-TO-DATE
+> Task :skia-engine:processJvmMainResources SKIPPED
+> Task :skia-engine:copyNonXmlValueResourcesForCommonTest NO-SOURCE
+> Task :skia-engine:convertXmlValueResourcesForJvmTest NO-SOURCE
+> Task :signal:compileJava NO-SOURCE
+> Task :skia-engine:prepareComposeResourcesTaskForJvmTest NO-SOURCE
+> Task :signal:classes UP-TO-DATE
+> Task :skia-engine:generateResourceAccessorsForJvmTest SKIPPED
+> Task :skia-engine:prepareComposeResourcesTaskForCommonTest NO-SOURCE
+> Task :skia-engine:generateResourceAccessorsForCommonTest SKIPPED
+> Task :signal:jar UP-TO-DATE
+> Task :mve:compileKotlin UP-TO-DATE
+> Task :layout:compileKotlin UP-TO-DATE
+> Task :mve:compileJava NO-SOURCE
+> Task :mve:classes UP-TO-DATE
+> Task :layout:compileJava NO-SOURCE
+> Task :layout:classes UP-TO-DATE
+> Task :mve:jar UP-TO-DATE
+> Task :layout:jar UP-TO-DATE
+> Task :skia-engine:compileKotlinJvm UP-TO-DATE
+> Task :skia-engine:compileJvmMainJava NO-SOURCE
+> Task :skia-engine:jvmMainClasses UP-TO-DATE
+> Task :skia-engine:jvmJar UP-TO-DATE
+
+> Task :skia-engine:compileTestKotlinJvm FAILED
+.\gradlew : e: file:///C:/github/wy-helper/skia-engine/src/jvmTest/kotlin/org/wy/engine/DestroyedSelectionTest.kt:73:9 
+Unresolved reference 'flushBatches'.
+所在位置 行:1 字符: 66
++ ... udio1\jbr"; .\gradlew :skia-engine:compileTestKotlinJvm --rerun 2>&1  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (e: file:///C:/g...'flushBatches'.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+e: file:///C:/github/wy-helper/skia-engine/src/jvmTest/kotlin/org/wy/engine/DestroyedSelectionTest.kt:85:9 Unresolved r
+eference 'flushBatches'.
+e: file:///C:/github/wy-helper/skia-engine/src/jvmTest/kotlin/org/wy/engine/DestroyedSelectionTest.kt:98:9 Unresolved r
+eference 'flushBatches'.
+e: file:///C:/github/wy-helper/skia-engine/src/jvmTest/kotlin/org/wy/engine/SkiaTestBase.kt:3:22 Unresolved reference '
+SignalTestBase'.
+e: file:///C:/github/wy-helper/skia-engine/src/jvmTest/kotlin/org/wy/engine/SkiaTestBase.kt:11:31 Unresolved reference 
+'SignalTestBase'.
+e: file:///C:/github/wy-helper/skia-engine/src/jvmTest/kotlin/org/wy/engine/StaleNodeReferenceTest.kt:55:9 Unresolved r
+eference 'flushBatches'.
+e: file:///C:/github/wy-helper/skia-engine/src/jvmTest/kotlin/org/wy/engine/StaleNodeReferenceTest.kt:84:9 Unresolved r
+eference 'flushBatches'.
+e: file:///C:/github/wy-helper/skia-engine/src/jvmTest/kotlin/org/wy/engine/StaleNodeReferenceTest.kt:89:9 Unresolved r
+eference 'flushBatches'.
+
+[Incubating] Problems report is available at: file:///C:/github/wy-helper/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':skia-engine:compileTestKotlinJvm'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to generate a Build Scan (Powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 4s
+16 actionable tasks: 4 executed, 12 up-to-date
+Configuration cache entry reused.

@@ -5,7 +5,6 @@ import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import org.wy.engine.helper.DropdownBase
 import org.wy.engine.helper.drag
-import org.wy.signal.batchSignalEnd
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.setValue
@@ -21,13 +20,7 @@ import kotlin.test.assertTrue
  * - Dropdown 锚离树（隐藏/销毁）后浮层自动隐藏，不对锚做过期几何换算；
  * - 拖拽捕获随宿主销毁自动释放，死节点不再收到拖拽回调。
  */
-class StaleNodeReferenceTest {
-
-    @org.junit.After
-    fun drainSignalBatch() {
-        Thread.sleep(50)
-        batchSignalEnd()
-    }
+class StaleNodeReferenceTest : SkiaTestBase() {
 
     // ---------- A. activeEditor 活性派生 ----------
 
@@ -59,7 +52,7 @@ class StaleNodeReferenceTest {
         // 删除聚焦编辑器所在行 → 结构重算销毁旧 holder
         items = listOf(Item(2))
         renderer.children
-        batchSignalEnd()
+        flushBatches()
 
         assertNull(g.activeEditor, "焦点指向已销毁编辑器时应派生为无活跃编辑器")
 
@@ -88,12 +81,12 @@ class StaleNodeReferenceTest {
 
         // 锚隐藏：浮层随之隐藏（purifyList 过滤后不再对锚做几何换算）
         anchor.hidden = true
-        batchSignalEnd()
+        flushBatches()
         assertTrue(dropdown.hide, "锚离树（hide）时下拉应自动隐藏")
 
         // 销毁同理
         anchor.hidden = false
-        batchSignalEnd()
+        flushBatches()
         assertFalse(dropdown.hide)
         holder.destroy()
         assertTrue(anchor.destroyed)
