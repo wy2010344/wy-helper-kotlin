@@ -418,6 +418,9 @@ fun main() {
 
 private fun shotMain() {
     val out = "build/shots"
+    // 首访免责声明弹窗会盖住看板截图：截图期间置为已读，结束后恢复用户偏好
+    val noticePrefWas = prefs.get("dash.noticeSeen", "")
+    prefs.put("dash.noticeSeen", "1")
     val holder = "搜索 · Ctrl+K"
     val long = "搜索一个比较长的关键词看看会不会换行"
     val empty = renderApp("")
@@ -554,4 +557,6 @@ private fun shotMain() {
         "$out/compare-nowrap.png", "长文本输入：单行不折行，溢出裁剪在内容盒内")
     composeCompare("$out/before/zoom-caret.png", "$out/zoom-caret.png",
         "$out/compare-caret.png", "光标跟随：单行溢出时水平滚动，光标始终可见")
+
+    prefs.put("dash.noticeSeen", noticePrefWas)
 }

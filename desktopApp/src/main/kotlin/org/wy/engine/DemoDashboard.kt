@@ -280,9 +280,13 @@ object MarketData {
             else -> 9000.0
         }
         fun side(from: Double, sign: Double): List<DepthLevel> {
-            val list = ArrayList<DepthLevel>(40)
-            for (i in 1..40) {
-                val price = from + sign * i * step * rng.range(1.0, 1.6)
+            val list = ArrayList<DepthLevel>(60)
+            // 档距按中间价百分比几何递增（贴近真实交易所越远越疏的挂单分布）：
+            // 60 档覆盖约 ±1.2%，保证深度图 zoom=1（±1%）内呈现完整阶梯累计形态；
+            // 旧实现 40 档 tick 级档距只覆盖 ±0.05%，深度图里全量挤在贴中线的头两档。
+            for (i in 0 until 60) {
+                val pct = 0.00002 * 1.115.pow(i)
+                val price = t.last + sign * t.last * pct * rng.range(0.85, 1.2)
                 var qty = rng.range(0.25, 1.0) * scale
                 if (rng.nextDouble() < 0.10) qty *= rng.range(5.0, 11.0) // 随机墙
                 list.add(DepthLevel(price, qty))
@@ -1846,8 +1850,18 @@ private object DepthGeom {
     const val MIN_ZOOM = 1.0
     const val MAX_ZOOM = 24.0
 
-    /** 一侧的累计点（价格 → 到该价为止的累计量）。 */
-    data class Side(val points: List<Pair<Double, Double>>, val max: Double)
+    /**
+     * 一侧的累计曲线（价格升序）。
+     * totals[i] = 到 prices[i] 为止的累计量（Σqty）；
+     * notionalTotals[i] = 到该价位为止 Σ(price×qty)，口径对齐 ooc depth-group.ts 的
+     * notionals 前缀和（逐档 price*qty 累加后再求前缀，而非 累计量×单点价格 的近似）。
+     */
+    data class Side(
+        val prices: DoubleArray,
+        val totals: DoubleArray,
+        val notionalTotals: DoubleArray,
+        val max: Double
+    )
 
     data class Geo(
         val hasData: Boolean,
@@ -1871,30 +1885,44 @@ private object DepthGeom {
 
     fun zoomClamp(z: Double) = if (z.isFinite()) z.coerceIn(MIN_ZOOM, MAX_ZOOM) else MIN_ZOOM
 
+    private fun emptySide() = Side(doubleArrayOf(), doubleArrayOf(), doubleArrayOf(), 0.0)
+
     fun group(levels: List<DepthLevel>, ask: Boolean, mid: Double, halfSpan: Double): Side {
-        if (levels.isEmpty() || !halfSpan.isFinite() || halfSpan <= 0) return Side(emptyList(), 0.0)
+        if (levels.isEmpty() || !halfSpan.isFinite() || halfSpan <= 0) return emptySide()
         val quantities = DoubleArray(BUCKETS)
+        val notionals = DoubleArray(BUCKETS)
         val step = halfSpan / BUCKETS
         for (level in levels) {
             val offset = if (ask) level.price - mid else mid - level.price
             if (!offset.isFinite() || offset < 0 || offset > halfSpan) continue
             val index = floor(offset / step).toInt().coerceIn(0, BUCKETS - 1)
             quantities[index] += level.qty
+            notionals[index] += level.price * level.qty
         }
-        val totals = DoubleArray(BUCKETS + 1)
-        for (i in 0 until BUCKETS) totals[i + 1] = totals[i] + quantities[i]
-        val points = ArrayList<Pair<Double, Double>>(BUCKETS + 1)
-        if (ask) {
-            for (i in 0..BUCKETS) points.add((mid + i * step) to totals[i])
-        } else {
-            for (i in BUCKETS downTo 0) points.add((mid - i * step) to totals[i])
+        val n = BUCKETS + 1
+        val totals = DoubleArray(n)
+        val notionalTotals = DoubleArray(n)
+        for (i in 0 until BUCKETS) {
+            totals[i + 1] = totals[i] + quantities[i]
+            notionalTotals[i + 1] = notionalTotals[i] + notionals[i]
         }
-        return Side(points, totals[BUCKETS])
+        // 输出统一为价格升序：totals[i] 原按 offset（离中间价的距离）前缀累计，
+        // bid 远端 = 大累计，翻转索引使其对齐升序价格（ask 天然同向无需翻）
+        val prices = DoubleArray(n)
+        val totalsOut = DoubleArray(n)
+        val notionalsOut = DoubleArray(n)
+        for (i in 0..BUCKETS) {
+            val j = if (ask) i else BUCKETS - i
+            prices[i] = if (ask) mid + i * step else mid - (BUCKETS - i) * step
+            totalsOut[i] = totals[j]
+            notionalsOut[i] = notionalTotals[j]
+        }
+        return Side(prices, totalsOut, notionalsOut, totals[BUCKETS])
     }
 
     fun geo(depth: Depth?, zoom: Double): Geo {
         if (depth == null || (depth.bids.isEmpty() && depth.asks.isEmpty())) {
-            return Geo(false, 0.0, 0.0, 0.0, 0.0, 0.0, Side(emptyList(), 0.0), Side(emptyList(), 0.0))
+            return Geo(false, 0.0, 0.0, 0.0, 0.0, 0.0, emptySide(), emptySide())
         }
         val bestBid = depth.bids.firstOrNull()?.price
         val bestAsk = depth.asks.firstOrNull()?.price
@@ -1930,19 +1958,34 @@ private object DepthGeom {
         val price = geo.mid - geo.halfSpan + ratioX.coerceIn(0f, 1f) * 2 * geo.halfSpan
         val ask = price >= geo.mid
         val side = if (ask) geo.ask else geo.bid
-        var best: Pair<Double, Double>? = null
+        var bestIndex = -1
         var bestDistance = Double.MAX_VALUE
-        for (p in side.points) {
-            val d = abs(p.first - price)
+        for (i in side.prices.indices) {
+            val d = abs(side.prices[i] - price)
             if (d < bestDistance) {
                 bestDistance = d
-                best = p
+                bestIndex = i
             }
         }
-        if (best == null) return null
+        if (bestIndex < 0) return null
         val rangePct = (price - geo.mid) / geo.mid * 100.0
-        val y = if (geo.axisMax > 0) (best.second / geo.axisMax).coerceIn(0.0, 1.0).toFloat() else 0f
-        return Hover(ask, price, best.second, best.second * best.first, rangePct, ratioX, y)
+        val y = if (geo.axisMax > 0) (side.totals[bestIndex] / geo.axisMax).coerceIn(0.0, 1.0).toFloat() else 0f
+        return Hover(
+            ask, price, side.totals[bestIndex], side.notionalTotals[bestIndex],
+            rangePct, ratioX, y
+        )
+    }
+
+    /** 带符号的偏移百分比（绝对值自适应小数位），口径对齐 ooc formatSignedDepthRange。 */
+    fun fmtSignedRangePct(pct: Double): String {
+        val sign = if (pct >= 0) "+" else "-"
+        val a = abs(pct)
+        val dec = when {
+            a >= 1 -> 2
+            a >= 0.01 -> 3
+            else -> 4
+        }
+        return sign + String.format(java.util.Locale.US, "%.${dec}f", a) + "%"
     }
 }
 
@@ -2011,66 +2054,110 @@ private fun StateHolder<Node, List<Node>>.depthCanvas(
                 canvas.drawLine(0f, y, pw, y, D_GRID, 1f)
                 drawText(canvas, fmtQty(v), pw + 5f, y - 6f, 8.5f, D_AXIS)
             }
-            // 价格轴（底）：按好看步长取 5 档左右
-            val priceStep = niceStepOf(span / 4)
-            val first = ceil((geo.mid - geo.halfSpan) / priceStep) * priceStep
-            var pv = first
-            while (pv <= geo.mid + geo.halfSpan) {
-                val x = xOf(pv)
-                canvas.drawLine(x, 0f, x, ph, D_GRID, 1f)
-                drawTextCentered(canvas, fmtAxisPrice(pv), x, ph + 1f, 8.5f, D_AXIS)
-                pv += priceStep
+            // 价格轴（底）：等距对称刻度（档数随宽度自适应，72px/档 夹 3..9，
+            // 口径对齐 ooc depthXTickCount + depth.ts:239-244）
+            val tickCount = (pw / 72f).toInt().coerceIn(3, 9)
+            for (i in 0 until tickCount) {
+                val t = i.toFloat() / (tickCount - 1).coerceAtLeast(1)
+                val price = geo.mid - geo.halfSpan + t.toDouble() * span
+                // 首尾刻度内缩，避免居中绘制被画布边缘裁掉半截
+                val x = (t * pw).coerceIn(26f, pw - 26f)
+                canvas.drawLine(t * pw, 0f, t * pw, ph, D_GRID, 1f)
+                drawTextCentered(canvas, fmtAxisPrice(price), x, ph + 1f, 8.5f, D_AXIS)
             }
 
-            // 买卖累计面积（买红左 / 卖绿右）
-            fun area(side: DepthGeom.Side, color: ColorInt) {
-                if (side.points.size < 2) return
+            // 买卖累计面积（买红左 / 卖绿右），阶梯线连接：
+            // bid 用 'before'（先竖后横）、ask 用 'after'（先横后竖），
+            // 对齐 ooc depth.ts:154-176 的 StepMode 语义
+            fun area(side: DepthGeom.Side, color: ColorInt, stepAfter: Boolean) {
+                val n = side.prices.size
+                if (n < 2) return
                 val path = Path()
-                path.moveTo(xOf(side.points[0].first), ph)
-                for (p in side.points) path.lineTo(xOf(p.first), yOf(p.second))
-                path.lineTo(xOf(side.points.last().first), ph)
+                path.moveTo(xOf(side.prices[0]), ph)
+                var prevY = yOf(side.totals[0])
+                path.lineTo(xOf(side.prices[0]), prevY)
+                for (i in 1 until n) {
+                    val x = xOf(side.prices[i])
+                    val y = yOf(side.totals[i])
+                    if (stepAfter) {
+                        // 先横后竖：前一点的累计量保持到本价位再跳变
+                        path.lineTo(x, prevY)
+                        path.lineTo(x, y)
+                    } else {
+                        // 先竖后横：在本价位先跳变再水平延伸
+                        path.lineTo(xOf(side.prices[i - 1]), y)
+                        path.lineTo(x, y)
+                    }
+                    prevY = y
+                }
+                path.lineTo(xOf(side.prices[n - 1]), ph)
                 path.close()
                 canvas.fillPath(path, color.withAlpha(0.16f))
                 canvas.strokePath(path, color.withAlpha(0.75f), 1.2f)
             }
-            area(geo.bid, D_UP)
-            area(geo.ask, D_DOWN)
+            area(geo.bid, D_UP, stepAfter = false)
+            area(geo.ask, D_DOWN, stepAfter = true)
 
             // 中间价竖线
             val midX = xOf(geo.mid)
             canvas.drawLine(midX, 0f, midX, ph, D_TEXT3.withAlpha(0.6f), 1f)
 
-            // 悬停：竖线 + 圆点 + 信息框
+            // 悬停：双 tooltip 镜像（左 BID 右 ASK）+ 对称双虚线 + 带符号偏移%
+            // 口径对齐 ooc depthHoverPair（depth.ts:321-339）：光标取 near 镜像点，
+            // 左侧恒为 bid（near 处）、右侧恒为 ask（1-near 处）。
             val hov = hover.value
             if (hov != null) {
-                val hx = hov.x * pw
-                canvas.drawLine(hx, 0f, hx, ph, D_TEXT2.withAlpha(0.55f), 1f)
-                val hy = hov.y * ph
-                canvas.drawLine(0f, hy, pw, hy, D_TEXT2.withAlpha(0.3f), 1f)
-                val dotColor = if (hov.ask) D_DOWN else D_UP
-                canvas.fillOval(hx - 2.5f, hy - 2.5f, 5f, 5f, dotColor)
-                val lines = listOf(
-                    (if (hov.ask) "ASK" else "BID") to dotColor,
-                    fmtPrice(hov.price) to D_TEXT,
-                    "累计 ${fmtQty(hov.total)}" to D_TEXT2,
-                    "约 ${fmtCompact(hov.notional)}" to D_TEXT2
-                )
-                val lineH = 12f
-                val boxW = 96f
-                val boxH = lines.size * lineH + 8f
-                val bx = if (hov.x > 0.6f) {
-                    (hx - boxW - 8f).coerceAtLeast(2f)
-                } else {
-                    (hx + 8f).coerceAtMost(pw - boxW - 2f)
+                val near = min(hov.x, 1f - hov.x)
+                val hovBid = DepthGeom.hover(geo, near, hov.x)
+                val hovAsk = DepthGeom.hover(geo, 1f - near, hov.x)
+
+                fun dashedV(x: Float) {
+                    var y = 0f
+                    while (y < ph) {
+                        val seg = min(4f, ph - y)
+                        if (seg > 0f) canvas.drawLine(x, y, x, y + seg, D_TEXT2.withAlpha(0.55f), 1f)
+                        y += 7f
+                    }
                 }
-                val by = (hy - boxH / 2f).coerceIn(2f, ph - boxH - 2f)
-                canvas.fillRoundRect(bx, by, boxW, boxH, 4f, D_PANE_HEAD)
-                canvas.strokeRoundRect(bx, by, boxW, boxH, 4f, D_LINE, 1f)
-                lines.forEachIndexed { i, (text, color) ->
-                    drawText(
-                        canvas, text, bx + 6f, by + 4f + i * lineH, 8.5f, color,
-                        if (i == 0) 700 else 400
-                    )
+                if (hovBid != null && hovAsk != null) {
+                    val bx = hovBid.x * pw
+                    val ax = hovAsk.x * pw
+                    dashedV(bx)
+                    dashedV(ax)
+                    // 对称遮罩：双线外侧压暗（对齐 ooc 对称遮罩语义）
+                    canvas.fillRect(0f, 0f, min(bx, ax), ph, rgba(0, 0, 0, 70))
+                    canvas.fillRect(max(bx, ax), 0f, pw - max(bx, ax), ph, rgba(0, 0, 0, 70))
+                    // 着色按偏移方向走本地涨红跌绿（正=高于中间价=红）
+                    fun drawTip(h: DepthGeom.Hover, left: Boolean) {
+                        val tone = if (h.rangePct >= 0) D_UP else D_DOWN
+                        val lines = listOf(
+                            (if (h.ask) "ASK" else "BID") to tone,
+                            fmtPrice(h.price) to D_TEXT,
+                            DepthGeom.fmtSignedRangePct(h.rangePct) to tone,
+                            "累计 ${fmtQty(h.total)}" to D_TEXT2,
+                            "Σ ${fmtCompact(h.notional)}" to D_TEXT2
+                        )
+                        val lineH = 12f
+                        val boxW = 104f
+                        val boxH = lines.size * lineH + 8f
+                        val hx = h.x * pw
+                        val bx2 = if (left) {
+                            (hx - boxW - 6f).takeIf { it >= 2f } ?: (hx + 6f)
+                        } else {
+                            (hx + 6f).takeIf { it + boxW <= pw - 2f } ?: (hx - boxW - 6f)
+                        }.coerceIn(2f, (pw - boxW - 2f).coerceAtLeast(2f))
+                        val by = (ph - boxH - 4f).coerceIn(2f, ph - boxH - 2f)
+                        canvas.fillRoundRect(bx2, by, boxW, boxH, 4f, D_PANE_HEAD)
+                        canvas.strokeRoundRect(bx2, by, boxW, boxH, 4f, D_LINE, 1f)
+                        lines.forEachIndexed { i, (text, color) ->
+                            drawText(
+                                canvas, text, bx2 + 6f, by + 4f + i * lineH, 8.5f, color,
+                                if (i == 0) 700 else 400
+                            )
+                        }
+                    }
+                    drawTip(hovBid, left = true)
+                    drawTip(hovAsk, left = false)
                 }
             }
         }
@@ -2740,13 +2827,31 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
     private val chartOffset = createSignal(0)
     private val depthZoom = createSignal(1.0)
     private val note = createSignal("")
-    private val leftWidth = createSignal(248f)
-    private val rightWidth = createSignal(316f)
-    private val leftBottom = createSignal(224f)
-    private val centerBottom = createSignal(218f)
-    private val rightBottom = createSignal(200f)
+    // ── 布局尺寸（持久化，口径对齐 ooc layout.ts：加载 clamp / 拖拽落盘 / 重置清除）──
+    private fun loadF(key: String, def: Float, min: Float, max: Float): Float {
+        val raw = prefs.get(key, "").toFloatOrNull() ?: return def
+        return if (raw.isFinite()) raw.coerceIn(min, max) else def
+    }
+
+    private val leftWidth = createSignal(loadF("dash.leftWidth", 248f, 176f, 420f))
+    private val rightWidth = createSignal(loadF("dash.rightWidth", 316f, 224f, 520f))
+    private val leftBottom = createSignal(loadF("dash.leftBottom", 224f, 120f, 420f))
+    private val centerBottom = createSignal(loadF("dash.centerBottom", 218f, 120f, 420f))
+    private val rightBottom = createSignal(loadF("dash.rightBottom", 200f, 140f, 420f))
+
+    /** 拖拽结束后落盘（与 ooc saveLayout 同时机：不以每帧拖动写盘）。 */
+    private fun saveLayout() {
+        prefs.putFloat("dash.leftWidth", leftWidth.value)
+        prefs.putFloat("dash.rightWidth", rightWidth.value)
+        prefs.putFloat("dash.leftBottom", leftBottom.value)
+        prefs.putFloat("dash.centerBottom", centerBottom.value)
+        prefs.putFloat("dash.rightBottom", rightBottom.value)
+    }
 
     private val g = engineGlobal
+
+    /** 首访免责声明只自动弹一次（argChildren 会随信号重建反复执行，需本地护栏）。 */
+    private var noticeAutoShown = false
 
     private fun columnHeight(): Float =
         windowHeight() - SHELL_TOP_BAR - SHELL_STATUS_BAR - CONTENT_PAD * 2 -
@@ -2774,6 +2879,11 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
         chartCount.value = ChartGeom.DEFAULT_VISIBLE
         chartOffset.value = 0
         depthZoom.value = 1.0
+        // 清除持久值：下次启动回到默认布局（对齐 ooc resetLayout 删 key 语义）
+        for (k in listOf(
+            "dash.leftWidth", "dash.rightWidth", "dash.leftBottom",
+            "dash.centerBottom", "dash.rightBottom"
+        )) prefs.remove(k)
         note.value = "布局已重置"
     }
 
@@ -2785,6 +2895,18 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
         val narrow = windowWidth() < 1000f
         val veryNarrow = windowWidth() < 880f
+
+        // 首访自动弹出免责声明（对齐 ooc whenFirstVisit + noticeSeen 语义，
+        // 标记持久化在 java.util.prefs，桌面端 localStorage 对应物）
+        if (!noticeAutoShown && prefs.get("dash.noticeSeen", "") != "1") {
+            noticeAutoShown = true
+            g.appendPop { pop ->
+                dNoticeDialog(onClose = {
+                    g.removePop(pop)
+                    prefs.put("dash.noticeSeen", "1")
+                })
+            }
+        }
 
         // ── header ──
         dRow(gap = 10f, height = DASH_HEADER_H, padX = 12f) {
@@ -2845,10 +2967,13 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                     }
                 }
             }
-            // DEMO 徽章 → 免责声明
+            // DEMO 徽章 → 免责声明（手动打开同样回写已读标记）
             dTabButton({ "DEMO" }, { false }, height = 20f, padX = 7f, chip = D_AMBER) {
                 g.appendPop { pop ->
-                    dNoticeDialog(onClose = { g.removePop(pop) })
+                    dNoticeDialog(onClose = {
+                        g.removePop(pop)
+                        prefs.put("dash.noticeSeen", "1")
+                    })
                 }
             }
             // 状态点
@@ -2879,13 +3004,13 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                         note.value = ""
                     }
                 }
-                dSplitH({ leftBottom.value }, 120f, 420f, -1f) { leftBottom.value = it }
+                dSplitH({ leftBottom.value }, 120f, 420f, -1f) { leftBottom.value = it; saveLayout() }
                 dPane("Market stats", "Binance", height = leftBottom.value) {
                     dStats { MarketData.tickerOf(symbol.value) }
                 }
             }
 
-            dSplitV({ leftWidth.value }, 176f, 420f, 1f) { leftWidth.value = it }
+            dSplitV({ leftWidth.value }, 176f, 420f, 1f) { leftWidth.value = it; saveLayout() }
 
             // 中列：K 线 + 行情活动
             dCol(gap = 0f, grow = true) {
@@ -2896,7 +3021,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                         offset = chartOffset
                     )
                 }
-                dSplitH({ centerBottom.value }, 120f, 420f, -1f) { centerBottom.value = it }
+                dSplitH({ centerBottom.value }, 120f, 420f, -1f) { centerBottom.value = it; saveLayout() }
                 dPane(
                     "Market activity",
                     "Trades / Depth",
@@ -2997,7 +3122,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                 }
             }
 
-            dSplitV({ rightWidth.value }, 224f, 520f, -1f) { rightWidth.value = it }
+            dSplitV({ rightWidth.value }, 224f, 520f, -1f) { rightWidth.value = it; saveLayout() }
 
             // 右列：盘口 + 模拟下单
             dCol(gap = 0f, width = rightWidth.value) {
@@ -3073,7 +3198,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                         onPickPrice = { limitPrice.value = it }
                     )
                 }
-                dSplitH({ rightBottom.value }, 140f, 420f, -1f) { rightBottom.value = it }
+                dSplitH({ rightBottom.value }, 140f, 420f, -1f) { rightBottom.value = it; saveLayout() }
                 dPane("Paper order", "Demo only", height = rightBottom.value) {
                     dTicket(
                         ticker = { MarketData.tickerOf(symbol.value) },

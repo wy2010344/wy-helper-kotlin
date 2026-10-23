@@ -20,7 +20,6 @@ internal fun StateHolder<Node,List<Node>>.dSettingsPage(active: StoreRef<DemoTab
     val name = createSignal("Ada")
     val email = createSignal("ada@wy.helper")
     val notify = createSignal(true)
-    val dark = createSignal(false)
     val autosave = createSignal(true)
     val fontSize = createSignal(0.5f)
     val volume = createSignal(0.7f)
@@ -83,7 +82,8 @@ internal fun StateHolder<Node,List<Node>>.dSettingsPage(active: StoreRef<DemoTab
                     }
 
                     dToggleRow("开启通知", notify, focusOrder = 22)
-                    dToggleRow("深色模式", dark, focusOrder = 23)
+                    // 深色模式接全局主题信号，切换即持久化（见 setDarkTheme）
+                    dToggleRow("深色模式", demoDark, focusOrder = 23) { setDarkTheme(it) }
                     dToggleRow("自动保存", autosave, focusOrder = 24)
                     dSlider("字体大小", fontSize, focusOrder = 25)
                     dSlider("音量", volume, focusOrder = 26)

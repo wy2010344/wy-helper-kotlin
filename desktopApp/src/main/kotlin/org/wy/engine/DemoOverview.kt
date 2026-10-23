@@ -64,7 +64,7 @@ internal fun StateHolder<Node,List<Node>>.dStatCard(
             override val argHeight: LayoutSize get() = LayoutSize(6f, false)
 
             override fun draw(canvas: PlatformCanvas) {
-                canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 3f, rgba(226, 232, 240))
+                canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 3f, BORDER)
                 if (progress > 0f) {
                     canvas.fillRoundRect(0f, 0f, outerWidth * progress, outerHeight, 3f, accent)
                 }
@@ -107,6 +107,11 @@ internal fun StateHolder<Node,List<Node>>.dChartPanel(): RectNode {
 
             object : RectNode(this), FlexParam, GrowChild {
                 override fun argGrow(direction: Direction): Float = if (direction == Direction.y) 1f else 0f
+                // 宽度显式向父级要：本节点是 x 向 + justify=grow（默认）的空容器，
+                // RectNode.argSize 会优先「从子节点算」得 0，父级的 stretch 永远轮不到——
+                // 这正是概览图表区曾整块空白的根因（见 CrossStretchTest 最小复现）。
+                override val argWidth: LayoutSize
+                    get() = sizeFromParent(Direction.x)
                 override val layout: LayoutDirection = FlexObject(this)
                 override val direction: Direction get() = Direction.x
                 override val alignItem: AlignItem get() = AlignItem.stretch

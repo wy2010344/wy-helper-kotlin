@@ -20,11 +20,23 @@ dependencies {
     implementation(libs.compose.uiToolingPreview)
 }
 
+// 离屏截图：./gradlew :desktopApp:shot → desktopApp/build/shots/*.png
+tasks.register<JavaExec>("shot") {
+    group = "demo"
+    mainClass.set("org.wy.engine.DemoShotKt")
+    classpath = sourceSets["main"].runtimeClasspath
+}
+
+// 布局依赖审计：./gradlew :desktopApp:layoutAudit → 列出全部成环点
+tasks.register<JavaExec>("layoutAudit") {
+    group = "demo"
+    mainClass.set("org.wy.engine.DemoAuditKt")
+    classpath = sourceSets["main"].runtimeClasspath
+}
+
 compose.desktop {
     application {
-//        mainClass = "org.wy.helper.MainKt"
-//        mainClass = "org.wy.demo.text.TextEditorDemoKt"
-        mainClass = "org.wy.demo.image.ImageLoaderDemoKt"
+        mainClass = "org.wy.engine.DemoGrandKt"
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "org.wy.helper"

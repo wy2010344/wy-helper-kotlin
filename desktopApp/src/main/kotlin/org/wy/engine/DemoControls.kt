@@ -18,7 +18,9 @@ import org.wy.signal.getValue
 internal fun StateHolder<Node,List<Node>>.dToggleRow(
     label: String,
     checked: StoreRef<Boolean>,
-    focusOrder: Int? = null
+    focusOrder: Int? = null,
+    /** 自定义写回：默认直接写信号；需要联动持久化 / 派生逻辑时传入。 */
+    onChange: ((Boolean) -> Unit)? = null
 ): RectNode = object : RectNode(this), FlexParam {
     override val layout: LayoutDirection = FlexObject(this)
     override val direction: Direction get() = Direction.x
@@ -29,7 +31,7 @@ internal fun StateHolder<Node,List<Node>>.dToggleRow(
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
         dLabel({ label }, 13f, TEXT, 500)
-        switch({ checked.value }, { checked.value = it }, focusOrder = focusOrder)
+        switch({ checked.value }, { v -> onChange?.invoke(v) ?: run { checked.value = v } }, focusOrder = focusOrder)
     }
 }
 

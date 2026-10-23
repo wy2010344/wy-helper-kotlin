@@ -43,7 +43,7 @@ internal fun StateHolder<Node,List<Node>>.dButton(
     override fun drawContent(canvas: PlatformCanvas) {
         val bg = when {
             pressed -> if (primary) ACCENT_DARK else GRID
-            hovered -> if (primary) ACCENT_HOVER else rgba(241, 245, 249)
+            hovered -> if (primary) ACCENT_HOVER else HOVER
             else -> if (primary) ACCENT else CARD
         }
         fillOuterRoundRect(canvas, 8f, bg)

@@ -24,6 +24,8 @@ import java.util.Date
 enum class DemoTab(val label: String) {
     OVERVIEW("概览"),
     NOTES("笔记"),
+    COMPONENTS("组件"),
+    DASHBOARD("看板"),
     SETTINGS("设置")
 }
 
@@ -62,7 +64,7 @@ internal fun StateHolder<Node,List<Node>>.dStatusBar(active: StoreRef<DemoTab>, 
                 }
             }
             dLabel(
-                { "当前：${active.value.label}  ·  Ctrl+1/2/3 切换  ·  Ctrl+N 新增  ·  Ctrl+K 搜索" },
+                { "当前：${active.value.label}  ·  Ctrl+1..5 切换  ·  Ctrl+N 新增  ·  Ctrl+K 搜索" },
                 11f, TEXT2
             )
         }
@@ -88,8 +90,15 @@ private fun makeLogo(): PlatformImage? {
 
 private val logo = makeLogo()
 
-private fun StateHolder<Node,List<Node>>.buildGrandDemo() {
-    val active = createSignal(DemoTab.OVERVIEW)
+internal fun StateHolder<Node,List<Node>>.buildGrandDemo(
+    initialSearch: String = "",
+    initialTab: DemoTab = DemoTab.OVERVIEW,
+    /** 当前窗口宽度（响应式读取）：组件库页据此在窄窗口拆分卡片行。 */
+    windowWidth: () -> Float = { 0f },
+    /** 当前窗口高度（响应式读取）：金融看板据此做盘口行数预算。 */
+    windowHeight: () -> Float = { 0f },
+) {
+    val active = createSignal(initialTab)
     val activities = createSignal(defaultActivities())
     val notes = createSignal(defaultNotes())
     val toast = createSignal("")
@@ -100,7 +109,9 @@ private fun StateHolder<Node,List<Node>>.buildGrandDemo() {
         when {
             e.ctrl && e.key == '1' -> active.value = DemoTab.OVERVIEW
             e.ctrl && e.key == '2' -> active.value = DemoTab.NOTES
-            e.ctrl && e.key == '3' -> active.value = DemoTab.SETTINGS
+            e.ctrl && e.key == '3' -> active.value = DemoTab.COMPONENTS
+            e.ctrl && e.key == '4' -> active.value = DemoTab.DASHBOARD
+            e.ctrl && e.key == '5' -> active.value = DemoTab.SETTINGS
             e.ctrl && e.key == 'n' -> {
                 activities.value = activities.value +
                     Activity(Date().time, "新任务 ${activities.value.size + 1}", false, "刚刚")
@@ -154,7 +165,7 @@ private fun StateHolder<Node,List<Node>>.buildGrandDemo() {
                 override val argHeight: LayoutSize get() = LayoutSize(0f, false)
             }
 
-            val searchText = createSignal("")
+            val searchText = createSignal(initialSearch)
             searchField = object : EditableTextNode(this) {
                 override var text: String
                     get() = searchText.value
@@ -164,8 +175,16 @@ private fun StateHolder<Node,List<Node>>.buildGrandDemo() {
 
                 override val fontSize: Float = 13f
                 override val focusOrder: Int? = 0
+                override val singleLine: Boolean = true
+                override val placeholderColor: ColorInt = PLACEHOLDER
                 override val argWidth: LayoutSize = LayoutSize(220f, false)
                 override val argHeight: LayoutSize = LayoutSize(32f, false)
+
+                // 占位文本交给编辑器自身排版：和正文同一个段落、同一套 padding / 字号，
+                // 不再挂一个绝对定位的子节点去"猜"坐标（字号差 1px 就会错行）。
+                init {
+                    placeholder = "搜索 · Ctrl+K"
+                }
 
                 private val g = engineGlobal
                 private val hovered by memo { g.moveHitTest?.include(this) ?: false }
@@ -185,19 +204,14 @@ private fun StateHolder<Node,List<Node>>.buildGrandDemo() {
                     )
                     super.draw(canvas)
                 }
-
-                override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    object : WrappedTextNode(this) {
-                        override val hide: Boolean get() = searchText.value.isNotEmpty()
-                        override val x: Float get() = paddingInlineStart
-                        override val y: Float get() = paddingBlockStart
-                        override val autoWidth: Boolean get() = true
-                        override val text: String get() = "搜索 · Ctrl+K"
-                        override val fontSize: Float get() = 12f
-                        override val color: ColorInt get() = PLACEHOLDER
-                    }
-                }
             }
+
+            // 主题快捷开关：argChildren 里读 demoDark 注册依赖，切换时重建出带新标签的按钮
+            dButton(
+                if (demoDark.value) "浅色" else "深色",
+                { setDarkTheme(!demoDark.value) },
+                primary = false, width = 64f, height = 30f
+            )
 
             object : RectNode(this), FlexParam {
                 override val layout: LayoutDirection = FlexObject(this)
@@ -267,10 +281,24 @@ private fun StateHolder<Node,List<Node>>.buildGrandDemo() {
                         iconColor = GREEN
                     )
                     navItem(
+                        label = { "组件" },
+                        active = { active.value == DemoTab.COMPONENTS },
+                        onClick = { active.value = DemoTab.COMPONENTS },
+                        focusOrder = 3,
+                        iconColor = ACCENT_HOVER
+                    )
+                    navItem(
+                        label = { "看板" },
+                        active = { active.value == DemoTab.DASHBOARD },
+                        onClick = { active.value = DemoTab.DASHBOARD },
+                        focusOrder = 4,
+                        iconColor = DASH_ACCENT
+                    )
+                    navItem(
                         label = { "设置" },
                         active = { active.value == DemoTab.SETTINGS },
                         onClick = { active.value = DemoTab.SETTINGS },
-                        focusOrder = 3,
+                        focusOrder = 5,
                         iconColor = AMBER,
                         badge = { 3 }
                     )
@@ -306,7 +334,13 @@ private fun StateHolder<Node,List<Node>>.buildGrandDemo() {
                     segTabs(
                         { active.value },
                         { active.value = it },
-                        listOf(DemoTab.OVERVIEW to "概览", DemoTab.NOTES to "笔记", DemoTab.SETTINGS to "设置"),
+                        listOf(
+                            DemoTab.OVERVIEW to "概览",
+                            DemoTab.NOTES to "笔记",
+                            DemoTab.COMPONENTS to "组件",
+                            DemoTab.DASHBOARD to "看板",
+                            DemoTab.SETTINGS to "设置"
+                        ),
                         focusOrderOffset = 10
                     )
                     dOverviewPage(active, activities) {
@@ -315,6 +349,8 @@ private fun StateHolder<Node,List<Node>>.buildGrandDemo() {
                         toast.value = "已新增一条动态"
                     }
                     dNotesPage(active, notes)
+                    dGalleryPage(active, "", windowWidth)
+                    dDashboardPage(active, windowWidth, windowHeight)
                     dSettingsPage(active, toast)
                 }
             }
@@ -334,7 +370,7 @@ fun main() {
         override val alignFix: Boolean get() = true
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-            buildGrandDemo()
+            buildGrandDemo(windowWidth = { windowWidth }, windowHeight = { windowHeight })
         }
     }
 }
