@@ -122,8 +122,13 @@ internal fun StateHolder<Node, List<Node>>.dMenuItem(
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
         dText(label, 10.5f, { D_TEXT })
         dSpacer()
-        val t = trailing()
-        if (t.isNotEmpty()) dText({ t }, 10f, { D_TEXT2 })
+        // trailing 走 renderForEach：结构 if 读 trailing() 是启动快照，
+        // 菜单勾选态（✓）翻转后标记既出不来也消不掉
+        renderForEach({ callback ->
+            if (trailing().isNotEmpty()) callback(0, Unit)
+        }) { _, _ ->
+            dText({ trailing() }, 10f, { D_TEXT2 })
+        }
     }
 }
 

@@ -166,6 +166,9 @@ internal fun StateHolder<Node, List<Node>>.dSpacer(direction: Direction = Direct
 internal fun StateHolder<Node, List<Node>>.dPane(
     title: String,
     hint: String = "",
+    // 动态副标题通道：argChildren 只执行一次，hint = signal.value 是启动快照；
+    // lambda 让文本每次求值读活信号（如 Chart 副标题跟随 interval）。优先于 hint。
+    hintOf: (() -> String)? = null,
     height: Float? = null,
     // 动态高度通道：argChildren 一次性执行，height = signal.value 是快照；
     // lambda 让 argHeight getter 每次布局读信号（拖拽分隔条时重算）。优先于 height。
@@ -201,8 +204,8 @@ internal fun StateHolder<Node, List<Node>>.dPane(
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
         dRow(gap = 8f, height = PANE_HEAD_H, padX = 10f) {
             dText({ title }, 10f, { D_TEXT2 }, 600)
-            if (hint.isNotEmpty()) {
-                dText({ hint }, 9.5f, { D_TEXT3 })
+            if (hintOf != null || hint.isNotEmpty()) {
+                dText({ hintOf?.invoke() ?: hint }, 9.5f, { D_TEXT3 })
             }
             dSpacer()
             tools?.invoke(this)
@@ -313,6 +316,9 @@ internal fun StateHolder<Node, List<Node>>.dTabButton(
     height: Float = 22f,
     padX: Float = 8f,
     chip: ColorInt? = null,
+    // 动态 chip 通道：argChildren 只执行一次，chip = cond 是启动快照；
+    // lambda 让底色/文字色每次求值读活信号（如买卖 tab 切换）。优先于 chip。
+    chipOf: (() -> ColorInt?)? = null,
     grow: Boolean = false,
     onClick: () -> Unit
 ): ButtonBase = object : ButtonBase(this), GrowChild {
@@ -341,8 +347,9 @@ internal fun StateHolder<Node, List<Node>>.dTabButton(
     override fun onClick() = onClick()
 
     override fun drawContent(canvas: PlatformCanvas) {
-        val on = chip != null || active()
-        val tone = chip ?: D_ACCENT
+        val c = chipOf?.invoke() ?: chip
+        val on = c != null || active()
+        val tone = c ?: D_ACCENT
         if (on) {
             fillOuterRoundRect(canvas, 3f, tone.withAlpha(0.14f))
             strokeOuterRoundRect(canvas, 3f, tone.withAlpha(0.45f), 1f)
@@ -359,8 +366,11 @@ internal fun StateHolder<Node, List<Node>>.dTabButton(
     }
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-        val on = chip != null || active()
-        dText(label, 10f, { if (on) (chip ?: D_TEXT) else D_TEXT2 }, 500)
+        // 选中色在文本求值 lambda 内现算：argChildren 一次性，外面捕获是启动快照
+        dText(label, 10f, {
+            val c = chipOf?.invoke() ?: chip
+            if (c != null || active()) (c ?: D_TEXT) else D_TEXT2
+        }, 500)
     }
 }
 

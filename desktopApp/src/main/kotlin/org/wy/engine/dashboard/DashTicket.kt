@@ -62,7 +62,7 @@ internal fun StateHolder<Node, List<Node>>.dTicket(
                     { "买入 / Buy" },
                     { side.value == "buy" },
                     height = 26f,
-                    chip = if (side.value == "buy") D_UP else null,
+                    chipOf = { if (side.value == "buy") D_UP else null },
                     grow = true
                 ) {
                     side.value = "buy"
@@ -72,7 +72,7 @@ internal fun StateHolder<Node, List<Node>>.dTicket(
                     { "卖出 / Sell" },
                     { side.value == "sell" },
                     height = 26f,
-                    chip = if (side.value == "sell") D_DOWN else null,
+                    chipOf = { if (side.value == "sell") D_DOWN else null },
                     grow = true
                 ) {
                     side.value = "sell"
@@ -85,7 +85,11 @@ internal fun StateHolder<Node, List<Node>>.dTicket(
                 dText({ "Limit price" }, 9.5f, { D_TEXT3 }, 600)
                 dRow(gap = 6f, height = 14f) {
                     dText({ fmtPrice(priceOf()) }, 11f, { D_TEXT })
-                    if (limitPrice.value != null) {
+                    // ×按钮走 renderForEach：结构 if 读 limitPrice 是启动快照，
+                    // 点盘口价填入限价后 × 永远出不来
+                    renderForEach({ callback ->
+                        if (limitPrice.value != null) callback(0, Unit)
+                    }) { _, _ ->
                         dTabButton({ "×" }, { false }, height = 14f, padX = 4f) {
                             limitPrice.value = null
                         }
@@ -96,8 +100,12 @@ internal fun StateHolder<Node, List<Node>>.dTicket(
             // ── Amount(USDT) 行：右侧为名义金额 ──
             dRow(gap = 8f, height = 16f, padX = 10f, justify = DirectionJustify.between) {
                 dText({ "Amount (USDT)" }, 9.5f, { D_TEXT3 }, 600)
-                val total = priceOf() * (amount.value.toDoubleOrNull() ?: 0.0)
-                dText({ if (total > 0) fmtPrice(total) else "0.00" }, 11f, { D_TEXT })
+                // 名义金额在文本 lambda 内现算：argChildren 一次性，
+                // 外面捕获 total 是启动快照，输入/改价后不更新
+                dText({
+                    val total = priceOf() * (amount.value.toDoubleOrNull() ?: 0.0)
+                    if (total > 0) fmtPrice(total) else "0.00"
+                }, 11f, { D_TEXT })
             }
 
             // ── 数量输入框 ──
@@ -155,9 +163,12 @@ internal fun StateHolder<Node, List<Node>>.dTicket(
             // ── Est. qty ──
             dRow(gap = 8f, height = 16f, padX = 10f, justify = DirectionJustify.between) {
                 dText({ "Est. qty" }, 9.5f, { D_TEXT3 }, 600)
-                val p = priceOf()
-                val qty = if (p > 0) (amount.value.toDoubleOrNull() ?: 0.0) / p else 0.0
-                dText({ fmtQty(qty) }, 11f, { D_TEXT2 })
+                // 数量在文本 lambda 内现算：同上，捕获快照不随输入/改价更新
+                dText({
+                    val p = priceOf()
+                    val qty = if (p > 0) (amount.value.toDoubleOrNull() ?: 0.0) / p else 0.0
+                    fmtQty(qty)
+                }, 11f, { D_TEXT2 })
             }
 
             // ── 提交 ──
@@ -165,7 +176,7 @@ internal fun StateHolder<Node, List<Node>>.dTicket(
                 { if (side.value == "buy") "买入" else "卖出" },
                 { true },
                 height = 28f,
-                chip = if (side.value == "buy") D_UP else D_DOWN
+                chipOf = { if (side.value == "buy") D_UP else D_DOWN }
             ) {
                 val p = priceOf()
                 val qty = if (p > 0) (amount.value.toDoubleOrNull() ?: 0.0) / p else 0.0

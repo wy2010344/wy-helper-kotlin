@@ -95,10 +95,11 @@ internal fun StateHolder<Node, List<Node>>.dStats(ticker: () -> Ticker?) {
                 dRow(gap = 8f, height = 18f) {
                     dText({ "24h Change" }, 9.5f, { D_TEXT3 }, 600)
                     dSpacer()
-                    val t = ticker()
+                    // ticker 在 lambda 内现读：argChildren 里 val t = ticker() 是启动
+                    // 快照，切币种后 24h Change 数值与颜色永远冻结在首个币种
                     dText(
-                        { fmtPercent(t?.changePercent) }, 13f,
-                        { if ((t?.changePercent ?: 0.0) >= 0) D_UP else D_DOWN }, 600
+                        { fmtPercent(ticker()?.changePercent) }, 13f,
+                        { if ((ticker()?.changePercent ?: 0.0) >= 0) D_UP else D_DOWN }, 600
                     )
                 }
                 // 区间位置条：绿 → 琥珀 → 红 渐变轨 + 当前位置圆点
@@ -125,13 +126,16 @@ internal fun StateHolder<Node, List<Node>>.dStats(ticker: () -> Ticker?) {
                     }
                 }
                 dRow(height = 12f) {
-                    val t = ticker()
                     dText({ "Low" }, 9f, { D_TEXT3 })
                     dSpacer()
-                    val pct = if (t != null && t.high > t.low) {
-                        (t.last - t.low) / (t.high - t.low) * 100.0
-                    } else 50.0
-                    dText({ "${String.format(java.util.Locale.US, "%.1f", pct)}%" }, 9f, { D_TEXT2 })
+                    // 位置百分比在 text lambda 内现算（同上，快照会冻结）
+                    dText({
+                        val t = ticker()
+                        val pct = if (t != null && t.high > t.low) {
+                            (t.last - t.low) / (t.high - t.low) * 100.0
+                        } else 50.0
+                        "${String.format(java.util.Locale.US, "%.1f", pct)}%"
+                    }, 9f, { D_TEXT2 })
                     dSpacer()
                     dText({ "High" }, 9f, { D_TEXT3 })
                 }
