@@ -204,9 +204,6 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
     }
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-        val narrow = windowWidth() < 1000f
-        val veryNarrow = windowWidth() < 880f
-
         // 行情心跳：帧源 UI 线程回调、300ms 节流写 marketRev；
         // 挂 addDestroy 与本 holder 同生命周期——子树重建时旧订阅取消、新订阅拉起。
         if (tickSub == null) {
@@ -237,87 +234,11 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
             }
         }
 
-        // ── header ──
-        dRow(gap = 10f, height = DASH_HEADER_H, padX = 12f) {
-            // logo 瓦片
-            object : RectNode(this) {
-                override val argWidth: LayoutSize get() = LayoutSize(26f, false)
-                override val argHeight: LayoutSize get() = LayoutSize(26f, false)
-
-                override fun draw(canvas: PlatformCanvas) {
-                    fillOuterRoundRect(canvas, 6f, D_ACCENT)
-                    drawTextCentered(canvas, "W", 13f, 13f, 11f, rgba(255, 255, 255), 700)
-                    super.draw(canvas)
-                }
-            }
-            if (!veryNarrow) {
-                dText({ "WY Markets" }, 11f, { D_TEXT2 }, 600)
-                // 分隔竖线
-                object : RectNode(this) {
-                    override val argWidth: LayoutSize get() = LayoutSize(1f, false)
-                    override val argHeight: LayoutSize get() = LayoutSize(22f, false)
-
-                    override fun draw(canvas: PlatformCanvas) {
-                        fillOuterRect(canvas, D_LINE)
-                    }
-                }
-            }
-            // 交易对 + 最新价 + 涨跌
-            dRow(gap = 8f, height = 30f) {
-                dText({ symbol.value }, 13f, { D_TEXT }, 600)
-                val t = MarketData.tickerOf(symbol.value)
-                dText({ fmtPrice(t.last) }, 13f, { D_TEXT })
-                dText(
-                    { fmtPercent(t.changePercent) }, 11f,
-                    { if (t.changePercent >= 0) D_UP else D_DOWN }, 600
-                )
-            }
-            dSpacer()
-            // 交易对 tabs（窄窗口只留前两个，完整列表在自选面板）
-            val symbolTabs = if (veryNarrow) 2 else MarketData.symbols.size
-            MarketData.symbols.take(symbolTabs).forEach { s ->
-                dTabButton({ s }, { symbol.value == s }) {
-                    if (symbol.value != s) {
-                        symbol.value = s
-                        limitPrice.value = null
-                        note.value = ""
-                    }
-                }
-            }
-            // 周期 tabs（窄窗口隐藏）
-            if (!narrow) {
-                MarketData.intervals.forEach { itv ->
-                    dTabButton({ itv }, { interval.value == itv }, height = 22f, padX = 7f) {
-                        if (interval.value != itv) {
-                            interval.value = itv
-                            chartCount.value = ChartGeom.DEFAULT_VISIBLE
-                            chartOffset.value = 0
-                        }
-                    }
-                }
-            }
-            // DEMO 徽章 → 免责声明（手动打开同样回写已读标记）
-            dTabButton({ "DEMO" }, { false }, height = 20f, padX = 7f, chip = D_AMBER) {
-                g.appendPop { pop ->
-                    dNoticeDialog(onClose = {
-                        g.removePop(pop)
-                        prefs.put("dash.noticeSeen", "1")
-                    })
-                }
-            }
-            // 状态点
-            object : RectNode(this) {
-                override val argWidth: LayoutSize get() = LayoutSize(6f, false)
-                override val argHeight: LayoutSize get() = LayoutSize(6f, false)
-
-                override fun draw(canvas: PlatformCanvas) {
-                    fillOuterOval(canvas, D_AMBER)
-                }
-            }
-            if (!narrow) {
-                dText({ "MOCK" }, 9f, { D_TEXT3 }, 600)
-            }
-        }
+        // ── header ──（拆至 DashHeader.kt：窄化断点由 renderForEach 现读）
+        dDashHeader(
+            windowWidth, symbol, interval, limitPrice,
+            note, chartCount, chartOffset
+        )
 
         // ── main：三列 ──
         dRow(gap = 0f, growY = true, align = AlignItem.stretch, justify = DirectionJustify.start) {
@@ -343,7 +264,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
 
             // 中列：K 线 + 行情活动
             dCol(gap = 0f, grow = true) {
-                dPane("Chart", interval.value, grow = true) {
+                dPane("Chart", hintOf = { interval.value }, grow = true) {
                     dChartPane(
                         klines = { MarketData.klinesOf(symbol.value, interval.value) },
                         count = chartCount,
@@ -351,104 +272,8 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                     )
                 }
                 dSplitH({ centerBottom.value }, 120f, 420f, -1f) { centerBottom.value = it; saveLayout() }
-                dPane(
-                    "Market activity",
-                    "Trades / Depth",
-                    heightOf = { centerBottom.value },
-                    tools = {
-                        dTabButton({ "Depth" }, { activity.value == "Depth" }, height = 18f, padX = 7f) {
-                            activity.value = "Depth"
-                        }
-                        dTabButton({ "Trades" }, { activity.value == "Trades" }, height = 18f, padX = 7f) {
-                            activity.value = "Trades"
-                        }
-                    }
-                ) {
-                    if (activity.value == "Depth") {
-                        dCol(gap = 0f, growY = true) {
-                            // 图例 + 缩放控件行
-                            dRow(gap = 8f, height = 20f, padX = 8f, justify = DirectionJustify.between) {
-                                val geo = DepthGeom.geo(MarketData.depthOf(symbol.value, marketRev.value), depthZoom.value)
-                                dRow(gap = 5f, height = 14f) {
-                                    object : RectNode(this) {
-                                        override val argWidth: LayoutSize get() = LayoutSize(10f, false)
-                                        override val argHeight: LayoutSize get() = LayoutSize(6f, false)
-
-                                        override fun draw(canvas: PlatformCanvas) {
-                                            fillOuterRoundRect(canvas, 1.5f, D_UP.withAlpha(0.7f))
-                                        }
-                                    }
-                                    dText({ "BID" }, 8.5f, { D_UP }, 600)
-                                    dText({ fmtQty(geo.bidMax) }, 8.5f, { D_TEXT3 })
-                                    object : RectNode(this) {
-                                        override val argWidth: LayoutSize get() = LayoutSize(10f, false)
-                                        override val argHeight: LayoutSize get() = LayoutSize(6f, false)
-
-                                        override fun draw(canvas: PlatformCanvas) {
-                                            fillOuterRoundRect(canvas, 1.5f, D_DOWN.withAlpha(0.7f))
-                                        }
-                                    }
-                                    dText({ "ASK" }, 8.5f, { D_DOWN }, 600)
-                                    dText({ fmtQty(geo.askMax) }, 8.5f, { D_TEXT3 })
-                                    dText({ "价差幅度" }, 8.5f, { D_TEXT3 })
-                                    dText(
-                                        {
-                                            String.format(
-                                                java.util.Locale.US, "%.2f",
-                                                DepthGeom.RANGE_PCT / DepthGeom.zoomClamp(depthZoom.value)
-                                            ) + "%"
-                                        },
-                                        8.5f, { D_TEXT2 }
-                                    )
-                                }
-                                dRow(gap = 4f, height = 16f) {
-                                    dIconButton(size = 16f, onClick = {
-                                        depthZoom.value = DepthGeom.zoomClamp(depthZoom.value * 0.8)
-                                    }) { canvas, w, h ->
-                                        drawTextCentered(canvas, "−", w / 2f, h / 2f, 10f, D_TEXT2, 600)
-                                    }
-                                    dText(
-                                        { "${String.format(java.util.Locale.US, "%.1f", DepthGeom.zoomClamp(depthZoom.value))}×" },
-                                        8.5f, { D_TEXT3 }, width = 26f, align = TextAlign.CENTER
-                                    )
-                                    dIconButton(size = 16f, onClick = {
-                                        depthZoom.value = DepthGeom.zoomClamp(depthZoom.value * 1.25)
-                                    }) { canvas, w, h ->
-                                        drawTextCentered(canvas, "+", w / 2f, h / 2f, 10f, D_TEXT2, 600)
-                                    }
-                                    dTabButton({ "RESET" }, { false }, height = 16f, padX = 5f) {
-                                        depthZoom.value = 1.0
-                                    }
-                                    dTabButton({ "FULL" }, { false }, height = 16f, padX = 5f) {
-                                        g.appendPop { pop ->
-                                            dDepthFull(
-                                                depth = { MarketData.depthOf(symbol.value, marketRev.value) },
-                                                zoom = { depthZoom.value },
-                                                onWheelZoom = { delta ->
-                                                    depthZoom.value = DepthGeom.zoomClamp(
-                                                        depthZoom.value * exp(-delta * 0.0015)
-                                                    )
-                                                },
-                                                onClose = { g.removePop(pop) }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            depthCanvas(
-                                depth = { MarketData.depthOf(symbol.value, marketRev.value) },
-                                zoom = { depthZoom.value },
-                                onWheelZoom = { delta ->
-                                    depthZoom.value = DepthGeom.zoomClamp(
-                                        depthZoom.value * exp(-delta * 0.0015)
-                                    )
-                                }
-                            )
-                        }
-                    } else {
-                        dTrades { MarketData.tradesOf(symbol.value) }
-                    }
-                }
+                // 行情活动窗格（拆至 DashActivity.kt：Depth|Trades 双 renderForEach 换页）
+                dDashActivity(centerBottom, activity, symbol, marketRev, depthZoom)
             }
 
             dSplitV({ rightWidth.value }, 224f, 520f, -1f) { rightWidth.value = it; saveLayout() }
@@ -546,10 +371,11 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                 9f, { D_TEXT3 }
             )
             dRow(gap = 8f, height = 16f) {
-                val n = note.value
-                if (n.isNotEmpty()) {
-                    dText({ n }, 9f, { D_TEXT2 })
-                }
+                // 提示语走 renderForEach：结构 if 读 note 是启动快照，重置后不出现
+                renderForEach({ callback ->
+                    val n = note.value
+                    if (n.isNotEmpty()) callback(0, n)
+                }) { _, each -> dText({ each.value }, 9f, { D_TEXT2 }) }
                 dTabButton({ "重置布局" }, { false }, height = 16f, padX = 7f) { resetLayout() }
             }
         }
