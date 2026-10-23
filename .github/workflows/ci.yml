@@ -12,6 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Windows 上 git 签出 gradlew 可能丢失 +x 位，Linux runner 会 Permission denied
+      - name: Fix gradlew permissions
+        run: chmod +x gradlew
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
