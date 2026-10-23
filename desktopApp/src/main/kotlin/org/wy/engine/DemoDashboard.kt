@@ -4,6 +4,8 @@ import com.wy.layout.AlignItem
 import com.wy.layout.DirectionJustify
 import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
+import org.wy.engine.animation.DefaultFrameSource
+import org.wy.engine.animation.FrameSubscription
 import org.wy.engine.helper.ButtonBase
 import org.wy.engine.helper.DialogBase
 import org.wy.engine.helper.DropdownBase
@@ -268,9 +270,14 @@ object MarketData {
         )
     }
 
-    /** 40 档盘口：最优价附近密、偶尔来一面墙。 */
-    fun depthOf(symbol: String): Depth = depthCache.getOrPut(symbol) {
-        val rng = Rng(symbol.hashCode().toLong() * -0x61c8864680b583ebL xor 0x5DEECE66DL)
+    /** 40 档盘口：最优价附近密、偶尔来一面墙。rev = 0 用缓存快照（截图可复现）。 */
+    fun depthOf(symbol: String, rev: Int = 0): Depth =
+        if (rev == 0) depthCache.getOrPut(symbol) { genDepth(symbol, 0) } else genDepth(symbol, rev)
+
+    /** 生成第 [rev] 版盘口：种子掺 rev（固定序列，不读时钟，逐像素仍可复现）。 */
+    private fun genDepth(symbol: String, rev: Int): Depth {
+        // 0x9E3779B97F4A7C15（黄金比例常数）超出十六进制字面量上限，取其有符号等值
+        val rng = Rng(symbol.hashCode().toLong() * -0x61c8864680b583ebL xor 0x5DEECE66DL xor (rev.toLong() * -7046029254386353131L))
         val t = tickerOf(symbol)
         val step = tickOf(symbol)
         val scale = when {
@@ -293,7 +300,8 @@ object MarketData {
             }
             return list
         }
-        Depth(side(t.bid, -1.0), side(t.ask, 1.0), t.time)
+        // 时间随 rev 前推（每版 300ms），消费方显示的时间戳随之走动
+        return Depth(side(t.bid, -1.0), side(t.ask, 1.0), t.time + rev * 300L)
     }
 
     /** 最近 30 笔成交（时间倒序，最新在前）。 */
@@ -1019,6 +1027,10 @@ private fun StateHolder<Node, List<Node>>.dCol(
     growY: Boolean = false,
     padX: Float = 0f,
     width: Float? = null,
+    // 动态宽度通道：argChildren 只执行一次（StateHolderI.create 契约），
+    // width = signal.value 是启动时刻快照；走 lambda 让 argWidth getter
+    // 每次布局读取信号，被 size memo 追踪后拖拽才会重算布局。优先于 width。
+    widthOf: (() -> Float)? = null,
     content: StateHolderWithNode<Node, List<Node>>.() -> Unit
 ) {
     object : RectNode(this), FlexParam, GrowChild {
@@ -1033,7 +1045,7 @@ private fun StateHolder<Node, List<Node>>.dCol(
         override val argHeight: LayoutSize
             get() = height?.let { LayoutSize(it, false) } ?: super.argHeight
         override val argWidth: LayoutSize
-            get() = width?.let { LayoutSize(it, false) } ?: super.argWidth
+            get() = (widthOf?.invoke() ?: width)?.let { LayoutSize(it, false) } ?: super.argWidth
 
         override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
             if (direction == Direction.x) padX else 0f
@@ -1065,6 +1077,9 @@ private fun StateHolder<Node, List<Node>>.dPane(
     title: String,
     hint: String = "",
     height: Float? = null,
+    // 动态高度通道：argChildren 一次性执行，height = signal.value 是快照；
+    // lambda 让 argHeight getter 每次布局读信号（拖拽分隔条时重算）。优先于 height。
+    heightOf: (() -> Float)? = null,
     grow: Boolean = false,
     tools: (StateHolderWithNode<Node, List<Node>>.() -> Unit)? = null,
     content: StateHolderWithNode<Node, List<Node>>.() -> Unit
@@ -1078,7 +1093,8 @@ private fun StateHolder<Node, List<Node>>.dPane(
     override val gap: Float get() = 0f
 
     override fun argGrow(direction: Direction): Float = if (grow && direction == Direction.y) 1f else 0f
-    override val argHeight: LayoutSize get() = height?.let { LayoutSize(it, false) } ?: super.argHeight
+    override val argHeight: LayoutSize
+        get() = (heightOf?.invoke() ?: height)?.let { LayoutSize(it, false) } ?: super.argHeight
 
     override fun draw(canvas: PlatformCanvas) {
         fillOuterRoundRect(canvas, 6f, D_PANE)
@@ -2827,6 +2843,12 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
     private val chartOffset = createSignal(0)
     private val depthZoom = createSignal(1.0)
     private val note = createSignal("")
+
+    // ── 行情心跳：盘口/深度的版本号，300ms 节流 +1，消费方按 rev 取数 ──
+    private val marketRev = createSignal(0)
+
+    /** 心跳订阅句柄：null = 未订阅（holder 重建后由 argChildren 重新拉起）。 */
+    private var tickSub: FrameSubscription? = null
     // ── 布局尺寸（持久化，口径对齐 ooc layout.ts：加载 clamp / 拖拽落盘 / 重置清除）──
     private fun loadF(key: String, def: Float, min: Float, max: Float): Float {
         val raw = prefs.get(key, "").toFloatOrNull() ?: return def
@@ -2895,6 +2917,24 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
         val narrow = windowWidth() < 1000f
         val veryNarrow = windowWidth() < 880f
+
+        // 行情心跳：帧源 UI 线程回调、300ms 节流写 marketRev；
+        // 挂 addDestroy 与本 holder 同生命周期——子树重建时旧订阅取消、新订阅拉起。
+        if (tickSub == null) {
+            var lastTickMs = 0f
+            val sub = DefaultFrameSource.subscribe({ now ->
+                if (now - lastTickMs >= 300f) {
+                    lastTickMs = now
+                    marketRev.value = marketRev.value + 1
+                }
+                false
+            }) { }
+            tickSub = sub
+            addDestroy {
+                sub.cancel()
+                tickSub = null
+            }
+        }
 
         // 首访自动弹出免责声明（对齐 ooc whenFirstVisit + noticeSeen 语义，
         // 标记持久化在 java.util.prefs，桌面端 localStorage 对应物）
@@ -2993,7 +3033,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
         // ── main：三列 ──
         dRow(gap = 0f, growY = true, align = AlignItem.stretch, justify = DirectionJustify.start) {
             // 左列：自选 + 概览
-            dCol(gap = 0f, width = leftWidth.value) {
+            dCol(gap = 0f, widthOf = { leftWidth.value }) {
                 dPane("Watchlist", "24h", grow = true) {
                     dWatchlist(
                         tickers = { MarketData.watchTickers() },
@@ -3005,7 +3045,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                     }
                 }
                 dSplitH({ leftBottom.value }, 120f, 420f, -1f) { leftBottom.value = it; saveLayout() }
-                dPane("Market stats", "Binance", height = leftBottom.value) {
+                dPane("Market stats", "Binance", heightOf = { leftBottom.value }) {
                     dStats { MarketData.tickerOf(symbol.value) }
                 }
             }
@@ -3025,7 +3065,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                 dPane(
                     "Market activity",
                     "Trades / Depth",
-                    height = centerBottom.value,
+                    heightOf = { centerBottom.value },
                     tools = {
                         dTabButton({ "Depth" }, { activity.value == "Depth" }, height = 18f, padX = 7f) {
                             activity.value = "Depth"
@@ -3039,7 +3079,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                         dCol(gap = 0f, growY = true) {
                             // 图例 + 缩放控件行
                             dRow(gap = 8f, height = 20f, padX = 8f, justify = DirectionJustify.between) {
-                                val geo = DepthGeom.geo(MarketData.depthOf(symbol.value), depthZoom.value)
+                                val geo = DepthGeom.geo(MarketData.depthOf(symbol.value, marketRev.value), depthZoom.value)
                                 dRow(gap = 5f, height = 14f) {
                                     object : RectNode(this) {
                                         override val argWidth: LayoutSize get() = LayoutSize(10f, false)
@@ -3093,7 +3133,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                                     dTabButton({ "FULL" }, { false }, height = 16f, padX = 5f) {
                                         g.appendPop { pop ->
                                             dDepthFull(
-                                                depth = { MarketData.depthOf(symbol.value) },
+                                                depth = { MarketData.depthOf(symbol.value, marketRev.value) },
                                                 zoom = { depthZoom.value },
                                                 onWheelZoom = { delta ->
                                                     depthZoom.value = DepthGeom.zoomClamp(
@@ -3107,7 +3147,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                                 }
                             }
                             depthCanvas(
-                                depth = { MarketData.depthOf(symbol.value) },
+                                depth = { MarketData.depthOf(symbol.value, marketRev.value) },
                                 zoom = { depthZoom.value },
                                 onWheelZoom = { delta ->
                                     depthZoom.value = DepthGeom.zoomClamp(
@@ -3125,7 +3165,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
             dSplitV({ rightWidth.value }, 224f, 520f, -1f) { rightWidth.value = it; saveLayout() }
 
             // 右列：盘口 + 模拟下单
-            dCol(gap = 0f, width = rightWidth.value) {
+            dCol(gap = 0f, widthOf = { rightWidth.value }) {
                 dPane(
                     "Order book",
                     "L2 aggregated",
@@ -3186,7 +3226,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                     }
                 ) {
                     dOrderbook(
-                        depth = { MarketData.depthOf(symbol.value) },
+                        depth = { MarketData.depthOf(symbol.value, marketRev.value) },
                         ticker = { MarketData.tickerOf(symbol.value) },
                         mode = bookMode,
                         avgSum = bookAvgSum,
@@ -3199,7 +3239,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                     )
                 }
                 dSplitH({ rightBottom.value }, 140f, 420f, -1f) { rightBottom.value = it; saveLayout() }
-                dPane("Paper order", "Demo only", height = rightBottom.value) {
+                dPane("Paper order", "Demo only", heightOf = { rightBottom.value }) {
                     dTicket(
                         ticker = { MarketData.tickerOf(symbol.value) },
                         limitPrice = limitPrice,
