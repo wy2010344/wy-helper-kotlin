@@ -45,50 +45,67 @@ abstract class Memo<T> : GetValue<T> {
 
     override fun invoke(): T {
         checkEnter()
-        G.callGet = true
-        if (stateVersion == G.stateVersion) {
-            val cf = G.currentFun
-            if (cf != null && listenerVersion != cf) {
-                listenerVersion = cf
-                val oldRelay=G.currentRelay
-                G.currentRelay=null
-                for ((k, _) in relays) k()
-                G.currentRelay=oldRelay
+        // 异常安全：无论 get() 内部抛什么，栈都必须回到进入前的状态，
+        // 否则残留条目会让后续所有 memo 调用连锁崩溃（重复进入 / 出入不匹配）。
+        var left = false
+        try {
+            G.callGet = true
+            if (stateVersion == G.stateVersion) {
+                val cf = G.currentFun
+                if (cf != null && listenerVersion != cf) {
+                    listenerVersion = cf
+                    val oldRelay = G.currentRelay
+                    G.currentRelay = null
+                    try {
+                        for ((k, _) in relays) k()
+                    } finally {
+                        G.currentRelay = oldRelay
+                    }
+                }
+                G.currentRelay?.let { relay -> relay[this] = lastValue }
+                checkLeave()
+                left = true
+                @Suppress("UNCHECKED_CAST")
+                return lastValue as T
             }
-            G.currentRelay?.let { relay -> relay[this] = lastValue }
-            checkLeave()
-            @Suppress("UNCHECKED_CAST")
-            return lastValue as T
-        }
-        listenerVersion = null
-        stateVersion = G.stateVersion
+            listenerVersion = null
+            stateVersion = G.stateVersion
 
-        var shouldAfter = false
-        val oldRelay = G.currentRelay
-        G.currentRelay = null
-
-        if (inited) {
-            if (relayChanged(relays)) {
-                val v = memoGetImpl(lastValue, inited)
-                if (v != lastValue) {
-                    lastValue = v
+            var shouldAfter = false
+            val oldRelay = G.currentRelay
+            G.currentRelay = null
+            try {
+                if (inited) {
+                    if (relayChanged(relays)) {
+                        val v = memoGetImpl(lastValue, inited)
+                        if (v != lastValue) {
+                            lastValue = v
+                            shouldAfter = true
+                        }
+                    }
+                } else {
+                    lastValue = memoGetImpl(null, false)
+                    inited = true
                     shouldAfter = true
                 }
+            } finally {
+                G.currentRelay = oldRelay
             }
-        } else {
-            lastValue = memoGetImpl(null, false)
-            inited = true
-            shouldAfter = true
+            G.currentRelay?.let { relay -> relay[this] = lastValue }
+            //必须在after之前
+            checkLeave()
+            left = true
+            if (shouldAfter) {
+                afters.forEach { it(lastValue as T) }
+            }
+            @Suppress("UNCHECKED_CAST")
+            return lastValue as T
+        } finally {
+            if (!left) {
+                // 异常路径：静默出栈（不掩盖原始异常）；正常路径不会走到这里
+                runCatching { checkLeave() }
+            }
         }
-        G.currentRelay = oldRelay
-        G.currentRelay?.let { relay -> relay[this] = lastValue }
-        //必须在after之前
-        checkLeave()
-        if (shouldAfter) {
-            afters.forEach { it(lastValue as T) }
-        }
-        @Suppress("UNCHECKED_CAST")
-        return lastValue as T
     }
 
     private fun memoGetImpl(
@@ -96,10 +113,13 @@ abstract class Memo<T> : GetValue<T> {
         inited: Boolean
     ): T {
         relays.clear()
+        val oldRelay = G.currentRelay
         G.currentRelay = relays
-        val v = get(lastValue, inited)
-        G.currentRelay = null
-        return v
+        try {
+            return get(lastValue, inited)
+        } finally {
+            G.currentRelay = oldRelay
+        }
     }
 }
 

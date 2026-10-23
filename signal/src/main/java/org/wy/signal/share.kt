@@ -35,7 +35,10 @@ var batchScope: CoroutineScope = CoroutineScope(
     SupervisorJob() + try {
         Dispatchers.Main
     } catch (_: IllegalStateException) {
-        Dispatchers.Default
+        // 无 UI 环境（classpath 上没有 Main 实现）时，绝不能退到无界多线程的
+        // Dispatchers.Default：G 是无同步的可变全局状态，批次并发执行会竞态。
+        // limitedParallelism(1) 保证同一时刻至多一个批次协程在跑（串行，可能换线程）。
+        Dispatchers.Default.limitedParallelism(1)
     }
 )
 

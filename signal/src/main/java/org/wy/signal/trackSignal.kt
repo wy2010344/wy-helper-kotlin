@@ -27,9 +27,16 @@ abstract class TrackSignal<T>{
 
     fun addFun() {
         if (disabled) return
+        val prev = G.currentFun
         G.currentFun = this
-        val value = get(lastValue, inited)
-        G.currentFun = null
+        // 只在 get 阶段保持追踪；set 必须在非追踪上下文执行（对齐 TS 原版）：
+        // 否则 set 内读 signal/memo 会产生额外订阅、memo 重注入等原版不存在的副作用。
+        // finally 只复位追踪状态，错误继续向上抛。
+        val value = try {
+            get(lastValue, inited)
+        } finally {
+            G.currentFun = prev
+        }
 
         if (inited) {
             if (value != lastValue) {
@@ -48,10 +55,13 @@ abstract class TrackSignal<T>{
         if(G.currentFun!=null){
             throw Error("禁止在受观察处发起...")
         }
+        val prev = G.currentFun
         G.currentFun = this
-        val v = callback()
-        G.currentFun = null
-        return v
+        try {
+            return callback()
+        } finally {
+            G.currentFun = prev
+        }
     }
     fun dispose() {
         destroy()
