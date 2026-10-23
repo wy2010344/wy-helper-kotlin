@@ -17,6 +17,7 @@ import org.wy.engine.include
 import org.wy.engine.isFocused
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
+import org.wy.engine.layout.GrowChild
 import org.wy.engine.layout.LayoutDirection
 import org.wy.engine.outerHeight
 import org.wy.engine.outerWidth
@@ -129,6 +130,9 @@ open class SliderBase(
  *
  * 样式值全部来自 [Theme.current]；需要更自由的视觉时可改用
  * `object : SliderBase(this) { ... }` 直接覆盖视觉方法。
+ *
+ * @param grow true = 宽度随容器剩余空间拉伸（grow 子节点，不参与父级测量，
+ *   放在包裹行里也安全）；false = 固定 [width]。放进"从父级拉伸"的列时两者等价。
  */
 fun StateHolder<Node, List<Node>>.slider(
     value: () -> Float,
@@ -137,8 +141,13 @@ fun StateHolder<Node, List<Node>>.slider(
     focusOrder: Int? = null,
     width: Float = 220f,
     height: Float = 20f,
-): SliderBase = object : SliderBase(this, enabled) {
-    override val argWidth: LayoutSize get() = LayoutSize(width, false)
+    grow: Boolean = false,
+): SliderBase = object : SliderBase(this, enabled), GrowChild {
+    override fun argGrow(direction: Direction): Float =
+        if (grow && direction == Direction.x) 1f else 0f
+
+    override val argWidth: LayoutSize
+        get() = if (grow) super.argWidth else LayoutSize(width, false)
     override val argHeight: LayoutSize get() = LayoutSize(height, false)
     override val focusOrder: Int? get() = focusOrder
 

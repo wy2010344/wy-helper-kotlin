@@ -26,6 +26,8 @@ import org.wy.engine.layout.LayoutDirection
  *
  * - [direction]：滚动方向（Direction.y 纵向 / Direction.x 横向），容器布局方向自动取反（内容 + 滚动条排布方向）。
  * - 同向嵌套时内层滚到底会自动放行给外层（通过 Scroll 的 parentScroll 机制）。
+ * - 滚动条默认是 [OverlayScrollBar]：浮在内容之上、不占布局空间、停止滚动后自动淡出
+ *   （macOS 系统浮层滚动条行为）。要换成常驻轨道样式，override [scrollBarEnabled] = false 后自行追加。
  */
 open class SimpleScrollNode(
     context: StateHolder<Node, List<Node>>,
@@ -54,6 +56,16 @@ open class SimpleScrollNode(
 
     /** 内容区：在这里声明滚动内容。 */
     open fun StateHolderWithNode<Node, List<Node>>.contentChildren() {}
+
+    /** 是否绘制滚动条。 */
+    open val scrollBarEnabled: Boolean = true
+
+    /** 滚动条视觉参数；换肤时整体替换即可。 */
+    open val scrollBarStyle: ScrollBarStyle = ScrollBarStyle()
+
+    /** 滚动条实例（用于截图 / 演示时强制显示等场景）。 */
+    var scrollBar: OverlayScrollBar? = null
+        private set
 
     val innerScroll = Scroll(this, direction, context)
 
@@ -93,8 +105,8 @@ open class SimpleScrollNode(
             }
         }
 
-        object : SimpleScrollBar(this) {
-            override val scroll: Scroll get() = innerScroll
+        if (scrollBarEnabled) {
+            scrollBar = OverlayScrollBar(this, innerScroll, scrollBarStyle)
         }
     }
 }

@@ -105,6 +105,28 @@ open class EditableTextNode(
 
     open val singleLine: Boolean get() = false
 
+    /** 单行输入即不折行：段落按无限宽排版，溢出部分裁剪 + 水平跟随光标。 */
+    override val noWrap: Boolean get() = singleLine
+
+    /**
+     * 单行溢出时的水平滚动量（无状态派生，只看当前光标与内容盒）：
+     * 1) 光标右缘超出盒宽 → 整体左移，让右缘贴住盒右缘；
+     * 2) 左移后光标左缘跑到盒外 → 回退到让左缘贴住盒左缘。
+     * 光标回到靠前位置时右缘不再越界，偏移自然归零，无需记录历史。
+     */
+    override val textOffsetX: Float
+        get() {
+            if (!noWrap) return 0f
+            val p = paragraph ?: return 0f
+            val box = innerWidth
+            val caret = cursorRect().firstOrNull()
+            val left = caret?.left ?: 0f
+            val right = caret?.right ?: left
+            var off = if (right > box) right - box else 0f
+            if (left - off < 0f) off = left
+            return off.coerceIn(0f, max(0f, p.width - box))
+        }
+
     /** 占位文本：逻辑文本为空时显示，不参与编辑与选区。 */
     var placeholder by createSignal("")
 
@@ -767,7 +789,7 @@ open class EditableTextNode(
         val p = paragraph ?: return
         val pos = displayToLogicIndex(
             p.getGlyphPositionAtCoordinate(
-                e.x - paddingInlineStart,
+                e.x - textOriginX,
                 e.y - paddingBlockStart
             )
         )
@@ -779,29 +801,32 @@ open class EditableTextNode(
         if (p != null) {
             val list = p.getRectsForRange(pos, pos + 1, RectStyle.TIGHT)
             if (list.isNotEmpty()) {
-                return (absoluteX + paddingInlineStart + list[0].left) to
+                return (absoluteX + textOriginX + list[0].left) to
                        (absoluteY + paddingBlockStart + list[0].top)
             }
             if (pos > 0) {
                 val r = p.getRectsForRange(pos - 1, pos, RectStyle.TIGHT)
                 if (r.isNotEmpty()) {
-                    return (absoluteX + paddingInlineStart + r[0].right) to
+                    return (absoluteX + textOriginX + r[0].right) to
                            (absoluteY + paddingBlockStart + r[0].top)
                 }
             }
         }
-        return absoluteX + paddingInlineStart to absoluteY + paddingBlockStart
+        return absoluteX + textOriginX to absoluteY + paddingBlockStart
     }
 
     override fun draw(canvas: PlatformCanvas) {
-        super.draw(canvas)
+        // 单行裁剪要覆盖光标 / 组合态，所以裁剪层放在最外层（super.draw 内部还有一层，嵌套无害）
+        drawInContentBox(canvas) {
+            super.draw(it)
 
-        if (!hasSel && cursorVisible && isFocused) {
-            drawCursor(canvas, cursor())
-        }
+            if (!hasSel && cursorVisible && isFocused) {
+                drawCursor(it, cursor())
+            }
 
-        if (composingText.isNotEmpty()) {
-            drawComposing(canvas)
+            if (composingText.isNotEmpty()) {
+                drawComposing(it)
+            }
         }
     }
 
@@ -809,7 +834,7 @@ open class EditableTextNode(
         val p = paragraph
         if (p == null) {
             canvas.fillRect(
-                paddingInlineStart,
+                textOriginX,
                 paddingBlockStart,
                 cursorWidth,
                 max(fontSize * 1.4f, 8f),
@@ -818,7 +843,7 @@ open class EditableTextNode(
             return
         }
         val pos = logicToDisplayIndex(logicPos)
-        val px = paddingInlineStart
+        val px = textOriginX
         val py = paddingBlockStart
         val list = p.getRectsForRange(pos, pos + 1, RectStyle.TIGHT)
         if (list.isNotEmpty()) {
@@ -835,7 +860,7 @@ open class EditableTextNode(
     private fun drawComposing(canvas: PlatformCanvas) {
         if (composingLength <= 0) return
         val p = paragraph ?: return
-        val px = paddingInlineStart
+        val px = textOriginX
         val py = paddingBlockStart
         val s = logicToDisplayIndex(composingStart)
         val e = logicToDisplayIndex(composingStart + composingLength)

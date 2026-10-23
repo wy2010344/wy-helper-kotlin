@@ -31,6 +31,21 @@ open class RichTextNode(
     open val ellipsis: String = "\u2026"
     open val textAlign: TextAlign = TextAlign.START
 
+    /**
+     * 单行不换行：段落按无限宽排版（永不产生软换行），绘制裁剪到内容盒。
+     *
+     * 与 [maxLines] 的区别是"截断策略"：`maxLines = 1` 仍然按盒宽折行、只保留首行
+     * 并补省略号，行内断点位置仍然受盒宽影响；[noWrap] 则完全不折行，超出部分
+     * 靠裁剪隐藏，配合 [textOffsetX] 做水平滚动——这才是输入框的单行语义。
+     */
+    protected open val noWrap: Boolean get() = false
+
+    /** 单行溢出时的水平滚动量：绘制整体左移该值，保证光标可见。 */
+    protected open val textOffsetX: Float get() = 0f
+
+    /** 文本绘制原点 x：单行模式下即 padding 起点左移 [textOffsetX]。 */
+    protected val textOriginX: Float get() = paddingInlineStart - textOffsetX
+
     protected val paragraph by memo {
         if (fullText.isEmpty()) return@memo null
         val expanded = spans.map {
@@ -38,11 +53,27 @@ open class RichTextNode(
         }
         buildParagraph(
             expanded,
-            if (autoWidth) Float.MAX_VALUE else innerWidth,
+            // 单行模式取无限宽：让"要不要折行"由 noWrap 决定，而不是由盒宽决定
+            if (autoWidth || noWrap) Float.MAX_VALUE else innerWidth,
             maxLines,
             ellipsis,
             textAlign
         )
+    }
+
+    /** 在内容盒裁剪下执行绘制；非单行模式下等价于直接执行 [block]。 */
+    protected inline fun drawInContentBox(
+        canvas: PlatformCanvas,
+        block: (PlatformCanvas) -> Unit
+    ) {
+        if (noWrap && !autoWidth) {
+            canvas.save()
+            canvas.clipRect(paddingInlineStart, paddingBlockStart, innerWidth, innerHeight)
+            block(canvas)
+            canvas.restore()
+        } else {
+            block(canvas)
+        }
     }
 
     override val argWidth: LayoutSize
@@ -97,9 +128,9 @@ open class RichTextNode(
             if (rects.isEmpty()) return null
             val first = rects.first()
             val last = rects.last()
-            val left = absoluteX + paddingInlineStart + minOf(first.left, last.left)
+            val left = absoluteX + textOriginX + minOf(first.left, last.left)
             val top = absoluteY + paddingBlockStart + minOf(first.top, last.top)
-            val right = absoluteX + paddingInlineStart + maxOf(first.right, last.right)
+            val right = absoluteX + textOriginX + maxOf(first.right, last.right)
             val bottom = absoluteY + paddingBlockStart + maxOf(first.bottom, last.bottom)
             return RectF(left, top, right, bottom)
         }
@@ -122,7 +153,7 @@ open class RichTextNode(
     override fun positionForPoint(globalX: Float, globalY: Float): Int {
         val p = paragraph ?: return 0
         val displayPos = p.getGlyphPositionAtCoordinate(
-            globalX - absoluteX - paddingInlineStart,
+            globalX - absoluteX - textOriginX,
             globalY - absoluteY - paddingBlockStart
         ).coerceIn(0, fullText.length)
         return displayToLogicIndex(displayPos)
@@ -181,22 +212,24 @@ open class RichTextNode(
     override fun draw(canvas: PlatformCanvas) {
         val p = paragraph
         if (p != null) {
-            if (hasSel) {
-                for (rect in p.getRectsForRange(
-                    logicToDisplayIndex(selStart),
-                    logicToDisplayIndex(selEnd),
-                    RectStyle.TIGHT
-                )) {
-                    canvas.fillRect(
-                        rect.left + paddingInlineStart,
-                        rect.top + paddingBlockStart,
-                        rect.width,
-                        rect.height,
-                        selectionColor
-                    )
+            drawInContentBox(canvas) {
+                if (hasSel) {
+                    for (rect in p.getRectsForRange(
+                        logicToDisplayIndex(selStart),
+                        logicToDisplayIndex(selEnd),
+                        RectStyle.TIGHT
+                    )) {
+                        it.fillRect(
+                            rect.left + textOriginX,
+                            rect.top + paddingBlockStart,
+                            rect.width,
+                            rect.height,
+                            selectionColor
+                        )
+                    }
                 }
+                it.drawParagraph(p, textOriginX, paddingBlockStart)
             }
-            canvas.drawParagraph(p, paddingInlineStart, paddingBlockStart)
         }
         super.draw(canvas)
     }

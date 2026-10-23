@@ -2,6 +2,7 @@ package org.wy.engine
 
 import com.wy.mve.Context
 import com.wy.mve.StateHolder
+import org.wy.lib.EmptyFun
 import org.wy.signal.OneSetStoreRef
 import org.wy.signal.createLateSignal
 import kotlin.math.max
@@ -30,10 +31,31 @@ class Scroll(
     private val setValue = ref.getOnlySet()
     private val getValue = ref::get
 
+    private val activityListeners = mutableListOf<() -> Unit>()
+
+    /**
+     * 订阅"滚动活动"：任何来源（滚轮 / 拖拽 / 程序写值）改变滚动位置时回调一次。
+     *
+     * 与 [value] 信号的区别是**不参与响应式派生**——监听者通常是副作用方
+     * （如滚动条：收到通知后播放淡入并重新计时淡出），不应在渲染过程中被同步读取。
+     * 返回取消订阅句柄。
+     */
+    fun addActivityListener(listener: () -> Unit): EmptyFun {
+        activityListeners.add(listener)
+        return { activityListeners.remove(listener) }
+    }
+
+    private fun notifyActivity() {
+        // 复制一份再遍历：监听者可能在回调里同步取消订阅
+        activityListeners.toList().forEach { it() }
+    }
+
     var value
         get() = getValue().coerceIn(0f, container.maxScroll(direction))
         set(value) {
+            val changed = value != getValue()
             setValue(value)
+            if (changed) notifyActivity()
         }
 
     fun scroll(delta: Float): Float {
