@@ -6,6 +6,8 @@ import com.wy.mve.StateHolder
 import com.wy.mve.StateHolderWithNode
 import org.jetbrains.skia.EncodedImageFormat
 import org.jetbrains.skia.Surface
+import org.wy.engine.dashboard.DASH_ACCENT
+import org.wy.engine.dashboard.dDashboardPage
 import org.wy.engine.helper.navItem
 import org.wy.engine.helper.segTabs
 import org.wy.engine.layout.FlexObject
