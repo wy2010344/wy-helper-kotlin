@@ -86,8 +86,12 @@ internal const val SEG_TABS_H = 36f
 internal const val CONTENT_GAP = 12f
 internal const val DASH_HEADER_H = 52f
 internal const val DASH_FOOTER_H = 24f
-/** 盘口固定 chrome：工具行 + 列头 + 中间行 + 比例条。 */
-internal const val BOOK_OVERHEAD = 22f + 18f + 28f + 16f
+/** 盘口 chrome 基础高度：工具行 + 列头 + 中间行（Avg.&Sum / 比例条随开关另计）。 */
+private const val BOOK_CORE_OVERHEAD = 22f + 18f + 28f
+/** Avg.&Sum 两行高度（开启时计入预算）。 */
+private const val BOOK_AVG_ROWS_H = 15f * 2
+/** B/S 比例条高度（开启时计入预算）。 */
+private const val BOOK_RATIO_H = 16f
 
 internal fun StateHolder<Node, List<Node>>.dDashboardPage(
     active: StoreRef<DemoTab>,
@@ -154,15 +158,25 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
         windowHeight() - SHELL_TOP_BAR - SHELL_STATUS_BAR - CONTENT_PAD * 2 -
             SEG_TABS_H - CONTENT_GAP - DASH_HEADER_H - DASH_FOOTER_H
 
-    /** 盘口每侧行数：单侧模式下吃满整块，两侧模式对半分。 */
+    /** 盘口 chrome 总高：基础三项 + 开启的 Avg.&Sum 两行 / 比例条（与 dOrderbook 实际结构对齐）。 */
+    private fun bookOverhead(): Float =
+        BOOK_CORE_OVERHEAD +
+            (if (bookAvgSum.value) BOOK_AVG_ROWS_H else 0f) +
+            (if (bookRatio.value) BOOK_RATIO_H else 0f)
+
+    /**
+     * 盘口每侧行数：单侧模式下吃满整块，两侧模式对半分。
+     * 所有读取（窗口高 / 分拽尺寸 / 模式 / 两个开关）都发生在
+     * dOrderbook 的 renderForEach memo 内，任一变化即重算行数。
+     */
     private fun bookRows(): Int {
         val col = columnHeight()
         val paneH = col - rightBottom.value - SPLIT_W
         val contentH = paneH - PANE_HEAD_H
         val sideH = if (bookMode.value == "both") {
-            (contentH - BOOK_OVERHEAD) / 2f
+            (contentH - bookOverhead()) / 2f
         } else {
-            contentH - BOOK_OVERHEAD
+            contentH - bookOverhead()
         }
         return BookMath.rowCount(sideH)
     }

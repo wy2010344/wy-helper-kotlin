@@ -78,9 +78,14 @@ internal fun StateHolder<Node, List<Node>>.dTrades(trades: () -> List<Trade>) {
 // ════════════════════════════════════════════════════
 internal const val BOOK_ROW_H = 18f
 
+/**
+ * 盘口行。[row] / [rounding] 走 lambda 通道：argChildren 只执行一次，
+ * 传值是启动快照；lambda 在文本/深度条每次求值时读活信号（renderForEach
+ * 的 EachTime.value 会登记依赖），行情心跳推送新档位后行内容才会跟着刷新。
+ */
 internal fun StateHolder<Node, List<Node>>.dBookRow(
-    row: BookMath.Row,
-    rounding: Boolean,
+    row: () -> BookMath.Row,
+    rounding: () -> Boolean,
     onClick: () -> Unit
 ): ButtonBase = object : ButtonBase(this) {
     override val directionJustify: DirectionJustify get() = DirectionJustify.start
@@ -95,11 +100,12 @@ internal fun StateHolder<Node, List<Node>>.dBookRow(
 
     override fun drawContent(canvas: PlatformCanvas) {
         // 深度条贴右生长（先画，文字压在 relative 层上）
-        val barW = (outerWidth - 20f) * row.percent / 100f
+        val r = row()
+        val barW = (outerWidth - 20f) * r.percent / 100f
         if (barW > 0.5f) {
             canvas.fillRect(
                 outerWidth - 10f - barW, 0f, barW, outerHeight,
-                if (row.ask) D_DOWN_BG else D_UP_BG
+                if (r.ask) D_DOWN_BG else D_UP_BG
             )
         }
         if (hovered || pressed) canvas.fillRect(0f, 0f, outerWidth, outerHeight, D_HOVER)
@@ -110,11 +116,11 @@ internal fun StateHolder<Node, List<Node>>.dBookRow(
     }
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-        dText({ fmtPrice(row.price) }, 10f, { if (row.ask) D_DOWN else D_UP })
+        dText({ fmtPrice(row().price) }, 10f, { if (row().ask) D_DOWN else D_UP })
         dSpacer()
-        dText({ fmtQty(row.qty) }, 10f, { D_TEXT2 }, align = TextAlign.END, grow = true)
+        dText({ fmtQty(row().qty) }, 10f, { D_TEXT2 }, align = TextAlign.END, grow = true)
         dText(
-            { fmtTotal(row.total, !rounding) }, 10f, { D_TEXT3 },
+            { fmtTotal(row().total, !rounding()) }, 10f, { D_TEXT3 },
             width = 62f, align = TextAlign.END
         )
     }
@@ -259,8 +265,15 @@ internal fun StateHolder<Node, List<Node>>.dOrderbook(
                 override val hide: Boolean get() = mode.value == "bids"
 
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    viewOf().asks.forEach { row ->
-                        dBookRow(row, rounding.value) { onPickPrice(row.price) }
+                    // 行列表走 renderForEach：forEach lambda 里读 viewOf()（心跳
+                    // rev / 窗口高 / 精度 / 条口径都是它的依赖），信号一变按
+                    // 下标 key 复用重建行；argChildren 一次性契约下仍保持动态。
+                    renderForEach({ callback ->
+                        viewOf().asks.forEachIndexed { i, r -> callback(i, r) }
+                    }) { _, each ->
+                        dBookRow({ each.value }, { rounding.value }) {
+                            onPickPrice(each.value.price)
+                        }
                     }
                 }
             }
@@ -277,54 +290,57 @@ internal fun StateHolder<Node, List<Node>>.dOrderbook(
                 override val hide: Boolean get() = mode.value == "asks"
 
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    viewOf().bids.forEach { row ->
-                        dBookRow(row, rounding.value) { onPickPrice(row.price) }
+                    renderForEach({ callback ->
+                        viewOf().bids.forEachIndexed { i, r -> callback(i, r) }
+                    }) { _, each ->
+                        dBookRow({ each.value }, { rounding.value }) {
+                            onPickPrice(each.value.price)
+                        }
                     }
                 }
             }
 
             // asksBlock / bidsBlock 已在上面按文档序注册（构造即入树）
 
-            // ── Avg.&Sum（开关关闭时整行隐藏）──
-            if (avgSum.value) {
+            // ── Avg.&Sum（renderForEach：开关关闭时不建任何行）──
+            renderForEach({ callback ->
+                if (avgSum.value) callback(0, Unit)
+            }) { _, _ ->
                 dRow(gap = 8f, height = 15f, padX = 10f) {
-                    val v = viewOf()
-                    val a = BookMath.summary(v.asks)
-                    dText({ "AVG ${fmtPrice(a.avg)}" }, 9f, { D_DOWN })
+                    dText({ "AVG ${fmtPrice(BookMath.summary(viewOf().asks).avg)}" }, 9f, { D_DOWN })
                     dSpacer()
-                    dText({ "Σ ${fmtTotal(a.sum, !rounding.value)}" }, 9f, { D_TEXT3 })
+                    dText({ "Σ ${fmtTotal(BookMath.summary(viewOf().asks).sum, !rounding.value)}" }, 9f, { D_TEXT3 })
                 }
                 dRow(gap = 8f, height = 15f, padX = 10f) {
-                    val v = viewOf()
-                    val b = BookMath.summary(v.bids)
-                    dText({ "AVG ${fmtPrice(b.avg)}" }, 9f, { D_UP })
+                    dText({ "AVG ${fmtPrice(BookMath.summary(viewOf().bids).avg)}" }, 9f, { D_UP })
                     dSpacer()
-                    dText({ "Σ ${fmtTotal(b.sum, !rounding.value)}" }, 9f, { D_TEXT3 })
+                    dText({ "Σ ${fmtTotal(BookMath.summary(viewOf().bids).sum, !rounding.value)}" }, 9f, { D_TEXT3 })
                 }
             }
 
-            // ── 中间行：最新价 + 涨跌箭头 + 价差 ──
+            // ── 中间行：最新价 + 涨跌箭头 + 价差（内容全走 lambda 读活信号）──
             dRow(gap = 8f, height = 28f, padX = 10f) {
-                val t = ticker()
-                val up = (t?.change ?: 0.0) >= 0
-                dText({ fmtPrice(t?.last) }, 15f, { if (up) D_UP else D_DOWN }, 600)
-                dText({ if (up) "↑" else "↓" }, 10f, { if (up) D_UP else D_DOWN })
+                val upOf = { (ticker()?.change ?: 0.0) >= 0 }
+                dText({ fmtPrice(ticker()?.last) }, 15f, { if (upOf()) D_UP else D_DOWN }, 600)
+                dText({ if (upOf()) "↑" else "↓" }, 10f, { if (upOf()) D_UP else D_DOWN })
                 dSpacer()
-                val d = depth()
-                val ask = d?.asks?.firstOrNull()?.price ?: 0.0
-                val bid = d?.bids?.firstOrNull()?.price ?: 0.0
                 dText(
-                    { if (ask > 0 && bid > 0) "Spread ${fmtPrice(ask - bid)}" else "Spread --" },
+                    {
+                        val d = depth()
+                        val ask = d?.asks?.firstOrNull()?.price ?: 0.0
+                        val bid = d?.bids?.firstOrNull()?.price ?: 0.0
+                        if (ask > 0 && bid > 0) "Spread ${fmtPrice(ask - bid)}" else "Spread --"
+                    },
                     9.5f, { D_TEXT3 }
                 )
             }
 
-            // ── B/S 比例条 ──
-            if (ratio.value) {
+            // ── B/S 比例条（renderForEach：开关关闭时不建）──
+            renderForEach({ callback ->
+                if (ratio.value) callback(0, Unit)
+            }) { _, _ ->
                 dRow(gap = 6f, height = 16f, padX = 10f) {
-                    val v = viewOf()
-                    val bidShare = v.buyRatio
-                    dText({ "B ${fmtShare(bidShare)}%" }, 9f, { D_UP }, 600, width = 42f)
+                    dText({ "B ${fmtShare(viewOf().buyRatio)}%" }, 9f, { D_UP }, 600, width = 42f)
                     // 轨道：卖色淡底；填充：买色，宽度 = 买盘占比
                     object : RectNode(this), FlexParam, GrowChild {
                         override fun argGrow(direction: Direction): Float =
@@ -337,6 +353,7 @@ internal fun StateHolder<Node, List<Node>>.dOrderbook(
 
                         override fun draw(canvas: PlatformCanvas) {
                             fillOuterRoundRect(canvas, 1.5f, D_DOWN.withAlpha(0.28f))
+                            val bidShare = viewOf().buyRatio
                             val w = (outerWidth * bidShare).toFloat().coerceIn(0f, outerWidth)
                             if (w > 0.5f) {
                                 canvas.save()
@@ -346,7 +363,10 @@ internal fun StateHolder<Node, List<Node>>.dOrderbook(
                             }
                         }
                     }
-                    dText({ "${fmtShare(1.0 - bidShare)}% S" }, 9f, { D_DOWN }, 600, width = 44f, align = TextAlign.END)
+                    dText(
+                        { "${fmtShare(1.0 - viewOf().buyRatio)}% S" },
+                        9f, { D_DOWN }, 600, width = 44f, align = TextAlign.END
+                    )
                 }
             }
         }
