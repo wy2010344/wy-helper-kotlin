@@ -217,6 +217,63 @@ open class Renderer private constructor(
 
     private val clicks = ClickTracker()
 
+    /**
+     * 当前按住的鼠标键位掩码（见 [PointerButton]）。
+     *
+     * 由引擎自己跟踪而不直接透传平台的修饰键掩码：各平台的按键位编码互不相同
+     * （AWT / DOM / 浏览器扩展各有一套），统一成 AWT 位序后下发，节点侧只需
+     * 认识一套编码；而且按下 / 抬起的成对关系也只有引擎掌握得了。
+     */
+    private var heldButtons = 0
+
+    /** 双击判定：记住上一次单击的时刻与落点。 */
+    private val doubleClicks = DoubleClickDetector()
+
+    /**
+     * 双击判定器：记录上一次单击的时刻与落点，判断下一次单击是否构成双击。
+     *
+     * 判定规则与浏览器一致：两次单击间隔不超过 [intervalMs]、落点相差不超过
+     * [distancePx] 即算双击。构成双击后候选即被清空，因此连点序列里双击
+     * 只触发一次（与浏览器"三次点击=单击+双击+单击"的行为吻合）。
+     */
+    private class DoubleClickDetector(
+        private val intervalMs: Long = 400L,
+        private val distancePx: Float = 5f
+    ) {
+        private var lastTime = 0L
+        private var lastX = 0f
+        private var lastY = 0f
+        private var pending = false
+
+        /**
+         * 记录一次单击，返回它是否与上一次单击构成双击。
+         */
+        fun onClick(x: Float, y: Float, time: Long): Boolean {
+            val isDouble = pending &&
+                time - lastTime <= intervalMs &&
+                kotlin.math.abs(x - lastX) <= distancePx &&
+                kotlin.math.abs(y - lastY) <= distancePx
+            lastTime = time
+            lastX = x
+            lastY = y
+            // 构成双击即消费掉这次候选：连点序列中双击只应触发一次
+            pending = !isDouble
+            return isDouble
+        }
+
+        /**
+         * 指针按下：若按下位置离上一次单击太远，说明用户已经转到别处，
+         * 此前的单击不再可能与后续单击构成双击。
+         */
+        fun onPointerDown(x: Float, y: Float) {
+            if (pending &&
+                (kotlin.math.abs(x - lastX) > distancePx || kotlin.math.abs(y - lastY) > distancePx)
+            ) {
+                pending = false
+            }
+        }
+    }
+
     /** 双击后的按住拖拽会话：以双击词为锚，移动端点按词粒度扩展。
      *  会话存活本身即蕴含"指针按住中"——它在 mouseDown 时建立、mouseUp / mouseExit
      *  时销毁，无需独立的按压布尔来重复跟踪该生命周期。 */
@@ -228,13 +285,31 @@ open class Renderer private constructor(
         val anchorEnd: Int
     )
 
-    fun mouseDown(x: Float, y: Float, device: PointerDevice = PointerDevice.Mouse) {
+    fun mouseDown(
+        x: Float,
+        y: Float,
+        device: PointerDevice = PointerDevice.Mouse,
+        button: Int = PointerButton.LEFT
+    ) {
         try {
+            heldButtons = heldButtons or PointerButton.maskOf(button)
             val hit = hitTestResult(x, y, device)
             // 让 moveHitest 始终反映最近的指针位置（含按下瞬间）
             register.moveHitTest = hit
+            if (button != PointerButton.LEFT) {
+                // 非左键不进入选择 / 按压会话：文本拖选、滑块拖动、三击选段等
+                // 都是左键专属行为，右键若也派发 Down 就退化成了"假左键"。
+                if (button == PointerButton.RIGHT) {
+                    dispatchPointer(
+                        hit, PointerType.ContextMenu, x, y,
+                        device = device, button = button, buttons = heldButtons
+                    )
+                }
+                return
+            }
             register.pointerDownHit = hit
             val now = System.currentTimeMillis()
+            doubleClicks.onPointerDown(x, y)
             val leaf = hit.chain.lastOrNull()?.node
             // 连击判定：同一可选节点、400ms 内、位移极小（双击 → 三击递增，否则重置单击）
             val clickCount = clicks.recordDown(leaf, x, y, now)
@@ -260,7 +335,7 @@ open class Renderer private constructor(
                         register.selectionManager.select(sel, para.first, sel, para.second)
                     }
                 }
-                dispatchPointer(hit, PointerType.Down, x, y, device = device)
+                dispatchPointer(hit, PointerType.Down, x, y, device = device, buttons = heldButtons)
                 return
             }
 
@@ -281,7 +356,7 @@ open class Renderer private constructor(
                         register.selectionManager.select(sel, 0, sel, sel.textLength)
                     }
                 }
-                dispatchPointer(hit, PointerType.Down, x, y, device = device)
+                dispatchPointer(hit, PointerType.Down, x, y, device = device, buttons = heldButtons)
                 return
             }
 
@@ -293,14 +368,20 @@ open class Renderer private constructor(
                 PointerSelect(hit, null)
             }
             setFocused(hit.chain.lastOrNull()?.node)
-            dispatchPointer(hit, PointerType.Down, x, y, device = device)
+            dispatchPointer(hit, PointerType.Down, x, y, device = device, buttons = heldButtons)
         } catch (e: Throwable) {
             engineLogError("mouseDown error", e)
         }
     }
 
-    fun mouseUp(x: Float, y: Float, device: PointerDevice = PointerDevice.Mouse) {
+    fun mouseUp(
+        x: Float,
+        y: Float,
+        device: PointerDevice = PointerDevice.Mouse,
+        button: Int = PointerButton.LEFT
+    ) {
         try {
+            heldButtons = heldButtons and PointerButton.maskOf(button).inv()
             // 松手：词拖扩展会话结束（选区保持最后一次扩展结果）
             wordDragSession = null
             // 按压态先快照并立即清除（Up 之后按住结束），供下方 click 判定使用
@@ -319,12 +400,14 @@ open class Renderer private constructor(
                     y = y,
                     rootX = x,
                     rootY = y,
-                    device = device
+                    device = device,
+                    buttons = heldButtons,
+                    button = button
                 )
                 captured.onUp(e)
                 captured.release()
             }
-            dispatchPointer(hit, PointerType.Up, x, y, device = device)
+            dispatchPointer(hit, PointerType.Up, x, y, device = device, buttons = heldButtons, button = button)
             if (down != null) {
                 val downPos = down.chain.firstOrNull()
                 if (downPos != null) {
@@ -333,7 +416,14 @@ open class Renderer private constructor(
                     val dist = kotlin.math.sqrt(dx * dx + dy * dy)
                     val dt = System.currentTimeMillis() - down.time
                     if (dist < 5f && dt < 500L) {
-                        dispatchPointer(hit, PointerType.Click, x, y, device = device)
+                        // 与浏览器一致：双击不吞单击——先派发 Click，构成双击再补发 DoubleClick
+                        dispatchPointer(hit, PointerType.Click, x, y, device = device, buttons = heldButtons, button = button)
+                        if (doubleClicks.onClick(x, y, System.currentTimeMillis())) {
+                            dispatchPointer(
+                                hit, PointerType.DoubleClick, x, y,
+                                device = device, buttons = heldButtons, button = button
+                            )
+                        }
                     }
                 }
             }
@@ -391,6 +481,8 @@ open class Renderer private constructor(
         // 按住拖出窗口：按压态与会话一同定格（与旧派生语义保持一致）
         register.pointerDownHit = null
         register.moveHitTest = null
+        // 按住状态无法再收到配对的 mouseUp（窗口外松手），一并复位防残留
+        heldButtons = 0
     }
 
     fun mouseWheel(x: Float, y: Float, delta: Float) {
@@ -500,7 +592,9 @@ private fun dispatchPointer(
     rootX: Float,
     rootY: Float,
     wheelDelta: Float = 0f,
-    device: PointerDevice = PointerDevice.Mouse
+    device: PointerDevice = PointerDevice.Mouse,
+    button: Int = 0,
+    buttons: Int = 0
 ) {
     result.chain.forEach {
         //捕获
@@ -511,7 +605,9 @@ private fun dispatchPointer(
             y = it.y,
             rootX = rootX,
             rootY = rootY,
-            wheelDelta = wheelDelta
+            wheelDelta = wheelDelta,
+            buttons = buttons,
+            button = button
         )
         sendPointer(it.node, type, e, true)
         if (e.stoppedProgression) {
@@ -527,7 +623,9 @@ private fun dispatchPointer(
             y = it.y,
             rootX = rootX,
             rootY = rootY,
-            wheelDelta = wheelDelta
+            wheelDelta = wheelDelta,
+            buttons = buttons,
+            button = button
         )
         sendPointer(it.node, type, e, false)
         if (e.stoppedProgression) {
@@ -544,6 +642,8 @@ private fun sendPointer(node: Node, type: PointerType, e: PointerEvent, capture:
         PointerType.Move -> if (capture) node.onPointerMoveCapture(e) else node.onPointerMove(e)
         PointerType.Wheel -> if (capture) node.onPointerWheelCapture(e) else node.onPointerWheel(e)
         PointerType.Cancel -> if (capture) node.onPointerUpCapture(e) else node.onPointerUp(e)
+        PointerType.DoubleClick -> if (capture) node.onPointerDoubleClickCapture(e) else node.onPointerDoubleClick(e)
+        PointerType.ContextMenu -> if (capture) node.onPointerContextMenuCapture(e) else node.onPointerContextMenu(e)
     }
 }
 

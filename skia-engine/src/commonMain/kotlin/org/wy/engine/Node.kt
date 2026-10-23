@@ -182,6 +182,26 @@ open class Node(
     open fun onPointerMoveCapture(e: PointerEvent) {}
     open fun onPointerWheel(e: PointerEvent) {}
     open fun onPointerWheelCapture(e: PointerEvent) {}
+
+    /**
+     * 双击回调：在两次快速点击（时间间隔与落点都接近）中的第二次触发。
+     *
+     * 与浏览器一致，双击**不会**吞掉普通单击：同一次双击仍会先派发
+     * [onPointerClick] 再派发本事件，所以只关心单击的节点无需特殊处理。
+     */
+    open fun onPointerDoubleClick(e: PointerEvent) {}
+    open fun onPointerDoubleClickCapture(e: PointerEvent) {}
+
+    /**
+     * 右键菜单回调：右键按下时触发，用于弹出上下文菜单。
+     *
+     * 右键不派发 [onPointerDown]：否则右键按下会顺带启动文本拖选、
+     * 滑块拖动等左键专属行为。需要在右键时响应"按下"的节点，
+     * 应改用本回调而不是 [onPointerDown]。
+     */
+    open fun onPointerContextMenu(e: PointerEvent) {}
+    open fun onPointerContextMenuCapture(e: PointerEvent) {}
+
     open fun handleKey(e: KeyEvent): Boolean = false
 
     /**

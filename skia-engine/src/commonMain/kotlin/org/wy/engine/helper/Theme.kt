@@ -69,6 +69,28 @@ data class ThemeColors(
             thumb = rgba(255, 255, 255),
             placeholder = rgba(148, 163, 184),
         )
+
+        /** 深色主题：深底上强调色整体提亮一档保证对比度，功能语义与浅色一一对应。 */
+        fun dark(): ThemeColors = ThemeColors(
+            primary = rgba(122, 114, 255),
+            primaryHover = rgba(140, 132, 255),
+            primaryPressed = rgba(99, 91, 255),
+            primaryDisabled = rgba(88, 84, 150),
+            onPrimary = rgba(255, 255, 255),
+            primarySoft = rgba(58, 62, 88),
+            surface = rgba(24, 28, 38),
+            surfaceHover = rgba(35, 40, 52),
+            surfaceDisabled = rgba(35, 40, 52),
+            border = rgba(45, 51, 65),
+            borderHover = rgba(96, 106, 152),
+            text = rgba(226, 232, 244),
+            textSecondary = rgba(146, 156, 174),
+            textDisabled = rgba(104, 114, 134),
+            focus = rgba(122, 114, 255),
+            track = rgba(52, 58, 74),
+            thumb = rgba(148, 158, 176),
+            placeholder = rgba(104, 114, 134),
+        )
     }
 }
 

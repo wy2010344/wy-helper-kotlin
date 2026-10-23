@@ -54,6 +54,16 @@ open class LayoutNode(
 ) : Node(context, engineGlobal) {
 
     open val notInLayout = false
+
+    /**
+     * 诊断用可读名。仅在报错信息里出现，不参与任何求值。
+     *
+     * 布局出问题时，报错能显示业务名（"精度按钮"）而不是
+     * `DemoDashboardKt$dTabButton$2`，定位成本差一个数量级。
+     * 建议给结构复杂 / 容易写错的容器与自定义尺寸节点命名。
+     */
+    open val debugName: String? get() = null
+
     open val layout: LayoutDirection
         get() = absoluteLayoutDirection
 
@@ -318,13 +328,26 @@ fun LayoutNode.strokeOuterRing(
 }
 
 
+/**
+ * 向父级索要尺寸 —— 全仓库唯一会让「子节点回读父级」发生的位置。
+ *
+ * 这里用 [LayoutDep] 记录依赖边：同一 `(节点, 方向)` 二次进入即成环，
+ * 会就地抛出带完整依赖链与修法的 [LayoutCycleError]（早于 signal 的兜底检测）。
+ * 语义与原实现完全一致，仅增加观测。
+ */
 fun LayoutNode.sizeFromParent(direction: Direction): LayoutSize {
     val lp = layoutParent
     if (lp != null) {
-        return LayoutSize(
-            lp.layoutValue(direction).childSize(layoutIndex),
-            false
-        )
+        // 探测模式：只记录依赖边、不递归（避免审计时成环崩溃）
+        if (LayoutDep.probeMode) {
+            return LayoutDep.probeTrack(this, direction, lp)
+        }
+        return LayoutDep.track(this, direction) {
+            LayoutSize(
+                lp.layoutValue(direction).childSize(layoutIndex),
+                false
+            )
+        }
     }
     throw Error("未找到父节点")
 }

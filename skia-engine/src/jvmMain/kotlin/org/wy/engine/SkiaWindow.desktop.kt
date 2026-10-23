@@ -45,6 +45,18 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*
     private val w = createSignal(width)
     private val h = createSignal(height)
 
+    /**
+     * 当前窗口宽度（响应式信号读取）：窄窗口断点等场景使用。
+     * 在 argChildren / contentChildren 里读取即注册依赖，窗口变化时子树重建。
+     */
+    val windowWidth: Float get() = w.value.toFloat()
+
+    /**
+     * 当前窗口高度（响应式信号读取）：金融看板等按窗口高度做行数预算的场景使用。
+     * 在 argChildren / contentChildren 里读取即注册依赖，窗口变化时子树重建。
+     */
+    val windowHeight: Float get() = h.value.toFloat()
+
     final override val argWidth: LayoutSize
         get() = LayoutSize(w.value.toFloat(), false)
     final override val argHeight: LayoutSize
@@ -133,12 +145,14 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*
 
                 override fun mousePressed(e: MouseEvent?) {
                     if (e == null) return
-                    this@SkiaApp.mouseDown(e.x.toFloat(), e.y.toFloat())
+                    // AWT 按键编号（1=左 2=中 3=右）与引擎 PointerButton 编号一致，直接透传；
+                    // 右键按下由引擎派发 ContextMenu 而非 Down
+                    this@SkiaApp.mouseDown(e.x.toFloat(), e.y.toFloat(), button = e.button)
                 }
 
                 override fun mouseReleased(e: MouseEvent?) {
                     if (e == null) return
-                    this@SkiaApp.mouseUp(e.x.toFloat(), e.y.toFloat())
+                    this@SkiaApp.mouseUp(e.x.toFloat(), e.y.toFloat(), button = e.button)
                 }
 
                 override fun mouseExited(e: MouseEvent?) {

@@ -9,6 +9,7 @@ import com.wy.layout.LayoutFun
 import com.wy.layout.StackObject
 import com.wy.layout.absoluteLayout
 import org.wy.engine.Direction
+import org.wy.engine.LayoutDep
 import org.wy.engine.LayoutNode
 import org.wy.engine.opposite
 import org.wy.engine.outerSize
@@ -37,6 +38,12 @@ interface LayoutDirection {
 }
 
 class FlexObject(val arg: FlexParam):Flex(){
+    /**
+     * 所属节点：[arg] 通常就是实现了 [FlexParam] 的那个节点本身。
+     * 审计时用它把「父级读取子节点尺寸」记到正确的节点上。
+     */
+    override val ownerNode: LayoutNode?
+        get() = arg as? LayoutNode
     override val gap: Float
         get() = arg.gap
     override val reverse: Boolean
@@ -83,6 +90,14 @@ interface AlignChild{
 }
 abstract class Flex : FlexObject<LayoutNode> ,LayoutDirection{
     open val direction: Direction = Direction.x
+
+    /**
+     * 本布局所属的节点（用于审计时把"父级读取子节点尺寸"记到正确的节点上）。
+     *
+     * 默认 null：纯布局对象（如绝对定位布局）没有对应节点。
+     */
+    open val ownerNode: LayoutNode? get() = null
+
     final override fun index(n: LayoutNode): Int {
         return n.layoutIndex
     }
@@ -98,6 +113,12 @@ abstract class Flex : FlexObject<LayoutNode> ,LayoutDirection{
     }
 
     final override fun outerSize(n: LayoutNode): Float {
+        // 审计观测点：父级在此读取子节点尺寸。
+        // 记录 READ 边，与子节点的 ASK 边配对即可判定成环——无需 auditor 复述引擎规则。
+        val owner = ownerNode
+        if (owner != null && LayoutDep.probeMode) {
+            LayoutDep.probeRead(owner, n, direction)
+        }
         return n.outerSize(direction)
     }
 
@@ -134,6 +155,11 @@ abstract class Flex : FlexObject<LayoutNode> ,LayoutDirection{
         }
 
         override fun outerSize(n: LayoutNode): Float {
+            // 审计观测点：交叉轴上父级读取子节点尺寸（方向取交叉轴）。
+            val owner = this@Flex.ownerNode
+            if (owner != null && LayoutDep.probeMode) {
+                LayoutDep.probeRead(owner, n, direction.opposite)
+            }
             return n.outerSize(direction.opposite)
         }
 
