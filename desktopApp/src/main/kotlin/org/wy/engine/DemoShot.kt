@@ -521,7 +521,7 @@ private fun shotMain() {
     }
 
     // ── 深色模式验证 ──
-    // 打开全局主题信号后重新渲染概览 / 组件库 / 设置三页；
+    // 打开全局主题信号后重新渲染概览 / 组件库 / 设置 / 笔记 / 看板五页；
     // 结束后恢复运行前的偏好值，避免截图任务污染用户的主题设置。
     val darkPrefWas = prefs.get("dark", "0")
     setDarkTheme(true)
@@ -529,6 +529,9 @@ private fun shotMain() {
     darkShot.save("$out/dark-overview.png")
     renderApp("", w = 1120, h = 1830, tab = DemoTab.COMPONENTS).save("$out/dark-gallery.png")
     renderApp("", w = 1120, h = 740, tab = DemoTab.SETTINGS).save("$out/dark-settings.png")
+    renderApp("", w = 1120, h = 740, tab = DemoTab.NOTES).save("$out/dark-notes.png")
+    // 看板昼夜双主题：夜间深色终端（与白天探针同法比蜡烛/深度色）
+    renderApp("", w = 1120, h = 800, tab = DemoTab.DASHBOARD).save("$out/dark-dashboard.png")
     // 探针：页面底色应为深色 BG（15,18,26）
     println("[dark] bg pixel = " + Integer.toHexString(darkShot.peekPixels()!!.getColor(900, 40)))
     // 探针：概览图表柱（深色 BAR 96,106,152）是否真的画出来了

@@ -1,6 +1,7 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
+import org.wy.engine.helper.Theme
 import org.wy.signal.createSignal
 import org.wy.signal.getValue
 import org.wy.signal.setValue
@@ -95,7 +96,8 @@ open class EditableTextNode(
 
     override fun cursorAt(x: Float, y: Float) = CursorType.TEXT
 
-    open val cursorColor: ColorInt = rgba(0, 0, 0)
+    // 光标默认色跟随组件库主题，昼/夜切换自动换色（不写死黑色）
+    open val cursorColor: ColorInt get() = Theme.current.colors.text
     open val cursorWidth: Float = 2f
     override val selectionColor: ColorInt get() = rgba(80, 140, 255, 80)
 
@@ -130,8 +132,8 @@ open class EditableTextNode(
     /** 占位文本：逻辑文本为空时显示，不参与编辑与选区。 */
     var placeholder by createSignal("")
 
-    /** 占位显示颜色。 */
-    open val placeholderColor: ColorInt = rgba(128, 128, 128)
+    /** 占位显示颜色（跟随组件库主题，昼/夜切换自动换色）。 */
+    open val placeholderColor: ColorInt get() = Theme.current.colors.placeholder
 
     /** 密码模式：每个字素簇显示为一个圆点，编辑仍作用于逻辑文本。 */
     var obscureText by createSignal(false)

@@ -68,7 +68,8 @@ internal fun StateHolder<Node, List<Node>>.gButton(
                     canvas, radius,
                     when {
                         !enabled -> G_SUBTLE
-                        pressed -> rgba(226, 232, 240)
+                        // 按下底色随昼夜切换：夜间用深灰，否则浅底压浅字不可见
+                        pressed -> if (demoDark.value) rgba(52, 58, 74) else rgba(226, 232, 240)
                         hovered -> G_SUBTLE
                         else -> CARD
                     }

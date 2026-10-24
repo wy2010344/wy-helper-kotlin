@@ -2,6 +2,7 @@ package org.wy.engine.helper
 
 import org.wy.engine.ColorInt
 import org.wy.engine.rgba
+import org.wy.signal.createSignal
 
 /**
  * 组件库样式 token：集中管理颜色 / 圆角 / 字号等样式值。
@@ -122,8 +123,16 @@ data class Theme(
     val textSize: ThemeTextSize = ThemeTextSize(),
 ) {
     companion object {
-        /** 当前主题，默认浅色。业务启动时可整体替换。 */
-        var current: Theme = default()
+        // 信号驱动：argChildren / draw 中读 Theme.current 会注册依赖，
+        // 换肤（setDarkTheme 等）时自动重建子树 / 重绘，避免构建期快照残留旧主题色
+        private val currentSignal = createSignal(default())
+
+        /** 当前主题，默认浅色。业务启动时可整体替换；替换后订阅处自动刷新。 */
+        var current: Theme
+            get() = currentSignal.get()
+            set(value) {
+                currentSignal.set(value)
+            }
 
         fun default(): Theme = Theme(colors = ThemeColors.light())
     }

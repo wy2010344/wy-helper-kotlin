@@ -435,13 +435,19 @@ internal fun StateHolder<Node, List<Node>>.dClickRow(
     }
 }
 
-/** 深色滚动条（自选 / 成交流 / 概览共用）：白滑块低 alpha。 */
-internal val DARK_SCROLL_BAR = ScrollBarStyle(
-    thumb = rgba(255, 255, 255),
-    idleAlpha = 0.22f,
-    hoverAlpha = 0.38f,
-    dragAlpha = 0.52f
-)
+/** 滚动条（自选 / 成交流 / 概览共用）：夜间白滑块低 alpha，白天深滑块低 alpha。 */
+internal val DARK_SCROLL_BAR: ScrollBarStyle
+    get() = if (demoDark.value) ScrollBarStyle(
+        thumb = rgba(255, 255, 255),
+        idleAlpha = 0.22f,
+        hoverAlpha = 0.38f,
+        dragAlpha = 0.52f
+    ) else ScrollBarStyle(
+        thumb = rgba(30, 41, 59),
+        idleAlpha = 0.18f,
+        hoverAlpha = 0.30f,
+        dragAlpha = 0.45f
+    )
 
 // ════════════════════════════════════════════════════
 // 八、自选列表（复刻 watchlist.ooc）

@@ -1,6 +1,7 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
+import org.wy.engine.helper.Theme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -13,8 +14,9 @@ import kotlin.test.assertTrue
  */
 class RichEditableTest {
 
-    // 与节点 baseStyle 一致：lineHeightMultiplier 由排版属性解析为 1.4f
-    private val base = RichTextStyle(lineHeightMultiplier = 1.4f)
+    // 与节点 baseStyle 一致：默认文字色跟随组件库主题（Theme.current），
+    // lineHeightMultiplier 由排版属性解析为 1.4f
+    private val base = RichTextStyle(color = Theme.current.colors.text, lineHeightMultiplier = 1.4f)
     private val bold = RichTextStyle(fontWeight = 700)
 
     private class TestRich(

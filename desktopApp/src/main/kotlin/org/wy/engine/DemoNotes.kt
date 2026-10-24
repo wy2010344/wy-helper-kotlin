@@ -114,7 +114,9 @@ internal fun StateHolder<Node,List<Node>>.dNotesPage(active: StoreRef<DemoTab>, 
                             12f
 
                         override fun draw(canvas: PlatformCanvas) {
-                            fillOuterRoundRect(canvas, 10f, rgba(248, 250, 255))
+                            // Preview 面板底色随昼夜切换：夜间用深面板，否则浅字压浅底不可见
+                            val bg = if (demoDark.value) rgba(31, 36, 48) else rgba(248, 250, 255)
+                            fillOuterRoundRect(canvas, 10f, bg)
                             strokeOuterRoundRect(canvas, 10f, BORDER, 1f)
                             super.draw(canvas)
                         }

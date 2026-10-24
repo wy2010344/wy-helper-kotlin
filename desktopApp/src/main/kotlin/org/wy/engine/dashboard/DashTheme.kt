@@ -37,29 +37,64 @@ import kotlin.math.roundToLong
 import kotlin.math.sign
 import kotlin.math.sqrt
 
-// ── 终端配色（深色 + 中式涨红跌绿）──────────────────
-internal val D_BG = rgba(10, 14, 20)
-internal val D_PANE = rgba(17, 22, 31)
-internal val D_PANE_HEAD = rgba(22, 28, 39)
-internal val D_PLOT = rgba(13, 17, 24)
-internal val D_LINE = rgba(255, 255, 255, 15)
-internal val D_LINE_SOFT = rgba(255, 255, 255, 8)
-internal val D_TEXT = rgba(230, 234, 242)
-internal val D_TEXT2 = rgba(138, 148, 166)
-internal val D_TEXT3 = rgba(96, 106, 122)
+// ── 终端配色（昼 / 夜双主题 + 中式涨红跌绿）────────
+// 夜间（深色终端）
+private val DK_BG = rgba(10, 14, 20)
+private val DK_PANE = rgba(17, 22, 31)
+private val DK_PANE_HEAD = rgba(22, 28, 39)
+private val DK_PLOT = rgba(13, 17, 24)
+private val DK_LINE = rgba(255, 255, 255, 15)
+private val DK_LINE_SOFT = rgba(255, 255, 255, 8)
+private val DK_TEXT = rgba(230, 234, 242)
+private val DK_TEXT2 = rgba(138, 148, 166)
+private val DK_TEXT3 = rgba(96, 106, 122)
+private val DK_ACCENT = rgba(76, 141, 255)
+private val DK_HOVER = rgba(255, 255, 255, 12)
+private val DK_ACTIVE_BG = rgba(76, 141, 255, 26)
+private val DK_GRID = rgba(255, 255, 255, 9)
+private val DK_AXIS = rgba(120, 130, 148)
+
+// 白天（浅色终端）
+private val LT_BG = rgba(244, 246, 251)
+private val LT_PANE = rgba(255, 255, 255)
+private val LT_PANE_HEAD = rgba(248, 250, 252)
+private val LT_PLOT = rgba(255, 255, 255)
+private val LT_LINE = rgba(30, 41, 59, 15)
+private val LT_LINE_SOFT = rgba(30, 41, 59, 8)
+private val LT_TEXT = rgba(30, 41, 59)
+private val LT_TEXT2 = rgba(100, 116, 139)
+private val LT_TEXT3 = rgba(148, 163, 184)
+private val LT_ACCENT = rgba(79, 70, 229)
+private val LT_HOVER = rgba(30, 41, 59, 8)
+private val LT_ACTIVE_BG = rgba(79, 70, 229, 22)
+private val LT_GRID = rgba(30, 41, 59, 8)
+private val LT_AXIS = rgba(100, 116, 139)
+
+// 涨跌 / 琥珀两套主题共用：涨红跌绿语义色昼夜一致（shot 探针硬编码比色）
 internal val D_UP = rgba(240, 76, 92) // 涨红（买盘同色）
 internal val D_DOWN = rgba(14, 203, 129) // 跌绿（卖盘同色）
-internal val D_ACCENT = rgba(76, 141, 255)
 internal val D_AMBER = rgba(245, 166, 35)
 internal val D_UP_BG = rgba(240, 76, 92, 30)
 internal val D_DOWN_BG = rgba(14, 203, 129, 30)
-internal val D_HOVER = rgba(255, 255, 255, 12)
-internal val D_ACTIVE_BG = rgba(76, 141, 255, 26)
-internal val D_GRID = rgba(255, 255, 255, 9)
-internal val D_AXIS = rgba(120, 130, 148)
+
+// 语义 getter：draw 内读 → 下帧换色；argChildren 内读 → 子树重建
+internal val D_BG get() = if (demoDark.value) DK_BG else LT_BG
+internal val D_PANE get() = if (demoDark.value) DK_PANE else LT_PANE
+internal val D_PANE_HEAD get() = if (demoDark.value) DK_PANE_HEAD else LT_PANE_HEAD
+internal val D_PLOT get() = if (demoDark.value) DK_PLOT else LT_PLOT
+internal val D_LINE get() = if (demoDark.value) DK_LINE else LT_LINE
+internal val D_LINE_SOFT get() = if (demoDark.value) DK_LINE_SOFT else LT_LINE_SOFT
+internal val D_TEXT get() = if (demoDark.value) DK_TEXT else LT_TEXT
+internal val D_TEXT2 get() = if (demoDark.value) DK_TEXT2 else LT_TEXT2
+internal val D_TEXT3 get() = if (demoDark.value) DK_TEXT3 else LT_TEXT3
+internal val D_ACCENT get() = if (demoDark.value) DK_ACCENT else LT_ACCENT
+internal val D_HOVER get() = if (demoDark.value) DK_HOVER else LT_HOVER
+internal val D_ACTIVE_BG get() = if (demoDark.value) DK_ACTIVE_BG else LT_ACTIVE_BG
+internal val D_GRID get() = if (demoDark.value) DK_GRID else LT_GRID
+internal val D_AXIS get() = if (demoDark.value) DK_AXIS else LT_AXIS
 
 /** 侧栏「看板」导航项的图标色（= 终端强调色，跨文件取用故单独导出）。 */
-internal val DASH_ACCENT = D_ACCENT
+internal val DASH_ACCENT get() = D_ACCENT
 internal fun fmtPrice(v: Double?): String {
     if (v == null || !v.isFinite()) return "--"
     val abs = abs(v)

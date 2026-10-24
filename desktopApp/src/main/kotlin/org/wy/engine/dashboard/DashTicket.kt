@@ -120,9 +120,9 @@ internal fun StateHolder<Node, List<Node>>.dTicket(
                 override val singleLine: Boolean = true
                 override val fontSize: Float = 13f
                 override val textAlign: TextAlign = TextAlign.END
-                override val cursorColor: ColorInt = D_ACCENT
+                override val cursorColor: ColorInt get() = D_ACCENT
                 override val selectionColor: ColorInt = rgba(76, 141, 255, 70)
-                override val placeholderColor: ColorInt = D_TEXT3
+                override val placeholderColor: ColorInt get() = D_TEXT3
                 override val argHeight: LayoutSize = LayoutSize(28f, false)
 
                 init {
