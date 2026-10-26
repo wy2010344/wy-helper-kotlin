@@ -1,6 +1,7 @@
 package org.wy.engine.helper
 
 import org.wy.engine.ColorInt
+import org.wy.engine.TextDefaults
 import org.wy.engine.rgba
 import org.wy.signal.createSignal
 
@@ -47,6 +48,8 @@ data class ThemeColors(
     val inverseSurface: ColorInt = rgba(30, 41, 59),
     /** 反色表面上的前景文字。 */
     val inverseOnSurface: ColorInt = rgba(255, 255, 255),
+    /** 危险操作色（右键菜单删除项等警示前景）。 */
+    val danger: ColorInt = rgba(220, 38, 38),
 ) {
     companion object {
         /** 浅色默认主题（与 desktop demo 调色板一致）。 */
@@ -69,6 +72,7 @@ data class ThemeColors(
             track = rgba(203, 213, 225),
             thumb = rgba(255, 255, 255),
             placeholder = rgba(148, 163, 184),
+            danger = rgba(220, 38, 38),
         )
 
         /** 深色主题：深底上强调色整体提亮一档保证对比度，功能语义与浅色一一对应。 */
@@ -85,12 +89,13 @@ data class ThemeColors(
             border = rgba(45, 51, 65),
             borderHover = rgba(96, 106, 152),
             text = rgba(226, 232, 244),
-            textSecondary = rgba(146, 156, 174),
+            textSecondary = rgba(178, 188, 206),
             textDisabled = rgba(104, 114, 134),
             focus = rgba(122, 114, 255),
             track = rgba(52, 58, 74),
             thumb = rgba(148, 158, 176),
             placeholder = rgba(104, 114, 134),
+            danger = rgba(248, 113, 113),
         )
     }
 }
@@ -123,8 +128,9 @@ data class Theme(
     val textSize: ThemeTextSize = ThemeTextSize(),
 ) {
     companion object {
-        // 信号驱动：argChildren / draw 中读 Theme.current 会注册依赖，
-        // 换肤（setDarkTheme 等）时自动重建子树 / 重绘，避免构建期快照残留旧主题色
+        // 信号驱动：draw / 段落 memo / color lambda 中读 Theme.current 会注册依赖，
+        // 换肤（setDarkTheme 等）时触发重算与重绘；argChildren 构建期读只会取快照，
+        // 主题色不要在构建期直接传值（子树不会重建，快照会残留旧主题色）
         private val currentSignal = createSignal(default())
 
         /** 当前主题，默认浅色。业务启动时可整体替换；替换后订阅处自动刷新。 */
@@ -132,6 +138,9 @@ data class Theme(
             get() = currentSignal.get()
             set(value) {
                 currentSignal.set(value)
+                // 回写核心文本默认色：核心包不感知组件主题，换肤经 TextDefaults 同步链生效
+                TextDefaults.text = value.colors.text
+                TextDefaults.placeholder = value.colors.placeholder
             }
 
         fun default(): Theme = Theme(colors = ThemeColors.light())

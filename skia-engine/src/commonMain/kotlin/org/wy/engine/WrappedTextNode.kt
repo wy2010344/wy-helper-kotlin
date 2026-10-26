@@ -1,7 +1,6 @@
 package org.wy.engine
 
 import com.wy.mve.StateHolder
-import org.wy.engine.helper.Theme
 import org.wy.lib.getValue
 import org.wy.signal.createSignal
 import org.wy.signal.memo
@@ -21,8 +20,8 @@ open class WrappedTextNode(
     open val fontFamily: String? = null
     open val fontSize: Float = 16f
     open val fontWeight: Int = 400
-    // 默认文字色不写死：跟随组件库主题（Theme.current），昼/夜切换自动换色
-    open val color: ColorInt get() = Theme.current.colors.text
+    // 默认文字色不写死：走核心中性默认色（TextDefaults），组件包换主题时回写同步，昼/夜切换自动换色
+    open val color: ColorInt get() = TextDefaults.text
     open val lineHeightMultiplier: Float =1.4f
 
     open val letterSpacing: Float=0f
