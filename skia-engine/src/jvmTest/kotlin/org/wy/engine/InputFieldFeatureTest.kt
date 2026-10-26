@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
  * - placeholder：空文本时用占位文本构建段落，点击/选区全部塌缩到 0；
  * - obscureText：每个字素簇显示为一个圆点，编辑与撤销仍作用于逻辑文本。
  */
-class InputFieldFeatureTest {
+class InputFieldFeatureTest : SkiaTestBase() {
 
     private class TestEditable(
         context: StateHolder<Node, List<Node>>

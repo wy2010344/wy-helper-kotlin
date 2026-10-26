@@ -29,11 +29,15 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            // SkiaTestBase（commonTest）用 TestScope 替换批次调度，保证测试线程串行消费
+            implementation(libs.kotlinx.coroutines.test)
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
         }
         jvmTest.dependencies {
+            // 组件测试（RichEditableTest 等）读组件包 Theme
+            implementation(projects.components)
             implementation(libs.kotlin.test)
             implementation(libs.kotlin.testJunit)
             implementation(libs.kotlinx.coroutinesSwing)

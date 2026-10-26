@@ -8,7 +8,7 @@ import kotlin.test.assertEquals
  * 编辑器按字素簇（grapheme cluster）移动与删除：
  * emoji（代理对 / ZWJ）、组合字符、CRLF 在退格、Delete、左右键、扩选时不可拆半。
  */
-class GraphemeEditingTest {
+class GraphemeEditingTest : SkiaTestBase() {
 
     /** 构造独立环境中的纯文本编辑器。 */
     private fun newEditor(): EditableTextNode {

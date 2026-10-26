@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
  * 同时升级双向索引映射（逻辑 ⇄ 显示），保证光标定位、选区、组合区间
  * 在展开后的坐标空间中仍然正确。
  */
-class EditableTabTest {
+class EditableTabTest : SkiaTestBase() {
 
     /** 单编辑器环境（桥接 protected 的显示变换与索引映射）。 */
     private class Env(val obscure: Boolean = false) {

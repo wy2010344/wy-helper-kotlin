@@ -13,11 +13,12 @@ import kotlin.test.assertTrue
  * 保护两条关键回归：
  * 1. 所有文本区域（RichTextNode 及其子类）都可被统一选区管理（拉模型：
  *    SelectionManager 从指针命中链推导端点，节点只提供坐标换算），
- *    而不是只有编辑器（EditableTextNode）能选。
+ * 而不是只有编辑器（EditableTextNode）能选。
  * 2. 中文（IME）输入能精确定位光标，且非焦点编辑器不得抢占输入框焦点
- *    打断输入法。
+ * 打断输入法。
+ * 继承 [SkiaTestBase]：批次协程必须排队到测试线程消费，否则与断言竞态。
  */
-class TextSelectionTest {
+class TextSelectionTest : SkiaTestBase() {
 
     private class TestText(
         context: StateHolder<Node, List<Node>>,

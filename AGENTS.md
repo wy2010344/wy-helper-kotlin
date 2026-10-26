@@ -34,7 +34,8 @@
 
 | 模块 | 作用 |
 |---|---|
-| `skia-engine` | 引擎核心：节点、布局、绘制、文字、输入 |
+| `skia-engine` | 引擎核心：节点、布局、绘制、文字、输入（只留无主题基础件，不感知具体组件风格） |
+| `components` | 组件库：Theme 主题与标准组件（包名保持 `org.wy.engine.helper`），依赖 skia-engine |
 | `layout` | 布局算法：Flex / Stack / absolute |
 | `signal` | 信号与 memo（反应式状态） |
 | `mve` | 节点树与列表渲染 |

@@ -13,6 +13,7 @@ dependencies {
     implementation(projects.mve)
     implementation(projects.shared)
     implementation(projects.skiaEngine)
+    implementation(projects.components)
 
     implementation(compose.desktop.currentOs)
     implementation(libs.kotlinx.coroutinesSwing)

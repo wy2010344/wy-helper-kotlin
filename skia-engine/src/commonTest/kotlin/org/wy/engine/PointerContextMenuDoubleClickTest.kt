@@ -16,7 +16,7 @@ import kotlin.test.assertEquals
  *   双击只触发一次（第三次点击重新计为单击，与浏览器一致）；
  * - 事件携带 button（触发键编号）与 buttons（按住位掩码），引擎自跟踪按住状态。
  */
-class PointerContextMenuDoubleClickTest {
+class PointerContextMenuDoubleClickTest : SkiaTestBase() {
 
     /** 任意坐标都可命中的测试文本节点（headless 无布局，绕过几何边界）。 */
     private class TestText(

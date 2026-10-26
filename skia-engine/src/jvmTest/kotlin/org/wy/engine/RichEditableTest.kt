@@ -12,7 +12,7 @@ import kotlin.test.assertTrue
  * - 光标导航复用纯文本逻辑（作用于拼接后的全文）；
  * - 占位显示等父类特性继续可用。
  */
-class RichEditableTest {
+class RichEditableTest : SkiaTestBase() {
 
     // 与节点 baseStyle 一致：默认文字色跟随组件库主题（Theme.current），
     // lineHeightMultiplier 由排版属性解析为 1.4f

@@ -17,7 +17,7 @@ import kotlin.test.assertNull
  *   2. 按住期间按钮等组件的按压视觉反馈失效。
  * 修复方向：pressed 改由引擎在每次 Down / Up 维护的独立信号驱动，与会话解耦。
  */
-class PointerClickDispatchTest {
+class PointerClickDispatchTest : SkiaTestBase() {
 
     /** 任意坐标都可命中的测试文本节点（headless 无布局，绕过几何边界）。 */
     private class TestText(

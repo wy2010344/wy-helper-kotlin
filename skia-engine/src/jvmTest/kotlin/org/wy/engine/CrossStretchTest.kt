@@ -19,7 +19,7 @@ import kotlin.test.assertEquals
  * 概览页图表（dChartPanel）正是这个结构，实测其绘图区宽度曾为 0。
  * 本测试把该结构从 demo 里剥离出来，固化交叉轴 stretch 的分配契约。
  */
-class CrossStretchTest {
+class CrossStretchTest : SkiaTestBase() {
 
     /** 固定尺寸的 y 向容器（对齐 dChartPanel 卡片）。 */
     private class Card(context: com.wy.mve.StateHolder<Node, List<Node>>) : RectNode(context), FlexParam, GrowChild {

@@ -10,7 +10,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class EventIntegrationTest {
+class EventIntegrationTest : SkiaTestBase() {
 
     /**
      * 创建一个最小化的测试环境，包含 Mock EngineGlobal 和 SelectionManager。

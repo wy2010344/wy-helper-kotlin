@@ -8,8 +8,9 @@ import kotlin.test.assertEquals
  * 焦点圈定（focusTrap）行为测试：焦点落在弹出层（focusTrap 节点）内时，
  * Tab / Shift+Tab 只在最近的圈定子树内循环；焦点在圈定外时按全局序。
  * 圈定范围由当前焦点沿父链计算获得，引擎不存储任何圈定状态。
+ * 继承 [SkiaTestBase]：批次协程必须排队到测试线程消费，否则与断言竞态。
  */
-class FocusScopeTest {
+class FocusScopeTest : SkiaTestBase() {
 
     private class FocusNode(context: StateHolderWithNode<Node, List<Node>>?, g: EngineGlobal?) : Node(context, g) {
         override val focusable: Boolean = true

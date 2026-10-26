@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
  * 环境与生产一致：真 Renderer 渲染树（文档序真实可比）+ 自定义 MockText
  * （positionForPoint 用可编程换算，不依赖段落布局，可在纯 JVM 下运行）。
  */
-class SelectionManagerTest {
+class SelectionManagerTest : SkiaTestBase() {
 
     /** 可编程换算坐标的文本节点 mock（挂渲染树下成为兄弟，文档序真实可比）。 */
     private class MockText(

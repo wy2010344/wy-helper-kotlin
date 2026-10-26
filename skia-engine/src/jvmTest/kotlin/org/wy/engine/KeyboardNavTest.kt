@@ -11,7 +11,7 @@ import kotlin.test.assertEquals
  * - Ctrl+Backspace/Delete 删词；
  * - PageUp/PageDown 垂直跳动。
  */
-class KeyboardNavTest {
+class KeyboardNavTest : SkiaTestBase() {
 
     private class TestEditable(
         context: StateHolder<Node, List<Node>>
