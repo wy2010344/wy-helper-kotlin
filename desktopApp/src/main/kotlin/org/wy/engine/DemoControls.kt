@@ -30,7 +30,7 @@ internal fun StateHolder<Node,List<Node>>.dToggleRow(
     override val argHeight: LayoutSize get() = LayoutSize(22f, false)
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-        dLabel({ label }, 13f, TEXT, 500)
+        dLabel({ label }, 13f, { TEXT }, 500)
         switch({ checked.value }, { v -> onChange?.invoke(v) ?: run { checked.value = v } }, focusOrder = focusOrder)
     }
 }
@@ -49,8 +49,8 @@ internal fun StateHolder<Node,List<Node>>.dSlider(
     override val gap: Float get() = 12f
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-        dLabel({ label }, 13f, TEXT, 500, width = 90f)
+        dLabel({ label }, 13f, { TEXT }, 500, width = 90f)
         slider({ value.value }, { value.value = it }, focusOrder = focusOrder, width = width)
-        dLabel({ "${(value.value * 100).toInt()}" }, 12f, TEXT2)
+        dLabel({ "${(value.value * 100).toInt()}" }, 12f, { TEXT2 })
     }
 }

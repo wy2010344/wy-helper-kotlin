@@ -46,8 +46,8 @@ fun main() {
                     }
 
                     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                        navItem({ "首页" }, { current == "首页" }, { current = "首页" }, iconColor = rgba(80, 160, 80))
-                        navItem({ "消息" }, { current == "消息" }, { current = "消息" }, iconColor = rgba(60, 120, 220), badge = { 5 })
+                        navItem({ "首页" }, { current == "首页" }, { current = "首页" }, iconColor = { rgba(80, 160, 80) })
+                        navItem({ "消息" }, { current == "消息" }, { current = "消息" }, iconColor = { rgba(60, 120, 220) }, badge = { 5 })
                         navItem({ "设置" }, { current == "设置" }, { current = "设置" })
                         navItem({ "归档" }, { current == "归档" }, { current = "归档" }, badge = { 12 })
                     }

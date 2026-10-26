@@ -309,6 +309,9 @@ internal const val SPLIT_W = 6f
 /**
  * header 小 tab（交易对 / 周期 / 活动页签）：选中态主色淡底 + 主色描边。
  * 宽度包裹内容（directionJustify=grow）。
+ *
+ * [solid] = true 走交易所强调级（买卖分段）：选中态实底填充 + 白字加粗，
+ * 未选中无边框（对齐 ooc ticket 蓝本），区别于默认的幽灵淡底态。
  */
 internal fun StateHolder<Node, List<Node>>.dTabButton(
     label: () -> String,
@@ -320,6 +323,7 @@ internal fun StateHolder<Node, List<Node>>.dTabButton(
     // lambda 让底色/文字色每次求值读活信号（如买卖 tab 切换）。优先于 chip。
     chipOf: (() -> ColorInt?)? = null,
     grow: Boolean = false,
+    solid: Boolean = false,
     onClick: () -> Unit
 ): ButtonBase = object : ButtonBase(this), GrowChild {
     override val debugName: String get() = "标签按钮"
@@ -350,15 +354,20 @@ internal fun StateHolder<Node, List<Node>>.dTabButton(
         val c = chipOf?.invoke() ?: chip
         val on = c != null || active()
         val tone = c ?: D_ACCENT
-        if (on) {
+        if (on && solid) {
+            // 实底强调级：选中即填充，按压叠深色反馈
+            fillOuterRoundRect(canvas, 3f, tone)
+            if (pressed) fillOuterRoundRect(canvas, 3f, rgba(0, 0, 0, 40))
+        } else if (on) {
             fillOuterRoundRect(canvas, 3f, tone.withAlpha(0.14f))
             strokeOuterRoundRect(canvas, 3f, tone.withAlpha(0.45f), 1f)
         } else if (hovered) {
             fillOuterRoundRect(canvas, 3f, D_HOVER)
-            strokeOuterRoundRect(canvas, 3f, D_LINE, 1f)
-        } else {
+            if (!solid) strokeOuterRoundRect(canvas, 3f, D_LINE, 1f)
+        } else if (!solid) {
             strokeOuterRoundRect(canvas, 3f, D_LINE_SOFT, 1f)
         }
+        // solid 未选中：无底无边框（ooc ticket 蓝本的静默态）
     }
 
     override fun drawFocusRing(canvas: PlatformCanvas) {
@@ -366,11 +375,18 @@ internal fun StateHolder<Node, List<Node>>.dTabButton(
     }
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-        // 选中色在文本求值 lambda 内现算：argChildren 一次性，外面捕获是启动快照
+        // 选中色在文本求值 lambda 内现算：argChildren 一次性，外面捕获是启动快照。
+        // grow 按钮文字居中（justify=grow 无 grow 子时从 start 摆放会贴左）。
         dText(label, 10f, {
             val c = chipOf?.invoke() ?: chip
-            if (c != null || active()) (c ?: D_TEXT) else D_TEXT2
-        }, 500)
+            val on = c != null || active()
+            when {
+                !on -> D_TEXT2
+                solid -> rgba(255, 255, 255)
+                else -> c ?: D_TEXT
+            }
+        }, if (solid) 600 else 500, grow = grow,
+            align = if (grow) TextAlign.CENTER else TextAlign.START)
     }
 }
 

@@ -10,24 +10,28 @@ import org.wy.signal.memo
 
 // ════════════════════════════════════════════════════
 // 基础控件
+//
+// 颜色 / 文案等主题相关参数一律用 lambda 传递：argChildren 只在初始化执行一次，
+// 直接传值会把构建那一刻的调色板快照冻结进节点，切换昼/夜后文字仍是旧色板。
+// lambda 在段落 memo / draw 中求值，信号依赖触发重算即换色。
 // ════════════════════════════════════════════════════
 internal fun StateHolder<Node,List<Node>>.dLabel(
     text: () -> String,
     size: Float = 13f,
-    color: ColorInt = TEXT,
+    color: () -> ColorInt = { TEXT },
     weight: Int = 400,
     width: Float? = null
 ): WrappedTextNode = object : WrappedTextNode(this) {
     override val autoWidth: Boolean get() = true
     override val text: String get() = text()
     override val fontSize: Float get() = size
-    override val color: ColorInt get() = color
+    override val color: ColorInt get() = color()
     override val fontWeight: Int get() = weight
     override val argWidth: LayoutSize get() = width?.let { LayoutSize(it, false) } ?: super.argWidth
 }
 
 internal fun StateHolder<Node,List<Node>>.dButton(
-    label: String,
+    label: () -> String,
     onClick: () -> Unit,
     primary: Boolean = true,
     width: Float = 90f,
@@ -55,7 +59,7 @@ internal fun StateHolder<Node,List<Node>>.dButton(
     }
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-        dLabel({ label }, 13f, if (primary) rgba(255, 255, 255) else TEXT, 600)
+        dLabel(label, 13f, { if (primary) rgba(255, 255, 255) else TEXT }, 600)
     }
 }
 

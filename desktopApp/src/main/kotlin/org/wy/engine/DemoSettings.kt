@@ -37,7 +37,7 @@ internal fun StateHolder<Node,List<Node>>.dSettingsPage(active: StoreRef<DemoTab
         override val gap: Float get() = 12f
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-            dLabel({ "设置" }, 14f, TEXT, 600)
+            dLabel({ "设置" }, 14f, { TEXT }, 600)
 
             object : RectNode(this), FlexParam, GrowChild {
                 override fun argGrow(direction: Direction): Float = if (direction == Direction.y) 1f else 0f
@@ -64,7 +64,7 @@ internal fun StateHolder<Node,List<Node>>.dSettingsPage(active: StoreRef<DemoTab
                         override val gap: Float get() = 12f
 
                         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                            dLabel({ "名称" }, 13f, TEXT2, 500, width = 80f)
+                            dLabel({ "名称" }, 13f, { TEXT2 }, 500, width = 80f)
                             dTextField(name, focusOrder = 20)
                         }
                     }
@@ -76,7 +76,7 @@ internal fun StateHolder<Node,List<Node>>.dSettingsPage(active: StoreRef<DemoTab
                         override val gap: Float get() = 12f
 
                         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                            dLabel({ "邮箱" }, 13f, TEXT2, 500, width = 80f)
+                            dLabel({ "邮箱" }, 13f, { TEXT2 }, 500, width = 80f)
                             dTextField(email, focusOrder = 21)
                         }
                     }
@@ -97,7 +97,7 @@ internal fun StateHolder<Node,List<Node>>.dSettingsPage(active: StoreRef<DemoTab
 
                         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
                             dButton(
-                                "重置",
+                                { "重置" },
                                 {
                                     name.value = ""
                                     email.value = ""
@@ -108,7 +108,7 @@ internal fun StateHolder<Node,List<Node>>.dSettingsPage(active: StoreRef<DemoTab
                                 primary = false, width = 72f, height = 30f
                             )
                             dButton(
-                                "保存",
+                                { "保存" },
                                 { toast.value = "已保存 ✓" },
                                 primary = true, width = 80f, height = 30f
                             )

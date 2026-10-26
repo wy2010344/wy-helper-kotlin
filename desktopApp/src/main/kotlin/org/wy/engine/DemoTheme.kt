@@ -11,10 +11,11 @@ import java.util.prefs.Preferences
 // ════════════════════════════════════════════════════
 // 调色板（信号驱动主题）
 //
-// 颜色不再是编译期常量，而是「绘制 / 构建时读取」的 getter：
-// - 在 argChildren 里读到颜色 → 该子树注册了对 demoDark 的依赖，
-//   切换主题时框架自动重建子树，新颜色随重建生效；
-// - 在 draw() 里读到颜色 → 每帧重取，下一帧即换色。
+// 颜色不是编译期常量，而是「消费点活读」的 getter。注意读取时机分两类：
+// - 在 draw() / 段落 memo（dLabel、text 等的 color lambda）里读 → 注册信号依赖，
+//   主题翻触发重算 / 重绘，颜色立即更新；
+// - 在 argChildren 构建期读（直接传值给 color、label 等参数）→ 只取到构建那一刻
+//   的快照，子树不会重建，切换主题后仍是旧色板。主题色一律走 lambda / getter 活读。
 // 深浅两套色板各自完整，语义一一对应（卡片、边框、正文、次级文本…）。
 // ════════════════════════════════════════════════════
 
@@ -24,8 +25,8 @@ internal val prefs: Preferences by lazy { Preferences.userRoot().node("wy-helper
 internal val demoDark: StoreRef<Boolean> = createSignal(prefs.get("dark", "0") == "1")
 
 /**
- * 应用主题切换：demo 调色板（argChildren 读 demoDark 自动重建）与
- * 引擎组件库 [Theme.current]（helper 组件整体换肤）两套系统一起翻转。
+ * 应用主题切换：demo 调色板（各消费点经 lambda / getter 活读 demoDark）与
+ * 引擎组件库 [Theme.current]（helper 组件整体换肤，文本默认色经 TextDefaults 同步）一起翻转。
  */
 internal fun setDarkTheme(v: Boolean) {
     demoDark.value = v
@@ -60,7 +61,8 @@ private val DK_BG = rgba(15, 18, 26)
 private val DK_CARD = rgba(24, 28, 38)
 private val DK_BORDER = rgba(45, 51, 65)
 private val DK_TEXT = rgba(226, 232, 244)
-private val DK_TEXT2 = rgba(146, 156, 174)
+// 次要文字提亮一档（146,156,174 视觉发灰，夜间层级仍弱于 DK_TEXT）
+private val DK_TEXT2 = rgba(178, 188, 206)
 private val DK_ACCENT = rgba(122, 114, 255)
 private val DK_ACCENT_HOVER = rgba(140, 132, 255)
 private val DK_ACCENT_DARK = rgba(99, 91, 255)

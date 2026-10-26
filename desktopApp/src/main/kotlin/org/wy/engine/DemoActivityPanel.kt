@@ -38,7 +38,7 @@ internal fun StateHolder<Node,List<Node>>.dActivityPanel(
     }
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-        dLabel({ "最近动态" }, 14f, TEXT, 600)
+        dLabel({ "最近动态" }, 14f, { TEXT }, 600)
 
         object : SimpleScrollNode(this) {
             override fun argGrow(direction: Direction): Float = if (direction == Direction.y) 1f else 0f
@@ -136,19 +136,19 @@ internal fun StateHolder<Node,List<Node>>.dActivityPanel(
                                     dLabel(
                                         { it.value.title },
                                         13f,
-                                        if (it.value.done) TEXT2 else TEXT,
+                                        { if (it.value.done) TEXT2 else TEXT },
                                         if (it.value.done) 400 else 500
                                     )
                                 }
                             }
 
-                            dLabel({ it.value.time }, 11f, TEXT2)
+                            dLabel({ it.value.time }, 11f, { TEXT2 })
                         }
                     }
                 }
             }
         }
 
-        dButton("＋ 新增动态", onAdd, primary = false, width = 110f, height = 30f)
+        dButton({ "＋ 新增动态" }, onAdd, primary = false, width = 110f, height = 30f)
     }
 }

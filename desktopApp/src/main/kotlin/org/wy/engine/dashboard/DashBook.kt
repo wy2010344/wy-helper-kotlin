@@ -11,6 +11,7 @@ import org.wy.engine.helper.ButtonBase
 import org.wy.engine.helper.DialogBase
 import org.wy.engine.helper.DropdownBase
 import org.wy.engine.helper.OverlayBase
+import org.wy.engine.helper.Placement
 import org.wy.engine.helper.ScrollBarStyle
 import org.wy.engine.helper.SimpleScrollNode
 import org.wy.engine.helper.dialog
@@ -221,7 +222,12 @@ internal fun StateHolder<Node, List<Node>>.dOrderbook(
                         // 不能在自身初始化里引用局部名，先捕获 this
                         val anchor: LayoutNode = this
                         g.appendPop { pop ->
-                            dMenu(anchor = anchor, width = 130f, onClose = { g.removePop(pop) }) {
+                            dMenu(
+                                anchor = anchor, width = 130f,
+                                // 锚点在表行右端：菜单右缘与锚点右缘对齐
+                                placement = Placement.BottomEnd,
+                                onClose = { g.removePop(pop) }
+                            ) {
                                 dMenuLabel("Price aggregation")
                                 BookMath.steps(BookMath.bestPrice(depth())).forEach { s ->
                                     dMenuItem({ fmtStep(s) }) { step.value = s }

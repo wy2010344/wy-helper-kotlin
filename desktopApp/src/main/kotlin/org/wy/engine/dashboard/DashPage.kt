@@ -11,6 +11,7 @@ import org.wy.engine.helper.ButtonBase
 import org.wy.engine.helper.DialogBase
 import org.wy.engine.helper.DropdownBase
 import org.wy.engine.helper.OverlayBase
+import org.wy.engine.helper.Placement
 import org.wy.engine.helper.ScrollBarStyle
 import org.wy.engine.helper.SimpleScrollNode
 import org.wy.engine.helper.dialog
@@ -43,7 +44,7 @@ import kotlin.math.sqrt
 // 复刻自 ooc example 的 finance-dashboard（pages/finance-dashboard.ooc）：
 //   三列可拖拽终端 = header（交易对 / 周期 / DEMO / 状态）
 //   + 左列（自选 Watchlist + Market stats）
-//   + 中列（K 线 Chart + Market activity: Depth|Trades）
+//   + 中列（K 线 Chart + Depth + Trades，三窗格独立拖高度）
 //   + 右列（Order book + Paper order）+ footer 免责声明。
 //
 // 与蓝本的两点约定差异：
@@ -71,7 +72,7 @@ import kotlin.math.sqrt
 //   header（52）：logo / 交易对+最新价+涨跌 / 交易对 tabs / 周期 tabs /
 //                 DEMO / 状态点 / （窄窗口逐级收起）
 //   main（grow）：左列（自选 grow + 分拽 + 概览定高）
-//                 ｜ 中列（K 线 grow + 分拽 + 行情活动定高：Depth|Trades）
+//                 ｜ 中列（K 线 grow + 分拽 + Depth 定高 + 分拽 + Trades 定高）
 //                 ｜ 右列（盘口 grow + 分拽 + 模拟下单定高）
 //   footer（24）：免责声明 + 提交提示 + 重置布局
 //
@@ -110,7 +111,6 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
     // ── 页面级状态（建在节点对象体上：子树随窗口尺寸重建时存活）──
     private val symbol = createSignal("BTCUSDT")
     private val interval = createSignal("15m")
-    private val activity = createSignal("Depth")
     private val bookMode = createSignal("both")
     private val bookAvgSum = createSignal(false)
     private val bookRatio = createSignal(true)
@@ -137,6 +137,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
     private val leftWidth = createSignal(loadF("dash.leftWidth", 248f, 176f, 420f))
     private val rightWidth = createSignal(loadF("dash.rightWidth", 316f, 224f, 520f))
     private val leftBottom = createSignal(loadF("dash.leftBottom", 224f, 120f, 420f))
+    private val centerMiddle = createSignal(loadF("dash.centerMiddle", 200f, 120f, 420f))
     private val centerBottom = createSignal(loadF("dash.centerBottom", 218f, 120f, 420f))
     private val rightBottom = createSignal(loadF("dash.rightBottom", 200f, 140f, 420f))
 
@@ -145,6 +146,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
         prefs.putFloat("dash.leftWidth", leftWidth.value)
         prefs.putFloat("dash.rightWidth", rightWidth.value)
         prefs.putFloat("dash.leftBottom", leftBottom.value)
+        prefs.putFloat("dash.centerMiddle", centerMiddle.value)
         prefs.putFloat("dash.centerBottom", centerBottom.value)
         prefs.putFloat("dash.rightBottom", rightBottom.value)
     }
@@ -185,6 +187,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
         leftWidth.value = 248f
         rightWidth.value = 316f
         leftBottom.value = 224f
+        centerMiddle.value = 200f
         centerBottom.value = 218f
         rightBottom.value = 200f
         chartCount.value = ChartGeom.DEFAULT_VISIBLE
@@ -193,7 +196,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
         // 清除持久值：下次启动回到默认布局（对齐 ooc resetLayout 删 key 语义）
         for (k in listOf(
             "dash.leftWidth", "dash.rightWidth", "dash.leftBottom",
-            "dash.centerBottom", "dash.rightBottom"
+            "dash.centerMiddle", "dash.centerBottom", "dash.rightBottom"
         )) prefs.remove(k)
         note.value = "布局已重置"
     }
@@ -271,9 +274,14 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                         offset = chartOffset
                     )
                 }
+                dSplitH({ centerMiddle.value }, 120f, 420f, -1f) { centerMiddle.value = it; saveLayout() }
+                // 深度图窗格（拆至 DashActivity.kt；对齐 ooc：Depth/Trades 各自独立不做 tab）
+                dDashDepth(centerMiddle, symbol, marketRev, depthZoom)
                 dSplitH({ centerBottom.value }, 120f, 420f, -1f) { centerBottom.value = it; saveLayout() }
-                // 行情活动窗格（拆至 DashActivity.kt：Depth|Trades 双 renderForEach 换页）
-                dDashActivity(centerBottom, activity, symbol, marketRev, depthZoom)
+                // 逐笔窗格：与深度是两条不同的流，各自一份高度条才不用互相将就
+                dPane("Trades", "Tape", heightOf = { centerBottom.value }) {
+                    dTrades { MarketData.tradesOf(symbol.value) }
+                }
             }
 
             dSplitV({ rightWidth.value }, 224f, 520f, -1f) { rightWidth.value = it; saveLayout() }
@@ -293,7 +301,12 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                             override fun onClick() {
                                 val anchor: LayoutNode = this
                                 g.appendPop { pop ->
-                                    dMenu(anchor = anchor, width = 200f, onClose = { g.removePop(pop) }) {
+                                    dMenu(
+                                        anchor = anchor, width = 200f,
+                                        // 锚点在卡片右端：菜单右缘与锚点右缘对齐（回退翻转也不改对齐轴）
+                                        placement = Placement.BottomEnd,
+                                        onClose = { g.removePop(pop) }
+                                    ) {
                                         dMenuLabel("Order Book Display")
                                         dMenuCheckItem({ "Display Avg. & Sum" }, { bookAvgSum.value }) {
                                             bookAvgSum.value = !bookAvgSum.value

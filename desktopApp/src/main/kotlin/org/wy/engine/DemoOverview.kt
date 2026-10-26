@@ -20,7 +20,8 @@ internal fun StateHolder<Node,List<Node>>.dStatCard(
     valueText: () -> String,
     sub: String,
     progress: Float,
-    accent: ColorInt,
+    // lambda 活读：argChildren 只构建一次，传值会把构建那一刻的主题强调色冻结进节点
+    accent: () -> ColorInt,
     spark: List<Float>
 ): RectNode = object : RectNode(this), FlexParam, GrowChild {
     override fun argGrow(direction: Direction): Float = if (direction == Direction.x) 1f else 0f
@@ -40,7 +41,7 @@ internal fun StateHolder<Node,List<Node>>.dStatCard(
 
     override fun draw(canvas: PlatformCanvas) {
         fillOuterRoundRect(canvas, 10f, CARD)
-        strokeOuterRoundRect(canvas, 10f, if (hovered) accent else BORDER, 1f)
+        strokeOuterRoundRect(canvas, 10f, if (hovered) accent() else BORDER, 1f)
         val sw = 54f
         val sh = 20f
         val sx = outerWidth - sw - 14f
@@ -51,22 +52,22 @@ internal fun StateHolder<Node,List<Node>>.dStatCard(
             val y1 = sy + sh - sh * spark[i] / max
             val x2 = sx + sw * (i + 1) / (spark.size - 1)
             val y2 = sy + sh - sh * spark[i + 1] / max
-            canvas.drawLine(x1, y1, x2, y2, accent, 2f)
+            canvas.drawLine(x1, y1, x2, y2, accent(), 2f)
         }
         super.draw(canvas)
     }
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-        dLabel({ label }, 12f, TEXT2, 500)
-        dLabel(valueText, 24f, TEXT, 700)
-        dLabel({ sub }, 11f, GREEN, 500)
+        dLabel({ label }, 12f, { TEXT2 }, 500)
+        dLabel(valueText, 24f, { TEXT }, 700)
+        dLabel({ sub }, 11f, { GREEN }, 500)
         object : RectNode(this) {
             override val argHeight: LayoutSize get() = LayoutSize(6f, false)
 
             override fun draw(canvas: PlatformCanvas) {
                 canvas.fillRoundRect(0f, 0f, outerWidth, outerHeight, 3f, BORDER)
                 if (progress > 0f) {
-                    canvas.fillRoundRect(0f, 0f, outerWidth * progress, outerHeight, 3f, accent)
+                    canvas.fillRoundRect(0f, 0f, outerWidth * progress, outerHeight, 3f, accent())
                 }
             }
         }
@@ -100,8 +101,8 @@ internal fun StateHolder<Node,List<Node>>.dChartPanel(): RectNode {
                 override val gap: Float get() = 8f
 
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    dLabel({ "每周专注时长" }, 14f, TEXT, 600)
-                    dLabel({ "● 本周" }, 11f, ACCENT)
+                    dLabel({ "每周专注时长" }, 14f, { TEXT }, 600)
+                    dLabel({ "● 本周" }, 11f, { ACCENT })
                 }
             }
 
@@ -219,9 +220,9 @@ internal fun StateHolder<Node,List<Node>>.dOverviewPage(
             override val gap: Float get() = 12f
 
             override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                dStatCard("今日任务", { "12" }, "较昨日 +3", 0.66f, ACCENT, listOf(3f, 5f, 4f, 7f, 6f, 9f, 8f))
-                dStatCard("已完成", { "8" }, "完成率 67%", 0.67f, GREEN, listOf(2f, 4f, 3f, 5f, 6f, 7f, 8f))
-                dStatCard("专注时长", { "4.5h" }, "目标 6h", 0.75f, AMBER, listOf(1f, 2f, 4f, 3f, 5f, 4f, 6f))
+                dStatCard("今日任务", { "12" }, "较昨日 +3", 0.66f, { ACCENT }, listOf(3f, 5f, 4f, 7f, 6f, 9f, 8f))
+                dStatCard("已完成", { "8" }, "完成率 67%", 0.67f, { GREEN }, listOf(2f, 4f, 3f, 5f, 6f, 7f, 8f))
+                dStatCard("专注时长", { "4.5h" }, "目标 6h", 0.75f, { AMBER }, listOf(1f, 2f, 4f, 3f, 5f, 4f, 6f))
             }
         }
 

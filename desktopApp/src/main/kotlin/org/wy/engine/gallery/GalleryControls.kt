@@ -111,7 +111,7 @@ internal fun StateHolder<Node, List<Node>>.gButton(
             kind == BtnKind.Destructive -> G_ON_SOLID
             else -> TEXT
         }
-        gText(label, if (small) 12f else 13f, fg, 550)
+        gText(label, if (small) 12f else 13f, { fg }, 550)
     }
 }
 
@@ -149,21 +149,23 @@ internal fun StateHolder<Node, List<Node>>.gBadge(label: String, kind: BadgeKind
         }
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-            val fg = when (kind) {
-                BadgeKind.Default -> G_ON_SOLID
-                BadgeKind.Secondary -> TEXT2
-                BadgeKind.Outline -> TEXT
-                BadgeKind.Success -> rgba(21, 128, 61)
-                BadgeKind.Warning -> rgba(180, 83, 9)
-                BadgeKind.Danger -> rgba(185, 28, 28)
-            }
-            gText(label, 10.5f, fg, 600)
+            // 前景色在 lambda 内活读：argChildren 只构建一次，构建期快照换肤后不更新
+            gText(label, 10.5f, {
+                when (kind) {
+                    BadgeKind.Default -> G_ON_SOLID
+                    BadgeKind.Secondary -> TEXT2
+                    BadgeKind.Outline -> TEXT
+                    BadgeKind.Success -> rgba(21, 128, 61)
+                    BadgeKind.Warning -> rgba(180, 83, 9)
+                    BadgeKind.Danger -> rgba(185, 28, 28)
+                }
+            }, 600)
         }
     }
 
 internal fun StateHolder<Node, List<Node>>.gAvatar(
     initials: String,
-    color: ColorInt,
+    color: () -> ColorInt,
     withDot: Boolean = false,
 ): RectNode =
     object : RectNode(this), FlexParam {
@@ -176,7 +178,7 @@ internal fun StateHolder<Node, List<Node>>.gAvatar(
         override val argHeight: LayoutSize get() = LayoutSize(30f, false)
 
         override fun draw(canvas: PlatformCanvas) {
-            fillOuterOval(canvas, color)
+            fillOuterOval(canvas, color())
             super.draw(canvas)
             if (withDot) {
                 // 状态点：直接画在头像右下角，用底色描一圈"挖空"效果
@@ -186,7 +188,7 @@ internal fun StateHolder<Node, List<Node>>.gAvatar(
         }
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-            gText(initials, 11f, G_ON_SOLID, 650)
+            gText(initials, 11f, { G_ON_SOLID }, 650)
         }
     }
 
@@ -210,7 +212,7 @@ internal fun StateHolder<Node, List<Node>>.gInput(
     override val focusOrder: Int? get() = focusOrder
     override val singleLine: Boolean = true
     override val focusable: Boolean get() = enabled
-    override val placeholderColor: ColorInt = PLACEHOLDER
+    override val placeholderColor: ColorInt get() = PLACEHOLDER
     override val argHeight: LayoutSize get() = LayoutSize(height, false)
 
     // 宽度走 grow 通道：行内其他子节点（按钮 / 标签）先按内容占位，
@@ -257,7 +259,7 @@ internal fun StateHolder<Node, List<Node>>.gTextarea(
     override val fontSize: Float = 12.5f
     override val focusOrder: Int? get() = focusOrder
     override val singleLine: Boolean = false
-    override val placeholderColor: ColorInt = PLACEHOLDER
+    override val placeholderColor: ColorInt get() = PLACEHOLDER
     override val argHeight: LayoutSize get() = LayoutSize(height, false)
 
     init {

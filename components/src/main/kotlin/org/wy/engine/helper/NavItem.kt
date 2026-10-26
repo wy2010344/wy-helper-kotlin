@@ -29,7 +29,7 @@ import org.wy.engine.strokeOuterRing
  * @param label 文案
  * @param active 是否激活（闭包读取业务状态）
  * @param onClick 选中回调
- * @param iconColor 图标圆点颜色，null 则不显示圆点
+ * @param iconColor 图标圆点颜色（lambda 活读，主题色不被构建期冻结），返回 null 则不显示圆点
  * @param badge 角标数字，null 则不显示
  */
 fun StateHolder<Node, List<Node>>.navItem(
@@ -38,7 +38,7 @@ fun StateHolder<Node, List<Node>>.navItem(
     onClick: () -> Unit,
     enabled: Boolean = true,
     focusOrder: Int? = null,
-    iconColor: ColorInt? = null,
+    iconColor: () -> ColorInt? = { null },
     badge: () -> Int? = { null },
 ): ButtonBase = object : ButtonBase(this) {
     override val enabled: Boolean get() = enabled
@@ -66,7 +66,8 @@ fun StateHolder<Node, List<Node>>.navItem(
     }
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-        val c = Theme.current.colors
+        // 主题色全部在消费点活读（draw / getter / lambda），不在 argChildren 里捕获快照：
+        // 构建只发生一次，捕获的 Theme 值换肤后不会更新。
         object : RectNode(this), FlexParam {
             override val layout: LayoutDirection = FlexObject(this)
             override val direction: Direction get() = Direction.x
@@ -74,20 +75,22 @@ fun StateHolder<Node, List<Node>>.navItem(
             override val gap: Float get() = 10f
 
             override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                if (iconColor != null) {
+                // 圆点是否存在的结构判断在构建期做一次（null 与否由调用场景决定，不随主题翻转）
+                if (iconColor() != null) {
                     object : RectNode(this) {
                         override val argWidth: LayoutSize get() = LayoutSize(8f, false)
                         override val argHeight: LayoutSize get() = LayoutSize(8f, false)
 
                         override fun draw(canvas: PlatformCanvas) {
-                            fillOuterOval(canvas, iconColor)
+                            val dot = iconColor() ?: return
+                            fillOuterOval(canvas, dot)
                         }
                     }
                 }
                 text(
                     label,
                     Theme.current.textSize.label,
-                    if (active()) c.primary else c.text,
+                    { if (active()) Theme.current.colors.primary else Theme.current.colors.text },
                     if (active()) 600 else 400
                 )
             }
@@ -99,14 +102,14 @@ fun StateHolder<Node, List<Node>>.navItem(
                 override val autoWidth: Boolean get() = true
                 override val text: String get() = b.toString()
                 override val fontSize: Float get() = Theme.current.textSize.caption
-                override val color: ColorInt get() = c.onPrimary
+                override val color: ColorInt get() = Theme.current.colors.onPrimary
                 override val fontWeight: Int get() = 600
 
                 override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
                     if (direction == Direction.x) 6f else 2f
 
                 override fun draw(canvas: PlatformCanvas) {
-                    fillOuterRoundRect(canvas, 9f, c.primary)
+                    fillOuterRoundRect(canvas, 9f, Theme.current.colors.primary)
                     super.draw(canvas)
                 }
             }

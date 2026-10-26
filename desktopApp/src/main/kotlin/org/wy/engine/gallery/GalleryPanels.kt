@@ -48,8 +48,8 @@ internal fun StateHolderWithNode<Node, List<Node>>.galleryPanels(
                         val g = consume(engineGlobalContext)!!
                         g.appendPop { pop ->
                             dialog(onClose = { g.removePop(pop) }, width = 330f) {
-                                gText("确认删除？", 15f, TEXT, 700)
-                                gText("删除后不可恢复，该操作会同时移除关联的 12 条记录。", 12f, TEXT2, wrap = true)
+                                gText("确认删除？", 15f, { TEXT }, 700)
+                                gText("删除后不可恢复，该操作会同时移除关联的 12 条记录。", 12f, { TEXT2 }, wrap = true)
                                 gRow(gap = 8f, justify = DirectionJustify.end) {
                                     gButton("取消", BtnKind.Secondary, small = true) {
                                         g.removePop(pop)
@@ -63,11 +63,11 @@ internal fun StateHolderWithNode<Node, List<Node>>.galleryPanels(
                     }
                     gButton("显示 Toast", BtnKind.Secondary, small = true, focusOrder = 152) {
                         toast(durationMs = 2200L) {
-                            gText("已保存到本地 · 2 秒后自动消失", 12.5f, rgba(255, 255, 255))
+                            gText("已保存到本地 · 2 秒后自动消失", 12.5f, { rgba(255, 255, 255) })
                         }
                     }
                 }
-                gText("Esc / 点遮罩关闭；对话框打开期间 Tab 不会跑出面板。", 10.5f, PLACEHOLDER, wrap = true)
+                gText("Esc / 点遮罩关闭；对话框打开期间 Tab 不会跑出面板。", 10.5f, { PLACEHOLDER }, wrap = true)
             }
         },
         {
@@ -87,7 +87,7 @@ internal fun StateHolderWithNode<Node, List<Node>>.galleryPanels(
                         1 -> "成员：3 人协作中，2 个待处理邀请。"
                         else -> "计费：专业版 · 下次扣费 11 月 12 日。"
                     },
-                    11.5f, TEXT2, wrap = true
+                    11.5f, { TEXT2 }, wrap = true
                 )
             }
         }
@@ -102,28 +102,28 @@ internal fun StateHolderWithNode<Node, List<Node>>.galleryPanels(
             ) {
                 // 表头
                 gRow(gap = 8f, height = 24f, align = AlignItem.stretch) {
-                    gTableCell("项目", 96f, TEXT2, 600)
-                    gTableCell("状态", 56f, TEXT2, 600)
-                    gTableCell("数值", 68f, TEXT2, 600, TextAlign.END)
+                    gTableCell("项目", 96f, { TEXT2 }, 600)
+                    gTableCell("状态", 56f, { TEXT2 }, 600)
+                    gTableCell("数值", 68f, { TEXT2 }, 600, TextAlign.END)
                 }
                 gSeparator()
                 // 数据行
                 gRow(gap = 8f, height = 26f, align = AlignItem.stretch) {
                     gTableCell("项目 A", 96f)
-                    gTableCell("已上线", 56f, GREEN, 500)
-                    gTableCell("12", 68f, TEXT, 550, TextAlign.END)
+                    gTableCell("已上线", 56f, { GREEN }, 500)
+                    gTableCell("12", 68f, { TEXT }, 550, TextAlign.END)
                 }
                 gSeparator()
                 gRow(gap = 8f, height = 26f, align = AlignItem.stretch) {
                     gTableCell("项目 B", 96f)
-                    gTableCell("灰度中", 56f, AMBER, 500)
-                    gTableCell("48", 68f, TEXT, 550, TextAlign.END)
+                    gTableCell("灰度中", 56f, { AMBER }, 500)
+                    gTableCell("48", 68f, { TEXT }, 550, TextAlign.END)
                 }
                 gSeparator()
                 gRow(gap = 8f, height = 26f, align = AlignItem.stretch) {
                     gTableCell("项目 C", 96f)
-                    gTableCell("规划中", 56f, TEXT2, 500)
-                    gTableCell("7", 68f, TEXT, 550, TextAlign.END)
+                    gTableCell("规划中", 56f, { TEXT2 }, 500)
+                    gTableCell("7", 68f, { TEXT }, 550, TextAlign.END)
                 }
             }
         },
@@ -132,9 +132,9 @@ internal fun StateHolderWithNode<Node, List<Node>>.galleryPanels(
                 "Separator & Skeleton 分隔线与骨架屏",
                 "分隔线横向拉伸；骨架屏模拟加载占位"
             ) {
-                gText("账户设置", 12f, TEXT, 600)
+                gText("账户设置", 12f, { TEXT }, 600)
                 gSeparator()
-                gText("资料与安全", 11.5f, TEXT2)
+                gText("资料与安全", 11.5f, { TEXT2 })
                 gSeparator()
                 // 骨架屏：头像 + 标题 + 多行文本占位
                 gRow(gap = 10f, height = 34f) {

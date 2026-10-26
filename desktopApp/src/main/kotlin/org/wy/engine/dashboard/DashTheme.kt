@@ -46,7 +46,8 @@ private val DK_PLOT = rgba(13, 17, 24)
 private val DK_LINE = rgba(255, 255, 255, 15)
 private val DK_LINE_SOFT = rgba(255, 255, 255, 8)
 private val DK_TEXT = rgba(230, 234, 242)
-private val DK_TEXT2 = rgba(138, 148, 166)
+// 次要文字与 demo 深色板同步提亮一档，层级仍弱于 DK_TEXT
+private val DK_TEXT2 = rgba(178, 188, 206)
 private val DK_TEXT3 = rgba(96, 106, 122)
 private val DK_ACCENT = rgba(76, 141, 255)
 private val DK_HOVER = rgba(255, 255, 255, 12)
@@ -77,7 +78,7 @@ internal val D_AMBER = rgba(245, 166, 35)
 internal val D_UP_BG = rgba(240, 76, 92, 30)
 internal val D_DOWN_BG = rgba(14, 203, 129, 30)
 
-// 语义 getter：draw 内读 → 下帧换色；argChildren 内读 → 子树重建
+// 语义 getter：draw / 段落 memo 内读 → 注册依赖，下帧换色；argChildren 构建期读 → 只取快照，换肤不更新
 internal val D_BG get() = if (demoDark.value) DK_BG else LT_BG
 internal val D_PANE get() = if (demoDark.value) DK_PANE else LT_PANE
 internal val D_PANE_HEAD get() = if (demoDark.value) DK_PANE_HEAD else LT_PANE_HEAD

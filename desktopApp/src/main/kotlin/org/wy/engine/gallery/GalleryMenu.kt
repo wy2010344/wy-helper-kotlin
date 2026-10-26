@@ -7,6 +7,7 @@ import com.wy.mve.StateHolderWithNode
 import org.wy.engine.*
 import org.wy.engine.helper.ButtonBase
 import org.wy.engine.helper.DropdownBase
+import org.wy.engine.helper.Placement
 import org.wy.engine.helper.SimpleScrollNode
 import org.wy.engine.helper.SwitchBase
 import org.wy.engine.helper.dialog
@@ -26,10 +27,26 @@ import org.wy.signal.memo
 // ════════════════════════════════════════════════════
 // Select（复用 DropdownBase）
 // ════════════════════════════════════════════════════
+
+/** 8 方向放置（与 [Placement] 枚举同序），供演示页切换。 */
+internal val G_PLACEMENTS = listOf(
+    Placement.BottomStart, Placement.BottomEnd,
+    Placement.TopStart, Placement.TopEnd,
+    Placement.LeftStart, Placement.LeftEnd,
+    Placement.RightStart, Placement.RightEnd,
+)
+
+/** 8 方向的展示标签（与 [G_PLACEMENTS] 同序）。 */
+internal val G_PLACEMENT_LABELS = listOf(
+    "下·左", "下·右", "上·左", "上·右",
+    "左·上", "左·下", "右·上", "右·下",
+)
+
 internal fun StateHolder<Node, List<Node>>.gSelect(
     value: StoreRef<String>,
     options: List<String>,
     focusOrder: Int? = null,
+    placement: () -> Placement = { Placement.BottomStart },
 ): ButtonBase = object : ButtonBase(this) {
     override val focusOrder: Int? get() = focusOrder
     // 宽度包裹内容：grow 模式 + 不覆写 argWidth（子节点为文本 + 定宽箭头）
@@ -41,9 +58,12 @@ internal fun StateHolder<Node, List<Node>>.gSelect(
 
     override fun onClick() {
         val anchor = this
+        // 打开瞬间取当前放置方向（页面级信号经 lambda 读取，避免启动快照）
+        val place = placement()
         engineGlobal.appendPop { pop ->
             object : DropdownBase(this, anchor) {
                 override val panelWidth: Float get() = 150f
+                override val placement: Placement get() = place
 
                 override fun onDismiss() {
                     engineGlobal.removePop(pop)
@@ -67,7 +87,7 @@ internal fun StateHolder<Node, List<Node>>.gSelect(
                             }
 
                             override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                                gText(option, 12f, TEXT, if (option == value.value) 600 else 400)
+                                gText(option, 12f, { TEXT }, if (option == value.value) 600 else 400)
                             }
                         }
                     }
@@ -86,7 +106,7 @@ internal fun StateHolder<Node, List<Node>>.gSelect(
     }
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-        gText(value.value, 12f, TEXT, 500)
+        gText(value.value, 12f, { TEXT }, 500)
         // 下拉箭头（两条斜线）
         object : RectNode(this) {
             override val argWidth: LayoutSize get() = LayoutSize(9f, false)
@@ -153,7 +173,7 @@ internal fun StateHolder<Node, List<Node>>.gTabs(
                 }
 
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    gText(name, 12.5f, if (on) TEXT else TEXT2, if (on) 600 else 450)
+                    gText(name, 12.5f, { if (on) TEXT else TEXT2 }, if (on) 600 else 450)
                 }
             }
         }

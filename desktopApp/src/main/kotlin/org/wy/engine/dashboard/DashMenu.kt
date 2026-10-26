@@ -11,10 +11,12 @@ import org.wy.engine.helper.ButtonBase
 import org.wy.engine.helper.DialogBase
 import org.wy.engine.helper.DropdownBase
 import org.wy.engine.helper.OverlayBase
+import org.wy.engine.helper.Placement
 import org.wy.engine.helper.ScrollBarStyle
 import org.wy.engine.helper.SimpleScrollNode
 import org.wy.engine.helper.dialog
 import org.wy.engine.helper.drag
+import org.wy.engine.helper.resolvePlacement
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.GrowChild
@@ -41,57 +43,78 @@ import kotlin.math.sqrt
 internal fun StateHolder<Node, List<Node>>.dMenu(
     anchor: LayoutNode,
     width: Float = 190f,
+    placement: Placement = Placement.BottomStart,
     onClose: () -> Unit,
     content: StateHolderWithNode<Node, List<Node>>.() -> Unit
-): DropdownBase = object : DropdownBase(this, anchor) {
-    override fun onDismiss() = onClose()
-    override val panelWidth: Float get() = width
+): DropdownBase {
+    // 对象成员 placement 会遮蔽同名参数，进对象前先捕获（与组件库 dropdown() 工厂同款）
+    val place = placement
+    return object : DropdownBase(this, anchor) {
+        override fun onDismiss() = onClose()
+        override val panelWidth: Float get() = width
+        override val placement: Placement get() = place
 
-    override fun StateHolderWithNode<Node, List<Node>>.panel() {
-        // panelWidth 在外层（DropdownBase 对象体）先读出来：内层面板对象里
-        // 没有指向外层匿名对象的标签可用，直接传标量最稳
-        val pw = panelWidth
-        val ox = absoluteX
-        val oy = absoluteY
-        object : RectNode(this), FlexParam {
-            override val layout: LayoutDirection = FlexObject(this)
-            override val direction: Direction get() = Direction.y
-            override val directionJustify: DirectionJustify get() = DirectionJustify.grow
-            override val alignItem: AlignItem get() = AlignItem.stretch
-            override val alignFix: Boolean get() = true
-            override val gap: Float get() = 2f
-            override val argWidth: LayoutSize get() = LayoutSize(pw, false)
+        override fun StateHolderWithNode<Node, List<Node>>.panel() {
+            // 内层面板对象里没有指向外层匿名对象的标签可用，外层量从 panel() 作用域
+            // 捕获：面板宽 / 放置方向取标量，几何量用 lambda 延迟到 argPosition 每次
+            // 布局实时取（与 DropdownBase 默认面板一致，视口随窗口变化不能构建时定格）
+            val pw = panelWidth
+            val place = placement
+            val offY = offsetY
+            val ax = { absoluteX }
+            val ay = { absoluteY }
+            val vw = { outerWidth }
+            val vh = { outerHeight }
+            object : RectNode(this), FlexParam {
+                override val layout: LayoutDirection = FlexObject(this)
+                override val direction: Direction get() = Direction.y
+                override val directionJustify: DirectionJustify get() = DirectionJustify.grow
+                override val alignItem: AlignItem get() = AlignItem.stretch
+                override val alignFix: Boolean get() = true
+                override val gap: Float get() = 2f
+                override val argWidth: LayoutSize get() = LayoutSize(pw, false)
 
-            override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
-                if (direction == Direction.x) 6f else 5f
+                override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
+                    if (direction == Direction.x) 6f else 5f
 
-            override fun argPosition(direction: Direction): Float {
-                val a = anchor
-                return when (direction) {
-                    Direction.x -> a.absoluteX - ox
-                    Direction.y -> a.absoluteY + a.outerHeight + 4f - oy
+                override fun argPosition(direction: Direction): Float {
+                    val a = anchor
+                    // 与 DropdownBase 默认面板一致：8 方向 + 空间不足自动回退 + 贴边
+                    val (px, py) = resolvePlacement(
+                        place,
+                        a.absoluteX - ax(),
+                        a.absoluteY - ay(),
+                        a.outerWidth, a.outerHeight,
+                        outerWidth, outerHeight,
+                        vw(), vh(),
+                        offY,
+                    )
+                    return when (direction) {
+                        Direction.x -> px
+                        Direction.y -> py
+                    }
+                }
+
+                override fun onPointerClick(e: PointerEvent) {
+                    e.stopPropagation()
+                }
+
+                override fun draw(canvas: PlatformCanvas) {
+                    // 阴影先画（被不透明底板盖住内圈），再铺底板 + 描边
+                    canvas.drawShadow(2f, 2f, outerWidth - 4f, outerHeight - 4f, 6f, 12f, rgba(0, 0, 0, 120))
+                    fillOuterRoundRect(canvas, 6f, D_PANE)
+                    strokeOuterRoundRect(canvas, 6f, D_LINE, 1f)
+                    super.draw(canvas)
+                }
+
+                override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+                    content()
                 }
             }
-
-            override fun onPointerClick(e: PointerEvent) {
-                e.stopPropagation()
-            }
-
-            override fun draw(canvas: PlatformCanvas) {
-                // 阴影先画（被不透明底板盖住内圈），再铺底板 + 描边
-                canvas.drawShadow(2f, 2f, outerWidth - 4f, outerHeight - 4f, 6f, 12f, rgba(0, 0, 0, 120))
-                fillOuterRoundRect(canvas, 6f, D_PANE)
-                strokeOuterRoundRect(canvas, 6f, D_LINE, 1f)
-                super.draw(canvas)
-            }
-
-            override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                content()
-            }
         }
-    }
 
-    override fun StateHolderWithNode<Node, List<Node>>.contentChildren() = content()
+        override fun StateHolderWithNode<Node, List<Node>>.contentChildren() = content()
+    }
 }
 
 /** 菜单普通项。 */

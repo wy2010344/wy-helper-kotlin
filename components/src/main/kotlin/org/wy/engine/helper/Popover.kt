@@ -15,6 +15,8 @@ import org.wy.engine.StartEnd
 import org.wy.engine.absoluteX
 import org.wy.engine.absoluteY
 import org.wy.engine.fillOuterRoundRect
+import org.wy.engine.outerHeight
+import org.wy.engine.outerWidth
 import org.wy.engine.rgba
 import org.wy.engine.strokeOuterRoundRect
 import org.wy.engine.layout.FlexObject
@@ -41,6 +43,9 @@ open class PopoverBase(
 
     /** 面板与锚点底部的间距。 */
     open val offsetY: Float get() = 4f
+
+    /** 面板相对锚点区域的放置方向（默认下方；空间不足自动回退见 [resolvePlacement]）。 */
+    open val placement: Placement get() = Placement.BottomStart
 
     /** 面板内容（词条释义等），由子类 / 工厂提供。 */
     override fun StateHolderWithNode<Node, List<Node>>.contentChildren() {}
@@ -76,10 +81,20 @@ open class PopoverBase(
 
             override fun argPosition(direction: Direction): Float {
                 val overlay = this@PopoverBase
+                // 锚点区域 / 自身 / 视口统一换算为浮层根内相对坐标（浮层根即视口），
+                // 8 方向放置 + 空间不足自动回退 + 贴边（见 resolvePlacement）
+                val (px, py) = resolvePlacement(
+                    overlay.placement,
+                    overlay.anchorRect.left - overlay.absoluteX,
+                    overlay.anchorRect.top - overlay.absoluteY,
+                    overlay.anchorRect.width, overlay.anchorRect.height,
+                    outerWidth, outerHeight,
+                    overlay.outerWidth, overlay.outerHeight,
+                    overlay.offsetY,
+                )
                 return when (direction) {
-                    // 锚点区域坐标减去浮层根节点绝对坐标，换算成面板相对根节点的偏移
-                    Direction.x -> overlay.anchorRect.left - overlay.absoluteX
-                    Direction.y -> overlay.anchorRect.bottom + overlay.offsetY - overlay.absoluteY
+                    Direction.x -> px
+                    Direction.y -> py
                 }
             }
 
@@ -110,15 +125,22 @@ open class PopoverBase(
  * @param anchorRect 锚点区域（面板贴其底部显示）
  * @param onClose 关闭回调（Esc / 点击外部）
  * @param width 面板宽度
+ * @param placement 放置方向（默认下方，空间不足自动回退）
  * @param content 面板内容
  */
 fun StateHolder<Node, List<Node>>.popover(
     anchorRect: RectF,
     onClose: () -> Unit,
     width: Float = 280f,
+    placement: Placement = Placement.BottomStart,
     content: StateHolderWithNode<Node, List<Node>>.() -> Unit,
-): PopoverBase = object : PopoverBase(this, anchorRect) {
-    override fun onDismiss() = onClose()
-    override val panelWidth: Float get() = width
-    override fun StateHolderWithNode<Node, List<Node>>.contentChildren() = content()
+): PopoverBase {
+    // 先捕获进局部：对象成员 placement 会遮蔽同名参数，getter 内直接引用会自递归
+    val place = placement
+    return object : PopoverBase(this, anchorRect) {
+        override fun onDismiss() = onClose()
+        override val panelWidth: Float get() = width
+        override val placement: Placement get() = place
+        override fun StateHolderWithNode<Node, List<Node>>.contentChildren() = content()
+    }
 }

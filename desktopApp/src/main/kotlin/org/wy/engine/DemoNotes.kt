@@ -38,8 +38,8 @@ internal fun StateHolder<Node,List<Node>>.dNotesPage(active: StoreRef<DemoTab>, 
                 override val argHeight: LayoutSize get() = LayoutSize(30f, false)
 
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    dLabel({ "笔记编辑器" }, 14f, TEXT, 600)
-                    dButton("清空", { notes.value = "" }, primary = false, width = 72f, height = 28f)
+                    dLabel({ "笔记编辑器" }, 14f, { TEXT }, 600)
+                    dButton({ "清空" }, { notes.value = "" }, primary = false, width = 72f, height = 28f)
                 }
             }
 
@@ -72,7 +72,7 @@ internal fun StateHolder<Node,List<Node>>.dNotesPage(active: StoreRef<DemoTab>, 
                         }
 
                         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                            dLabel({ "Editor" }, 12f, TEXT2, 600)
+                            dLabel({ "Editor" }, 12f, { TEXT2 }, 600)
                             object : EditableTextNode(this), GrowChild {
                                 override fun argGrow(direction: Direction): Float =
                                     if (direction == Direction.y) 1f else 0f
@@ -122,7 +122,7 @@ internal fun StateHolder<Node,List<Node>>.dNotesPage(active: StoreRef<DemoTab>, 
                         }
 
                         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                            dLabel({ "Preview" }, 12f, TEXT2, 600)
+                            dLabel({ "Preview" }, 12f, { TEXT2 }, 600)
                             object : RichTextNode(this) {
                                 override val spans: List<RichTextSpan> get() = previewSpans(notes.value)
 
@@ -136,7 +136,7 @@ internal fun StateHolder<Node,List<Node>>.dNotesPage(active: StoreRef<DemoTab>, 
                                     canvas.restore()
                                 }
                             }
-                            dLabel({ "字数 ${notes.value.length}" }, 11f, TEXT2)
+                            dLabel({ "字数 ${notes.value.length}" }, 11f, { TEXT2 })
                         }
                     }
                 }

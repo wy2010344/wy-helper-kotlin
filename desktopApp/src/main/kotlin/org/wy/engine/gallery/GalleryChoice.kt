@@ -110,8 +110,8 @@ internal fun StateHolder<Node, List<Node>>.gField(
 ) {
     gRow(gap = 8f) {
         control()
-        gText(label, 12f, TEXT, 500)
-        if (hintText != null) gText(hintText, 11f, TEXT2)
+        gText(label, 12f, { TEXT }, 500)
+        if (hintText != null) gText(hintText, 11f, { TEXT2 })
     }
 }
 
@@ -126,7 +126,7 @@ internal fun StateHolder<Node, List<Node>>.gField(
  */
 internal fun StateHolder<Node, List<Node>>.gProgress(
     value: () -> Float,
-    color: ColorInt = ACCENT,
+    color: () -> ColorInt = { ACCENT },
 ): RectNode = object : RectNode(this), FlexParam {
     override val layout: LayoutDirection = FlexObject(this)
     override val direction: Direction get() = Direction.x
@@ -138,7 +138,7 @@ internal fun StateHolder<Node, List<Node>>.gProgress(
         val v = value().coerceIn(0f, 1f)
         fillOuterRoundRect(canvas, 3.5f, G_SUBTLE)
         if (v > 0f) {
-            canvas.fillRoundRect(0f, 0f, outerWidth * v, outerHeight, 3.5f, color)
+            canvas.fillRoundRect(0f, 0f, outerWidth * v, outerHeight, 3.5f, color())
         }
     }
 }
@@ -184,7 +184,7 @@ internal fun StateHolder<Node, List<Node>>.gSkeleton(
 internal fun StateHolder<Node, List<Node>>.gTableCell(
     label: String,
     width: Float,
-    color: ColorInt = TEXT2,
+    color: () -> ColorInt = { TEXT2 },
     weight: Int = 500,
     align: TextAlign = TextAlign.START,
 ): RectNode = object : RectNode(this), FlexParam {
@@ -200,7 +200,7 @@ internal fun StateHolder<Node, List<Node>>.gTableCell(
             override val autoWidth: Boolean get() = false // 宽度从单元格拉伸
             override val text: String get() = label
             override val fontSize: Float get() = 11.5f
-            override val color: ColorInt get() = color
+            override val color: ColorInt get() = color()
             override val fontWeight: Int get() = weight
             override val textAlign: TextAlign get() = align
         }

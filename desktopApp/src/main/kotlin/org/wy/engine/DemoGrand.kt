@@ -9,7 +9,6 @@ import org.jetbrains.skia.Surface
 import org.wy.engine.dashboard.DASH_ACCENT
 import org.wy.engine.dashboard.dDashboardPage
 import org.wy.engine.helper.navItem
-import org.wy.engine.helper.segTabs
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.GrowChild
@@ -62,12 +61,12 @@ internal fun StateHolder<Node,List<Node>>.dStatusBar(active: StoreRef<DemoTab>, 
                             fillOuterOval(canvas, if (toast.value.isEmpty()) GREEN else AMBER)
                         }
                     }
-                    dLabel({ if (toast.value.isEmpty()) "就绪" else toast.value }, 11f, TEXT2)
+                    dLabel({ if (toast.value.isEmpty()) "就绪" else toast.value }, 11f, { TEXT2 })
                 }
             }
             dLabel(
-                { "当前：${active.value.label}  ·  Ctrl+1..5 切换  ·  Ctrl+N 新增  ·  Ctrl+K 搜索" },
-                11f, TEXT2
+                { "当前：${active.value.label}  ·  Ctrl+1..9 切换  ·  Ctrl+T 新建  ·  Ctrl+W 关闭  ·  Ctrl+N 动态  ·  Ctrl+K 搜索" },
+                11f, { TEXT2 }
             )
         }
     }
@@ -99,6 +98,8 @@ internal fun StateHolder<Node,List<Node>>.buildGrandDemo(
     windowWidth: () -> Float = { 0f },
     /** 当前窗口高度（响应式读取）：金融看板据此做盘口行数预算。 */
     windowHeight: () -> Float = { 0f },
+    /** 窗口控制（无边框窗口专用）：null = 有边框 / shot / audit，tab 条不带拖拽与三键。 */
+    win: WindowControls? = null,
 ) {
     val active = createSignal(initialTab)
     val activities = createSignal(defaultActivities())
@@ -106,14 +107,20 @@ internal fun StateHolder<Node,List<Node>>.buildGrandDemo(
     val toast = createSignal("")
     lateinit var searchField: EditableTextNode
 
+    // Chrome 式动态多 tab：初始把目标页型排在首位（侧栏只属于 tabs[0]），
+    // 其余按枚举序全开；active 始终同步激活 tab 的页型（页面 hide / 状态栏读它）
+    val initialTabs = (listOf(initialTab) + DemoTab.values().filter { it != initialTab })
+        .mapIndexed { i, t -> ChromeTab((i + 1).toLong(), t) }
+    val chrome = ChromeTabs(initialTabs, createSignal(initialTabs[0].id), active)
+
     val g = consume(engineGlobalContext)!!
     val dKey = g.registerKeyPress { e ->
         when {
-            e.ctrl && e.key == '1' -> active.value = DemoTab.OVERVIEW
-            e.ctrl && e.key == '2' -> active.value = DemoTab.NOTES
-            e.ctrl && e.key == '3' -> active.value = DemoTab.COMPONENTS
-            e.ctrl && e.key == '4' -> active.value = DemoTab.DASHBOARD
-            e.ctrl && e.key == '5' -> active.value = DemoTab.SETTINGS
+            e.ctrl && e.key in '1'..'9' -> chrome.focusNth(e.key - '1')
+            e.ctrl && e.key == 't' -> chrome.newTab(
+                DemoTab.values()[chrome.tabs.value.size % DemoTab.values().size]
+            )
+            e.ctrl && e.key == 'w' -> chrome.closeTab(chrome.activeId.value)
             e.ctrl && e.key == 'n' -> {
                 activities.value = activities.value +
                     Activity(Date().time, "新任务 ${activities.value.size + 1}", false, "刚刚")
@@ -123,6 +130,9 @@ internal fun StateHolder<Node,List<Node>>.buildGrandDemo(
         }
     }
     addDestroy { dKey() }
+
+    // 标签条（最首位，约 36f；无边框窗口带空白拖拽 + 右上三键）
+    dTabBar(chrome, win)
 
     // 顶栏
     object : RectNode(this), FlexParam {
@@ -156,8 +166,8 @@ internal fun StateHolder<Node,List<Node>>.buildGrandDemo(
                 override val alignItem: AlignItem get() = AlignItem.start
 
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    dLabel({ "WY Engine" }, 15f, TEXT, 700)
-                    dLabel({ "Desktop Framework Demo" }, 10f, TEXT2)
+                    dLabel({ "WY Engine" }, 15f, { TEXT }, 700)
+                    dLabel({ "Desktop Framework Demo" }, 10f, { TEXT2 })
                 }
             }
 
@@ -178,7 +188,7 @@ internal fun StateHolder<Node,List<Node>>.buildGrandDemo(
                 override val fontSize: Float = 13f
                 override val focusOrder: Int? = 0
                 override val singleLine: Boolean = true
-                override val placeholderColor: ColorInt = PLACEHOLDER
+                override val placeholderColor: ColorInt get() = PLACEHOLDER
                 override val argWidth: LayoutSize = LayoutSize(220f, false)
                 override val argHeight: LayoutSize = LayoutSize(32f, false)
 
@@ -208,9 +218,10 @@ internal fun StateHolder<Node,List<Node>>.buildGrandDemo(
                 }
             }
 
-            // 主题快捷开关：argChildren 里读 demoDark 注册依赖，切换时重建出带新标签的按钮
+            // 主题快捷开关：label 走 lambda 活读 demoDark（argChildren 只构建一次），
+            // 切换时段落重算出带新标签的按钮
             dButton(
-                if (demoDark.value) "浅色" else "深色",
+                { if (demoDark.value) "浅色" else "深色" },
                 { setDarkTheme(!demoDark.value) },
                 primary = false, width = 64f, height = 30f
             )
@@ -230,7 +241,7 @@ internal fun StateHolder<Node,List<Node>>.buildGrandDemo(
                             fillOuterOval(canvas, GREEN)
                         }
                     }
-                    dLabel({ "在线" }, 12f, TEXT2)
+                    dLabel({ "在线" }, 12f, { TEXT2 })
                 }
             }
         }
@@ -247,7 +258,7 @@ internal fun StateHolder<Node,List<Node>>.buildGrandDemo(
         override val alignFix: Boolean get() = true
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-            // 侧栏
+            // 侧栏（只属于第一个 tab：激活页不是 tabs[0] 时隐藏，内容区吃满宽度）
             object : RectNode(this), FlexParam {
                 override val layout: LayoutDirection = FlexObject(this)
                 override val direction: Direction get() = Direction.y
@@ -256,6 +267,8 @@ internal fun StateHolder<Node,List<Node>>.buildGrandDemo(
                 override val alignFix: Boolean get() = true
                 override val argWidth: LayoutSize get() = LayoutSize(208f, false)
                 override val gap: Float get() = 4f
+                override val hide: Boolean
+                    get() = chrome.activeId.value != chrome.tabs.value.firstOrNull()?.id
 
                 override fun draw(canvas: PlatformCanvas) {
                     fillOuterRect(canvas, CARD)
@@ -267,41 +280,41 @@ internal fun StateHolder<Node,List<Node>>.buildGrandDemo(
                     if (direction == Direction.x) 12f else 14f
 
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    dLabel({ "导航" }, 11f, TEXT2, 600)
+                    dLabel({ "导航" }, 11f, { TEXT2 }, 600)
                     navItem(
                         label = { "概览" },
                         active = { active.value == DemoTab.OVERVIEW },
-                        onClick = { active.value = DemoTab.OVERVIEW },
+                        onClick = { chrome.openTab(DemoTab.OVERVIEW) },
                         focusOrder = 1,
-                        iconColor = ACCENT
+                        iconColor = { ACCENT }
                     )
                     navItem(
                         label = { "笔记" },
                         active = { active.value == DemoTab.NOTES },
-                        onClick = { active.value = DemoTab.NOTES },
+                        onClick = { chrome.openTab(DemoTab.NOTES) },
                         focusOrder = 2,
-                        iconColor = GREEN
+                        iconColor = { GREEN }
                     )
                     navItem(
                         label = { "组件" },
                         active = { active.value == DemoTab.COMPONENTS },
-                        onClick = { active.value = DemoTab.COMPONENTS },
+                        onClick = { chrome.openTab(DemoTab.COMPONENTS) },
                         focusOrder = 3,
-                        iconColor = ACCENT_HOVER
+                        iconColor = { ACCENT_HOVER }
                     )
                     navItem(
                         label = { "看板" },
                         active = { active.value == DemoTab.DASHBOARD },
-                        onClick = { active.value = DemoTab.DASHBOARD },
+                        onClick = { chrome.openTab(DemoTab.DASHBOARD) },
                         focusOrder = 4,
-                        iconColor = DASH_ACCENT
+                        iconColor = { DASH_ACCENT }
                     )
                     navItem(
                         label = { "设置" },
                         active = { active.value == DemoTab.SETTINGS },
-                        onClick = { active.value = DemoTab.SETTINGS },
+                        onClick = { chrome.openTab(DemoTab.SETTINGS) },
                         focusOrder = 5,
-                        iconColor = AMBER,
+                        iconColor = { AMBER },
                         badge = { 3 }
                     )
 
@@ -310,7 +323,7 @@ internal fun StateHolder<Node,List<Node>>.buildGrandDemo(
                             if (direction == Direction.y) 1f else 0f
                     }
 
-                    dLabel({ "wy-engine · v0.1" }, 11f, TEXT2)
+                    dLabel({ "wy-engine · v0.1" }, 11f, { TEXT2 })
                 }
             }
 
@@ -333,18 +346,7 @@ internal fun StateHolder<Node,List<Node>>.buildGrandDemo(
                 override fun argPadding(direction: Direction, startEnd: StartEnd): Float = 16f
 
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-                    segTabs(
-                        { active.value },
-                        { active.value = it },
-                        listOf(
-                            DemoTab.OVERVIEW to "概览",
-                            DemoTab.NOTES to "笔记",
-                            DemoTab.COMPONENTS to "组件",
-                            DemoTab.DASHBOARD to "看板",
-                            DemoTab.SETTINGS to "设置"
-                        ),
-                        focusOrderOffset = 10
-                    )
+                    // 页面切换已由顶部标签条承担：页面仍自带 hide = active.value != 类型
                     dOverviewPage(active, activities) {
                         activities.value = activities.value +
                             Activity(Date().time, "新任务 ${activities.value.size + 1}", false, "刚刚")
@@ -365,6 +367,9 @@ internal fun StateHolder<Node,List<Node>>.buildGrandDemo(
 
 fun main() {
     object : SkiaApp(1120, 740), FlexParam {
+        /** 完整 Chrome 式：无边框，tab 条承担移动 / 缩放 / 三键。 */
+        override val frameless: Boolean get() = true
+
         override val layout: LayoutDirection = FlexObject(this)
         override val direction: Direction get() = Direction.y
         override val directionJustify: DirectionJustify get() = DirectionJustify.start
@@ -372,7 +377,16 @@ fun main() {
         override val alignFix: Boolean get() = true
 
         override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-            buildGrandDemo(windowWidth = { windowWidth }, windowHeight = { windowHeight })
+            buildGrandDemo(
+                windowWidth = { windowWidth },
+                windowHeight = { windowHeight },
+                win = object : WindowControls {
+                    override fun beginDrag() = beginWindowDrag()
+                    override fun toggleMaximize() = toggleMaximizeWindow()
+                    override fun minimize() = minimizeWindow()
+                    override fun close() = closeWindow()
+                }
+            )
         }
     }
 }

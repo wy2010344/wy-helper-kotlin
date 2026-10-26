@@ -56,14 +56,15 @@ internal fun StateHolder<Node, List<Node>>.dTicket(
         override val contentGap: Float get() = 8f
 
         override fun StateHolderWithNode<Node, List<Node>>.contentChildren() {
-            // ── 买卖 tab ──
+            // ── 买卖 tab（实底强调级：选中买卖色填充 + 白字，对齐 ooc ticket 蓝本）──
             dRow(gap = 6f, height = 28f, padX = 10f) {
                 dTabButton(
                     { "买入 / Buy" },
                     { side.value == "buy" },
                     height = 26f,
                     chipOf = { if (side.value == "buy") D_UP else null },
-                    grow = true
+                    grow = true,
+                    solid = true
                 ) {
                     side.value = "buy"
                     onNote("")
@@ -73,7 +74,8 @@ internal fun StateHolder<Node, List<Node>>.dTicket(
                     { side.value == "sell" },
                     height = 26f,
                     chipOf = { if (side.value == "sell") D_DOWN else null },
-                    grow = true
+                    grow = true,
+                    solid = true
                 ) {
                     side.value = "sell"
                     onNote("")
@@ -171,13 +173,8 @@ internal fun StateHolder<Node, List<Node>>.dTicket(
                 }, 11f, { D_TEXT2 })
             }
 
-            // ── 提交 ──
-            dTabButton(
-                { if (side.value == "buy") "买入" else "卖出" },
-                { true },
-                height = 28f,
-                chipOf = { if (side.value == "buy") D_UP else D_DOWN }
-            ) {
+            // ── 提交（整行实底：买卖色填充 + 白字，压深/白纱反馈，对齐 ooc 蓝本）──
+            dSubmitButton({ side.value }) {
                 val p = priceOf()
                 val qty = if (p > 0) (amount.value.toDoubleOrNull() ?: 0.0) / p else 0.0
                 val verb = if (side.value == "buy") "买入" else "卖出"
@@ -191,6 +188,40 @@ internal fun StateHolder<Node, List<Node>>.dTicket(
                 dText(note, 9f, { D_TEXT3 }, wrap = true)
             }
         }
+    }
+}
+
+/**
+ * 提交按钮：整行实底（ooc ticket 蓝本）——买卖色填充 + 白字 600，
+ * 按压叠深色、悬停覆白纱；宽度沿滚动内容交叉轴拉伸（与数量输入框同机制）。
+ */
+private fun StateHolder<Node, List<Node>>.dSubmitButton(
+    side: () -> String,
+    onClick: () -> Unit
+): ButtonBase = object : ButtonBase(this) {
+    override val debugName: String get() = "提交按钮"
+    override val argHeight: LayoutSize get() = LayoutSize(30f, false)
+
+    override fun onClick() = onClick()
+
+    override fun drawContent(canvas: PlatformCanvas) {
+        fillOuterRoundRect(canvas, 4f, if (side() == "buy") D_UP else D_DOWN)
+        when {
+            pressed -> fillOuterRoundRect(canvas, 4f, rgba(0, 0, 0, 45))
+            hovered -> fillOuterRoundRect(canvas, 4f, rgba(255, 255, 255, 26))
+        }
+    }
+
+    override fun drawFocusRing(canvas: PlatformCanvas) {
+        strokeOuterRing(canvas, 2f, 5f, D_ACCENT, 1.5f)
+    }
+
+    override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+        // 文本色/文案在 lambda 内现算：argChildren 一次性，外面捕获是启动快照
+        dText(
+            { if (side() == "buy") "买入" else "卖出" },
+            12f, { rgba(255, 255, 255) }, 600
+        )
     }
 }
 

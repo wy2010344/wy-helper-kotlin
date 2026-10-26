@@ -138,14 +138,16 @@ open class Button(context: StateHolder<Node, List<Node>>) : ButtonBase(context) 
     }
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-        val c = Theme.current.colors
+        // 主题色在 lambda 内活读：argChildren 只构建一次，捕获 Theme 快照换肤后不更新
         text(
             { label },
             Theme.current.textSize.label,
-            if (enabled) {
-                if (variant == ButtonVariant.Primary) c.onPrimary else c.text
-            } else {
-                c.textDisabled
+            {
+                if (enabled) {
+                    if (variant == ButtonVariant.Primary) Theme.current.colors.onPrimary else Theme.current.colors.text
+                } else {
+                    Theme.current.colors.textDisabled
+                }
             },
             600
         )

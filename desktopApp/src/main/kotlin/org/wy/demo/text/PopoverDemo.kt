@@ -37,9 +37,8 @@ fun main() {
 }
 
 fun StateHolder<Node, List<Node>>.dictionaryTextArea() {
-    val c = Theme.current.colors
-    val r = Theme.current.radius
-
+    // 主题色不在此捕获：argChildren 只构建一次，捕获值换肤后冻结；
+    // draw 内直接读 Theme.current 才能随主题翻转换色
     object : RectNode(this), FlexParam {
         override val layout: LayoutDirection = FlexObject(this)
         override val argWidth: LayoutSize get() = LayoutSize(640f, false)
@@ -57,6 +56,8 @@ fun StateHolder<Node, List<Node>>.dictionaryTextArea() {
         }
 
         override fun draw(canvas: PlatformCanvas) {
+            val c = Theme.current.colors
+            val r = Theme.current.radius
             fillOuterRoundRect(canvas, r.card, c.surface)
             strokeOuterRoundRect(canvas, r.card, c.border, 1f)
             super.draw(canvas)
@@ -106,15 +107,13 @@ fun StateHolder<Node, List<Node>>.dictionaryTextArea() {
 
 /** 词典浮层内容：单词 + 音标 + 分隔线 + 释义 + 例句。 */
 private fun StateHolder<Node, List<Node>>.buildPopoverContent(word: String) {
-    val c = Theme.current.colors
-
     // 单词
     object : WrappedTextNode(this) {
         override val autoWidth: Boolean get() = true
         override val text: String get() = word
         override val fontSize: Float get() = 18f
         override val fontWeight: Int get() = 700
-        override val color: ColorInt get() = c.text
+        override val color: ColorInt get() = Theme.current.colors.text
     }
 
     // 词性 + 音标
@@ -129,7 +128,7 @@ private fun StateHolder<Node, List<Node>>.buildPopoverContent(word: String) {
     object : RectNode(this) {
         override val argHeight: LayoutSize get() = LayoutSize(1f, false)
         override fun draw(canvas: PlatformCanvas) {
-            fillOuterRect(canvas, c.border)
+            fillOuterRect(canvas, Theme.current.colors.border)
             super.draw(canvas)
         }
     }
@@ -139,7 +138,7 @@ private fun StateHolder<Node, List<Node>>.buildPopoverContent(word: String) {
         override val autoWidth: Boolean get() = true
         override val text: String get() = "1. A book or electronic resource that lists words and gives their meanings."
         override val fontSize: Float get() = 13f
-        override val color: ColorInt get() = c.text
+        override val color: ColorInt get() = Theme.current.colors.text
     }
 
     // 例句
@@ -147,7 +146,7 @@ private fun StateHolder<Node, List<Node>>.buildPopoverContent(word: String) {
         override val autoWidth: Boolean get() = true
         override val text: String get() = "\"She looked up the word in the dictionary.\""
         override val fontSize: Float get() = 12f
-        override val color: ColorInt get() = c.textSecondary
+        override val color: ColorInt get() = Theme.current.colors.textSecondary
         override val italic: Boolean get() = true
     }
 }

@@ -40,7 +40,7 @@ fun main() {
                                 dialog({
                                     engineGlobal.removePop(pop)
                                 }, width = 340f) {
-                                    text({ "登录" }, 15f, rgba(40, 40, 60), 700)
+                                    text({ "登录" }, 15f, { rgba(40, 40, 60) }, 700)
                                     textField({ input }, { input = it }, width = 300f)
                                     row(gap = 8f) {
                                         object : Button(this@row) {

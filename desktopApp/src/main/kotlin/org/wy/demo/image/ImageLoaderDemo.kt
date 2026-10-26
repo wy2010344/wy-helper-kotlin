@@ -136,7 +136,7 @@ private fun StateHolder<Node, List<Node>>.asyncCard(
         // 右侧：描述 + 状态 + 操作按钮（直接平铺，避免 flex 嵌套）
         text(
             { "$title\n$url" },
-            13f, rgba(40, 44, 60), 600,
+            13f, { rgba(40, 44, 60) }, 600,
         )
         text(
             {
@@ -147,7 +147,7 @@ private fun StateHolder<Node, List<Node>>.asyncCard(
                     CardState.Failed -> "失败"
                 }}  ·  已请求总数：${totalFetches()}"
             },
-            11f, rgba(130, 132, 148), 400,
+            11f, { rgba(130, 132, 148) }, 400,
         )
         object : Button(this@row) {
             override val label: String get() =

@@ -31,7 +31,7 @@ fun main() {
                         override val label: String get() = "显示 Toast (2s)"
                         override fun onClick() {
                             toast(durationMs = 2000L) {
-                                text({ "操作成功！这是一条轻提示。" }, 13f, rgba(255, 255, 255))
+                                text({ "操作成功！这是一条轻提示。" }, 13f, { rgba(255, 255, 255) })
                             }
                         }
                     }
@@ -40,7 +40,7 @@ fun main() {
                         override val variant: ButtonVariant get() = ButtonVariant.Secondary
                         override fun onClick() {
                             toast(durationMs = 5000L) {
-                                text({ "这是一条较长的提示（5 秒后消失）。" }, 13f, rgba(255, 255, 255))
+                                text({ "这是一条较长的提示（5 秒后消失）。" }, 13f, { rgba(255, 255, 255) })
                             }
                         }
                     }
@@ -53,13 +53,13 @@ fun main() {
                         override val variant: ButtonVariant get() = ButtonVariant.Secondary
                         override fun onClick() {
                             toast(durationMs = 2000L) {
-                                text({ "Toast 1 — 2 秒后消失" }, 13f, rgba(255, 255, 255))
+                                text({ "Toast 1 — 2 秒后消失" }, 13f, { rgba(255, 255, 255) })
                             }
                             toast(durationMs = 3000L) {
-                                text({ "Toast 2 — 3 秒后消失" }, 13f, rgba(255, 255, 255))
+                                text({ "Toast 2 — 3 秒后消失" }, 13f, { rgba(255, 255, 255) })
                             }
                             toast(durationMs = 4000L) {
-                                text({ "Toast 3 — 4 秒后消失" }, 13f, rgba(255, 255, 255))
+                                text({ "Toast 3 — 4 秒后消失" }, 13f, { rgba(255, 255, 255) })
                             }
                         }
                     }

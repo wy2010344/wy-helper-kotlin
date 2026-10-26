@@ -156,8 +156,8 @@ internal fun StateHolder<Node, List<Node>>.gCard(
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
         // 标题 / 说明换行（autoWidth=false → 从父级拉伸并按容器宽折行）：
         // 卡片是 stretch 列，文本宽度 = 卡片内宽，引擎按该宽排版、高度随之包裹
-        gText(title, 13f, TEXT, 650, wrap = true)
-        gText(desc, 11f, TEXT2, wrap = true)
+        gText(title, 13f, { TEXT }, 650, wrap = true)
+        gText(desc, 11f, { TEXT2 }, wrap = true)
         content()
     }
 }
@@ -167,18 +167,19 @@ internal fun StateHolder<Node, List<Node>>.gCard(
  * 默认 autoWidth（宽度=文本宽，用于行内标签 / 徽标内文字等包裹场景。
  * 注意：放在「包裹行」（justify=grow 且无 grow 子节点）里的文本必须保持
  * autoWidth——否则文本宽度要从行分配，而行宽正在量文本，构成重复进入。
+ * [color] 用 lambda 活读主题色（argChildren 只构建一次，传值会冻结旧色板）。
  */
 internal fun StateHolder<Node, List<Node>>.gText(
     label: String,
     size: Float = 12f,
-    color: ColorInt = TEXT,
+    color: () -> ColorInt = { TEXT },
     weight: Int = 400,
     wrap: Boolean = false
 ): WrappedTextNode = object : WrappedTextNode(this) {
     override val autoWidth: Boolean get() = !wrap
     override val text: String get() = label
     override val fontSize: Float get() = size
-    override val color: ColorInt get() = color
+    override val color: ColorInt get() = color()
     override val fontWeight: Int get() = weight
 }
 

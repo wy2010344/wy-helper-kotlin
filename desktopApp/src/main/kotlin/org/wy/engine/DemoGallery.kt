@@ -83,6 +83,7 @@ internal fun StateHolder<Node, List<Node>>.dGalleryPage(
     private val level = createSignal(0.62f)
     private val plan = createSignal("专业版")
     private val tab = createSignal(0)
+    private val placementIdx = createSignal(0)
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
         // 页面自己滚动：正好用来体验浮层滚动条
@@ -103,6 +104,7 @@ internal fun StateHolder<Node, List<Node>>.dGalleryPage(
                     level = level,
                     plan = plan,
                     tab = tab,
+                    placementIdx = placementIdx,
                 )
             }
         }
@@ -121,17 +123,18 @@ private fun StateHolderWithNode<Node, List<Node>>.galleryContent(
     level: StoreRef<Float>,
     plan: StoreRef<String>,
     tab: StoreRef<Int>,
+    placementIdx: StoreRef<Int>,
 ) {
     // 页头
     gCol(gap = 4f) {
         gRow(gap = 8f) {
-            gText("组件库", 19f, TEXT, 700)
+            gText("组件库", 19f, { TEXT }, 700)
             gBadge("shadcn/ui 风格", BadgeKind.Secondary)
             gBadge("27 个组件", BadgeKind.Outline)
         }
         gText(
             "交互基类在 skia-engine，样式与变体在 demo 层——按下 / 悬停 / 聚焦 / 禁用四态齐全，Tab 可逐项遍历。",
-            11.5f, TEXT2, wrap = true
+            11.5f, { TEXT2 }, wrap = true
         )
     }
 
@@ -155,7 +158,7 @@ private fun StateHolderWithNode<Node, List<Node>>.galleryContent(
                 gRow(gap = 8f) {
                     gButton("小尺寸", BtnKind.Secondary, small = true, focusOrder = 106)
                     gButton("间距一致", BtnKind.Outline, small = true, focusOrder = 107)
-                    gText("hover / 按下 / 焦点环", 10.5f, PLACEHOLDER)
+                    gText("hover / 按下 / 焦点环", 10.5f, { PLACEHOLDER })
                 }
             }
         },
@@ -175,10 +178,10 @@ private fun StateHolderWithNode<Node, List<Node>>.galleryContent(
                     gBadge("已逾期", BadgeKind.Danger)
                 }
                 gRow(gap = 8f) {
-                    gAvatar("WY", ACCENT)
-                    gAvatar("KT", GREEN)
-                    gAvatar("Z", AMBER, withDot = true)
-                    gText("30px · 圆形裁切", 10.5f, PLACEHOLDER)
+                    gAvatar("WY", { ACCENT })
+                    gAvatar("KT", { GREEN })
+                    gAvatar("Z", { AMBER }, withDot = true)
+                    gText("30px · 圆形裁切", 10.5f, { PLACEHOLDER })
                 }
             }
         }
@@ -232,33 +235,54 @@ private fun StateHolderWithNode<Node, List<Node>>.galleryContent(
                 "方向键可微调 5%，拖拽按像素换算"
             ) {
                 gRow(gap = 10f) {
-                    gText("专注强度", 12f, TEXT, 500)
+                    gText("专注强度", 12f, { TEXT }, 500)
                     slider({ level.value }, { level.value = it }, focusOrder = 131, grow = true)
-                    gText("${(level.value * 100).toInt()}%", 11.5f, TEXT2)
+                    gText("${(level.value * 100).toInt()}%", 11.5f, { TEXT2 })
                 }
                 gRow(gap = 8f, justify = DirectionJustify.between) {
-                    gText("本周目标", 11.5f, TEXT2)
-                    gText("${(level.value * 40).toInt()} / 40h", 11.5f, TEXT2, 550)
+                    gText("本周目标", 11.5f, { TEXT2 })
+                    gText("${(level.value * 40).toInt()} / 40h", 11.5f, { TEXT2 }, 550)
                 }
                 gProgress({ level.value })
-                gProgress({ level.value * 0.6f }, color = GREEN)
-                gProgress({ level.value * 0.3f }, color = AMBER)
+                gProgress({ level.value * 0.6f }, color = { GREEN })
+                gProgress({ level.value * 0.3f }, color = { AMBER })
             }
         },
         {
             gCard(
                 "Select 下拉选择",
-                "面板锚定触发器，点击外部 / Esc 关闭"
+                "8 方向放置，空间不足自动回退到对侧；点击外部 / Esc 关闭"
             ) {
                 gRow(gap = 8f) {
-                    gText("当前套餐", 12f, TEXT2)
-                    gSelect(plan, listOf("免费版", "专业版", "团队版", "企业版"), focusOrder = 141)
+                    gText("当前套餐", 12f, { TEXT2 })
+                    gSelect(
+                        plan,
+                        listOf("免费版", "专业版", "团队版", "企业版"),
+                        focusOrder = 141,
+                        placement = { G_PLACEMENTS[placementIdx.value] },
+                    )
+                }
+                // 8 方向切换（两行各 4 个）：renderForEach 读 placementIdx，
+                // 点选后按键态重建按钮（选中态 Default，其余 Outline）
+                listOf(0, 4).forEach { rowStart ->
+                    renderForEach({ callback -> callback(placementIdx.value, Unit) }) { idx, _ ->
+                        gRow(gap = 6f) {
+                            for (i in rowStart until rowStart + 4) {
+                                gButton(
+                                    G_PLACEMENT_LABELS[i],
+                                    if (idx == i) BtnKind.Default else BtnKind.Outline,
+                                    small = true,
+                                    focusOrder = 161 + i,
+                                ) { placementIdx.value = i }
+                            }
+                        }
+                    }
                 }
                 gRow(gap = 6f) {
                     gBadge("按 Esc 关闭", BadgeKind.Outline)
                     gBadge("点击外部关闭", BadgeKind.Outline)
                 }
-                gText("面板内可 Tab 遍历，关闭后焦点回到触发器。", 10.5f, PLACEHOLDER, wrap = true)
+                gText("面板内可 Tab 遍历，关闭后焦点回到触发器。", 10.5f, { PLACEHOLDER }, wrap = true)
             }
         }
     )
@@ -266,5 +290,9 @@ private fun StateHolderWithNode<Node, List<Node>>.galleryContent(
     // ── 第四、五行（弹层 / 标签页 + 表格 / 骨架屏）──
     // 拆至 gallery/GalleryPanels.kt：仅依赖 narrow 与 tab，页面只做组装
     galleryPanels(narrow, tab)
+
+    // ── 第六行（右键菜单 ContextMenu）──
+    // 拆至 gallery/GalleryOverlay.kt：仅依赖 narrow，页面只做组装
+    galleryOverlay(narrow)
 }
 

@@ -80,7 +80,7 @@ fun <T> StateHolder<Node, List<Node>>.segTabs(
                     text(
                         { name },
                         Theme.current.textSize.label,
-                        if (isOn) Theme.current.colors.primary else Theme.current.colors.textSecondary,
+                        { if (isOn) Theme.current.colors.primary else Theme.current.colors.textSecondary },
                         if (isOn) 600 else 400
                     )
                 }

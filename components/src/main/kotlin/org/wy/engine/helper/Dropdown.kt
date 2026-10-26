@@ -16,6 +16,7 @@ import org.wy.engine.absoluteX
 import org.wy.engine.absoluteY
 import org.wy.engine.fillOuterRoundRect
 import org.wy.engine.outerHeight
+import org.wy.engine.outerWidth
 import org.wy.engine.strokeOuterRoundRect
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
@@ -40,6 +41,9 @@ open class DropdownBase(
 
     /** 面板与锚点底部的间距。 */
     open val offsetY: Float get() = 4f
+
+    /** 面板相对锚点的放置方向（默认锚点下方；空间不足自动回退见 [resolvePlacement]）。 */
+    open val placement: Placement get() = Placement.BottomStart
 
     /**
      * 锚离树（隐藏/销毁）时浮层自动隐藏：hide 派生自锚活性，
@@ -72,10 +76,20 @@ open class DropdownBase(
             override fun argPosition(direction: Direction): Float {
                 val a = anchor
                 val overlay = this@DropdownBase
+                // 锚点 / 自身 / 视口统一换算为浮层根内相对坐标（浮层根即视口），
+                // 8 方向放置 + 空间不足自动回退 + 贴边（见 resolvePlacement）
+                val (px, py) = resolvePlacement(
+                    overlay.placement,
+                    a.absoluteX - overlay.absoluteX,
+                    a.absoluteY - overlay.absoluteY,
+                    a.outerWidth, a.outerHeight,
+                    outerWidth, outerHeight,
+                    overlay.outerWidth, overlay.outerHeight,
+                    overlay.offsetY,
+                )
                 return when (direction) {
-                    // 锚点绝对坐标减去浮层根节点绝对坐标，换算成面板相对根节点的偏移
-                    Direction.x -> a.absoluteX - overlay.absoluteX
-                    Direction.y -> a.absoluteY + a.outerHeight + overlay.offsetY - overlay.absoluteY
+                    Direction.x -> px
+                    Direction.y -> py
                 }
             }
 
@@ -109,15 +123,22 @@ open class DropdownBase(
  * @param anchor 锚点节点（面板贴其底部显示）
  * @param onClose 关闭回调（Esc / 点击外部）
  * @param width 面板宽度
+ * @param placement 放置方向（默认下方，空间不足自动回退）
  * @param content 面板内容（下拉项等）
  */
 fun StateHolder<Node, List<Node>>.dropdown(
     anchor: LayoutNode,
     onClose: () -> Unit,
     width: Float = 160f,
+    placement: Placement = Placement.BottomStart,
     content: StateHolderWithNode<Node, List<Node>>.() -> Unit,
-): DropdownBase = object : DropdownBase(this, anchor) {
-    override fun onDismiss() = onClose()
-    override val panelWidth: Float get() = width
-    override fun StateHolderWithNode<Node, List<Node>>.contentChildren() = content()
+): DropdownBase {
+    // 先捕获进局部：对象成员 placement 会遮蔽同名参数，getter 内直接引用会自递归
+    val place = placement
+    return object : DropdownBase(this, anchor) {
+        override fun onDismiss() = onClose()
+        override val panelWidth: Float get() = width
+        override val placement: Placement get() = place
+        override fun StateHolderWithNode<Node, List<Node>>.contentChildren() = content()
+    }
 }

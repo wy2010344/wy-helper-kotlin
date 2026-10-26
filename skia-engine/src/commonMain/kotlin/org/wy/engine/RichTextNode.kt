@@ -43,8 +43,26 @@ open class RichTextNode(
     /** 单行溢出时的水平滚动量：绘制整体左移该值，保证光标可见。 */
     protected open val textOffsetX: Float get() = 0f
 
-    /** 文本绘制原点 x：单行模式下即 padding 起点左移 [textOffsetX]。 */
-    protected val textOriginX: Float get() = paddingInlineStart - textOffsetX
+    /**
+     * 无限宽排版下的行对齐平移量（对齐在绘制原点上补偿）。
+     *
+     * 段落按无限宽排版时若仍传 END/CENTER，SkParagraph 会把对齐烘进无穷宽坐标系，
+     * 字形被推到无穷远处，超出内容盒裁剪后整列文字消失。因此无限宽统一按 START
+     * 排版，再把对齐平移到 [textOriginX] 上——绘制、选区、命中、光标同源一致。
+     */
+    private val noWrapAlignShift: Float
+        get() {
+            if (autoWidth || !noWrap) return 0f
+            val p = paragraph ?: return 0f
+            return when (textAlign) {
+                TextAlign.CENTER -> (innerWidth - p.width) / 2f
+                TextAlign.END -> innerWidth - p.width
+                else -> 0f
+            }
+        }
+
+    /** 文本绘制原点 x：padding 起点左移 [textOffsetX]，再叠加无限宽对齐平移。 */
+    protected val textOriginX: Float get() = paddingInlineStart - textOffsetX + noWrapAlignShift
 
     protected val paragraph by memo {
         if (fullText.isEmpty()) return@memo null
@@ -57,7 +75,8 @@ open class RichTextNode(
             if (autoWidth || noWrap) Float.MAX_VALUE else innerWidth,
             maxLines,
             ellipsis,
-            textAlign
+            // 无限宽排版下行对齐会在无穷宽内计算，把字形推到盒外被裁掉；对齐改由 textOriginX 平移补偿
+            if (autoWidth || noWrap) TextAlign.START else textAlign
         )
     }
 
