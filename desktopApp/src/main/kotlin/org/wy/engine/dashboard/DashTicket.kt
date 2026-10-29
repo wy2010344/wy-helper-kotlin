@@ -56,136 +56,140 @@ internal fun StateHolder<Node, List<Node>>.dTicket(
         override val contentGap: Float get() = 8f
 
         override fun StateHolderWithNode<Node, List<Node>>.contentChildren() {
-            // ── 买卖 tab（实底强调级：选中买卖色填充 + 白字，对齐 ooc ticket 蓝本）──
-            dRow(gap = 6f, height = 28f, padX = 10f) {
-                dTabButton(
-                    { "买入 / Buy" },
-                    { side.value == "buy" },
-                    height = 26f,
-                    chipOf = { if (side.value == "buy") D_UP else null },
-                    grow = true,
-                    solid = true
-                ) {
-                    side.value = "buy"
-                    onNote("")
-                }
-                dTabButton(
-                    { "卖出 / Sell" },
-                    { side.value == "sell" },
-                    height = 26f,
-                    chipOf = { if (side.value == "sell") D_DOWN else null },
-                    grow = true,
-                    solid = true
-                ) {
-                    side.value = "sell"
-                    onNote("")
-                }
-            }
-
-            // ── 限价行 ──
-            dRow(gap = 8f, height = 16f, padX = 10f, justify = DirectionJustify.between) {
-                dText({ "Limit price" }, 9.5f, { D_TEXT3 }, 600)
-                dRow(gap = 6f, height = 14f) {
-                    dText({ fmtPrice(priceOf()) }, 11f, { D_TEXT })
-                    // ×按钮走 renderForEach：结构 if 读 limitPrice 是启动快照，
-                    // 点盘口价填入限价后 × 永远出不来
-                    renderForEach({ callback ->
-                        if (limitPrice.value != null) callback(0, Unit)
-                    }) { _, _ ->
-                        dTabButton({ "×" }, { false }, height = 14f, padX = 4f) {
-                            limitPrice.value = null
-                        }
-                    }
-                }
-            }
-
-            // ── Amount(USDT) 行：右侧为名义金额 ──
-            dRow(gap = 8f, height = 16f, padX = 10f, justify = DirectionJustify.between) {
-                dText({ "Amount (USDT)" }, 9.5f, { D_TEXT3 }, 600)
-                // 名义金额在文本 lambda 内现算：argChildren 一次性，
-                // 外面捕获 total 是启动快照，输入/改价后不更新
-                dText({
-                    val total = priceOf() * (amount.value.toDoubleOrNull() ?: 0.0)
-                    if (total > 0) fmtPrice(total) else "0.00"
-                }, 11f, { D_TEXT })
-            }
-
-            // ── 数量输入框 ──
-            object : EditableTextNode(this) {
-                override var text: String
-                    get() = amount.value
-                    set(v) {
-                        amount.value = v
+            // 统一内缩：各行、输入框、提交按钮都装在同一列里吃 10px 横向内边距 +
+            // 8px 上下留白，避免输入框 / 提交按钮贴到窗格边缘、与文本行左右不对齐。
+            dCol(gap = 8f, padX = 10f, padY = 8f) {
+                // ── 买卖 tab（实底强调级：选中买卖色填充 + 白字，对齐 ooc ticket 蓝本）──
+                dRow(gap = 6f, height = 28f) {
+                    dTabButton(
+                        { "买入 / Buy" },
+                        { side.value == "buy" },
+                        height = 26f,
+                        chipOf = { if (side.value == "buy") D_UP else null },
+                        grow = true,
+                        solid = true
+                    ) {
+                        side.value = "buy"
                         onNote("")
                     }
-
-                override val singleLine: Boolean = true
-                override val fontSize: Float = 13f
-                override val textAlign: TextAlign = TextAlign.END
-                override val cursorColor: ColorInt get() = D_ACCENT
-                override val selectionColor: ColorInt = rgba(76, 141, 255, 70)
-                override val placeholderColor: ColorInt get() = D_TEXT3
-                override val argHeight: LayoutSize = LayoutSize(28f, false)
-
-                init {
-                    placeholder = "0.05"
+                    dTabButton(
+                        { "卖出 / Sell" },
+                        { side.value == "sell" },
+                        height = 26f,
+                        chipOf = { if (side.value == "sell") D_DOWN else null },
+                        grow = true,
+                        solid = true
+                    ) {
+                        side.value = "sell"
+                        onNote("")
+                    }
                 }
 
-                override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
-                    if (direction == Direction.x) 8f else 4f
-
-                override fun draw(canvas: PlatformCanvas) {
-                    fillOuterRoundRect(canvas, 4f, rgba(0, 0, 0, 60))
-                    strokeOuterRoundRect(
-                        canvas, 4f,
-                        if (isFocused) D_ACCENT else D_LINE_SOFT,
-                        if (isFocused) 1.5f else 1f
-                    )
-                    super.draw(canvas)
-                }
-            }
-
-            // ── 25 / 50 / 75 / MAX ──
-            dRow(gap = 6f, height = 20f, padX = 10f) {
-                listOf(0.25 to "25%", 0.5 to "50%", 0.75 to "75%", 1.0 to "MAX").forEach { (r, label) ->
-                    dTabButton({ label }, { false }, height = 18f, padX = 0f, grow = true) {
-                        val p = priceOf()
-                        if (p > 0) {
-                            amount.value = String.format(
-                                java.util.Locale.US, "%.6f", TICKET_BALANCE * r / p
-                            )
-                            onNote("")
-                        } else {
-                            onNote("等待行情…")
+                // ── 限价行 ──
+                dRow(gap = 8f, height = 16f, justify = DirectionJustify.between) {
+                    dText({ "Limit price" }, 9.5f, { D_TEXT3 }, 600)
+                    dRow(gap = 6f, height = 14f) {
+                        dText({ fmtPrice(priceOf()) }, 11f, { D_TEXT })
+                        // ×按钮走 renderForEach：结构 if 读 limitPrice 是启动快照，
+                        // 点盘口价填入限价后 × 永远出不来
+                        renderForEach({ callback ->
+                            if (limitPrice.value != null) callback(0, Unit)
+                        }) { _, _ ->
+                            dTabButton({ "×" }, { false }, height = 14f, padX = 4f) {
+                                limitPrice.value = null
+                            }
                         }
                     }
                 }
-            }
 
-            // ── Est. qty ──
-            dRow(gap = 8f, height = 16f, padX = 10f, justify = DirectionJustify.between) {
-                dText({ "Est. qty" }, 9.5f, { D_TEXT3 }, 600)
-                // 数量在文本 lambda 内现算：同上，捕获快照不随输入/改价更新
-                dText({
+                // ── Amount(USDT) 行：右侧为名义金额 ──
+                dRow(gap = 8f, height = 16f, justify = DirectionJustify.between) {
+                    dText({ "Amount (USDT)" }, 9.5f, { D_TEXT3 }, 600)
+                    // 名义金额在文本 lambda 内现算：argChildren 一次性，
+                    // 外面捕获 total 是启动快照，输入/改价后不更新
+                    dText({
+                        val total = priceOf() * (amount.value.toDoubleOrNull() ?: 0.0)
+                        if (total > 0) fmtPrice(total) else "0.00"
+                    }, 11f, { D_TEXT })
+                }
+
+                // ── 数量输入框 ──
+                object : EditableTextNode(this) {
+                    override var text: String
+                        get() = amount.value
+                        set(v) {
+                            amount.value = v
+                            onNote("")
+                        }
+
+                    override val singleLine: Boolean = true
+                    override val fontSize: Float = 13f
+                    override val textAlign: TextAlign = TextAlign.END
+                    override val cursorColor: ColorInt get() = D_ACCENT
+                    override val selectionColor: ColorInt = rgba(76, 141, 255, 70)
+                    override val placeholderColor: ColorInt get() = D_TEXT3
+                    override val argHeight: LayoutSize = LayoutSize(28f, false)
+
+                    init {
+                        placeholder = "0.05"
+                    }
+
+                    override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
+                        if (direction == Direction.x) 8f else 4f
+
+                    override fun draw(canvas: PlatformCanvas) {
+                        fillOuterRoundRect(canvas, 4f, rgba(0, 0, 0, 60))
+                        strokeOuterRoundRect(
+                            canvas, 4f,
+                            if (isFocused) D_ACCENT else D_LINE_SOFT,
+                            if (isFocused) 1.5f else 1f
+                        )
+                        super.draw(canvas)
+                    }
+                }
+
+                // ── 25 / 50 / 75 / MAX ──
+                dRow(gap = 6f, height = 20f) {
+                    listOf(0.25 to "25%", 0.5 to "50%", 0.75 to "75%", 1.0 to "MAX").forEach { (r, label) ->
+                        dTabButton({ label }, { false }, height = 18f, padX = 0f, grow = true) {
+                            val p = priceOf()
+                            if (p > 0) {
+                                amount.value = String.format(
+                                    java.util.Locale.US, "%.6f", TICKET_BALANCE * r / p
+                                )
+                                onNote("")
+                            } else {
+                                onNote("等待行情…")
+                            }
+                        }
+                    }
+                }
+
+                // ── Est. qty ──
+                dRow(gap = 8f, height = 16f, justify = DirectionJustify.between) {
+                    dText({ "Est. qty" }, 9.5f, { D_TEXT3 }, 600)
+                    // 数量在文本 lambda 内现算：同上，捕获快照不随输入/改价更新
+                    dText({
+                        val p = priceOf()
+                        val qty = if (p > 0) (amount.value.toDoubleOrNull() ?: 0.0) / p else 0.0
+                        fmtQty(qty)
+                    }, 11f, { D_TEXT2 })
+                }
+
+                // ── 提交（整行实底：买卖色填充 + 白字，压深/白纱反馈，对齐 ooc 蓝本）──
+                dSubmitButton({ side.value }) {
                     val p = priceOf()
                     val qty = if (p > 0) (amount.value.toDoubleOrNull() ?: 0.0) / p else 0.0
-                    fmtQty(qty)
-                }, 11f, { D_TEXT2 })
-            }
+                    val verb = if (side.value == "buy") "买入" else "卖出"
+                    onNote("模拟$verb ${fmtQty(qty)} — 未提交交易所")
+                }
 
-            // ── 提交（整行实底：买卖色填充 + 白字，压深/白纱反馈，对齐 ooc 蓝本）──
-            dSubmitButton({ side.value }) {
-                val p = priceOf()
-                val qty = if (p > 0) (amount.value.toDoubleOrNull() ?: 0.0) / p else 0.0
-                val verb = if (side.value == "buy") "买入" else "卖出"
-                onNote("模拟$verb ${fmtQty(qty)} — 未提交交易所")
-            }
-
-            // ── 提示行 ──
-            // 换行文本必须放在纵向容器里：交叉轴拉伸取宽（父级只读它的高度）。
-            // 若放进横向 dRow，父级会回读它的宽度 → sizeFromParent → 布局重入崩溃。
-            dCol(gap = 0f, height = 26f, padX = 10f) {
-                dText(note, 9f, { D_TEXT3 }, wrap = true)
+                // ── 提示行 ──
+                // 换行文本必须放在纵向容器里：交叉轴拉伸取宽（父级只读它的高度）。
+                // 若放进横向 dRow，父级会回读它的宽度 → sizeFromParent → 布局重入崩溃。
+                dCol(gap = 0f, height = 26f) {
+                    dText(note, 9f, { D_TEXT3 }, wrap = true)
+                }
             }
         }
     }

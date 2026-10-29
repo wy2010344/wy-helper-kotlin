@@ -10,6 +10,7 @@ import org.jetbrains.skia.Surface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.wy.engine.dashboard.MarketData
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.LayoutDirection
@@ -323,10 +324,11 @@ private fun debugTree(w: Int, tab: DemoTab, h: Int = 1560) {
     root.render(PlatformCanvas(surface.canvas))
     fun dump(n: Node, depth: Int, ox: Float, oy: Float) {
         if (n is LayoutNode) {
-            val name = n::class.simpleName ?: "?"
+            // 匿名对象显示类名恒为 `?`，优先用 debugName 才能在树里认出业务节点
+            val name = n.debugName ?: n::class.simpleName ?: "?"
             val ax = ox + n.x
             val ay = oy + n.y
-            if (depth <= 9) {
+            if (depth <= 12) {
                 println(
                     "%s%s @ (%.0f,%.0f) %.0fx%.0f".format(
                         "  ".repeat(depth), name, ax, ay, n.outerWidth, n.outerHeight
@@ -518,6 +520,15 @@ private fun shotMain() {
         if (dw == 1120) continue
         val n = dashShots[dw]!!
         println("[dash w=$dw] candles red = " + colorBox(n, 200, 180, dw - 220, dh - 180, dashUp))
+    }
+    // 实时 K 线探针：rev=0 应为静态快照；rev 前进时末根在走、每 10 个心跳滚出新根
+    for (r in listOf(0, 3, 10, 37)) {
+        val ks = MarketData.liveKlines("BTCUSDT", "15m", r)
+        val last = ks.last()
+        println(
+            "[dash] klines rev=$r size=${ks.size} last=" + last.time +
+                " o=" + last.open + " c=" + last.close + " closed=" + last.closed
+        )
     }
 
     // ── 深色模式验证 ──

@@ -116,6 +116,7 @@ internal fun StateHolder<Node, List<Node>>.dCol(
     grow: Boolean = false,
     growY: Boolean = false,
     padX: Float = 0f,
+    padY: Float = 0f,
     width: Float? = null,
     // 动态宽度通道：argChildren 只执行一次（StateHolderI.create 契约），
     // width = signal.value 是启动时刻快照；走 lambda 让 argWidth getter
@@ -138,7 +139,7 @@ internal fun StateHolder<Node, List<Node>>.dCol(
             get() = (widthOf?.invoke() ?: width)?.let { LayoutSize(it, false) } ?: super.argWidth
 
         override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
-            if (direction == Direction.x) padX else 0f
+            if (direction == Direction.x) padX else padY
 
         override fun argGrow(direction: Direction): Float = when (direction) {
             Direction.x -> if (grow) 1f else 0f

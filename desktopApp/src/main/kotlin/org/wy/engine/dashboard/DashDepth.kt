@@ -265,28 +265,37 @@ internal fun StateHolder<Node, List<Node>>.depthCanvas(
             fun area(side: DepthGeom.Side, color: ColorInt, stepAfter: Boolean) {
                 val n = side.prices.size
                 if (n < 2) return
-                val path = Path()
-                path.moveTo(xOf(side.prices[0]), ph)
+                // 填充用闭合 path（含落在坐标轴上的两条边），描边只走阶梯折线本身：
+                // 复用同一个闭合 path 描边会把底轴水平段与两端竖段也画出来，
+                // 表现为"折线压在坐标轴上"。
+                val fill = Path()
+                val line = Path()
+                fill.moveTo(xOf(side.prices[0]), ph)
                 var prevY = yOf(side.totals[0])
-                path.lineTo(xOf(side.prices[0]), prevY)
+                fill.lineTo(xOf(side.prices[0]), prevY)
+                line.moveTo(xOf(side.prices[0]), prevY)
                 for (i in 1 until n) {
                     val x = xOf(side.prices[i])
                     val y = yOf(side.totals[i])
                     if (stepAfter) {
                         // 先横后竖：前一点的累计量保持到本价位再跳变
-                        path.lineTo(x, prevY)
-                        path.lineTo(x, y)
+                        fill.lineTo(x, prevY)
+                        fill.lineTo(x, y)
+                        line.lineTo(x, prevY)
+                        line.lineTo(x, y)
                     } else {
                         // 先竖后横：在本价位先跳变再水平延伸
-                        path.lineTo(xOf(side.prices[i - 1]), y)
-                        path.lineTo(x, y)
+                        fill.lineTo(xOf(side.prices[i - 1]), y)
+                        fill.lineTo(x, y)
+                        line.lineTo(xOf(side.prices[i - 1]), y)
+                        line.lineTo(x, y)
                     }
                     prevY = y
                 }
-                path.lineTo(xOf(side.prices[n - 1]), ph)
-                path.close()
-                canvas.fillPath(path, color.withAlpha(0.16f))
-                canvas.strokePath(path, color.withAlpha(0.75f), 1.2f)
+                fill.lineTo(xOf(side.prices[n - 1]), ph)
+                fill.close()
+                canvas.fillPath(fill, color.withAlpha(0.16f))
+                canvas.strokePath(line, color.withAlpha(0.75f), 1.2f)
             }
             area(geo.bid, D_UP, stepAfter = false)
             area(geo.ask, D_DOWN, stepAfter = true)

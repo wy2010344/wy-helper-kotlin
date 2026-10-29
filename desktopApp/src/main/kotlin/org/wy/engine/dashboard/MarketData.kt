@@ -133,6 +133,10 @@ object MarketData {
     private val depthCache = HashMap<String, Depth>()
     private val tradesCache = HashMap<String, List<Trade>>()
 
+    // 实时 K 线单条缓存：klines() 每帧调用，同一 rev 内复用整条游走结果
+    private var liveCacheKey: Triple<String, String, Int>? = null
+    private var liveCacheValue: List<Candle> = emptyList()
+
     fun tickOf(symbol: String): Double = tickSize[symbol] ?: 0.01
 
     /** 1 分钟基准序列（各周期由它聚合而来）。 */
@@ -197,6 +201,85 @@ object MarketData {
                 out.takeLast(500)
             }
         }
+
+    /** 实时心跳下滚出一根新 K 线所需的 rev 数（300ms/rev）。 */
+    private const val LIVE_TICKS = 10
+
+    /**
+     * 带行情心跳的 K 线：[rev] = 0 时直接返回静态快照（截图逐像素可复现）。
+     *
+     * 每 [LIVE_TICKS] 个心跳滚出一根新 K 线，最后一根是「正在走」的未收盘 K 线。
+     *
+     * 实时段用**确定性随机游走**生成（种子由 symbol/interval 固定；第 i 根的取数
+     * 次数与可见窗口无关），因此同一 rev 每次求值完全一致。波动率、影线与成交量
+     * 都与静态序列同量级，渲染出来是正常蜡烛；同时每根做 2% 的弱均值回归，
+     * 长时间运行也不会漂移到与页头报价脱节。
+     *
+     * 旧实现用两条低频正弦叠加当价格（振幅仅 0.07%），实时段连起来是一条平滑
+     * 小波浪、看不出蜡烛实体——这是「新进入数据像波浪」的根因。
+     */
+    fun liveKlines(symbol: String, interval: String, rev: Int): List<Candle> {
+        val base = klinesOf(symbol, interval)
+        if (rev <= 0 || base.isEmpty()) return base
+        val key = Triple(symbol, interval, rev)
+        // klines() 每帧都会调用；同一 rev 内复用，避免每帧重算整条游走
+        if (liveCacheKey == key) return liveCacheValue
+
+        val stepMs = minutesOf(interval) * 60_000L
+        val anchor = base.last().close
+        // 与静态序列同量级：单根约 0.11% 的价格波动
+        val vol = anchor * 0.0011
+        val avgVol = base.takeLast(60).sumOf { it.volume } / 60.0
+        // 固定种子：同一根 K 线在任意 rev 下都取到同一组随机数
+        val rng = Rng(
+            symbol.hashCode().toLong() * -0x61c8864680b583ebL xor
+                (interval.hashCode().toLong() * 0x2545F4914F6CDD1DL)
+        )
+
+        val rolled = rev / LIVE_TICKS
+        val phase = (rev % LIVE_TICKS).toDouble() / LIVE_TICKS
+        // 已收盘：第 1..rolled 根；正在走的是第 rolled+1 根（phase 走完才收盘）
+        val liveIndex = rolled + 1
+        val from = maxOf(1, liveIndex - 499)
+
+        val live = ArrayList<Candle>(liveIndex - from + 1)
+        var price = anchor
+        for (i in 1..liveIndex) {
+            val open = price
+            // 弱均值回归 + 高斯噪声。**先取完本根全部随机数再按窗口过滤**：
+            // from 随 rev 变化，若过滤后才取数会改变后续序列，跨 rev 就不一致了。
+            val delta = (anchor - open) * 0.02 + rng.gaussian() * vol
+            val wickHi = rng.range(0.05, 0.7) * vol
+            val wickLo = rng.range(0.05, 0.7) * vol
+            val volFactor = rng.range(0.55, 1.45)
+            val full = open + delta
+            price = full
+            if (i < from) continue
+
+            val closed = i <= rolled
+            val close = if (closed) full else open + delta * phase
+            val hiW = wickHi * (if (closed) 1.0 else phase)
+            val loW = wickLo * (if (closed) 1.0 else phase)
+            val volume = avgVol * volFactor * (1.0 + abs(delta) / vol * 0.25) *
+                (if (closed) 1.0 else phase)
+            live.add(
+                Candle(
+                    base.last().time + i * stepMs,
+                    open,
+                    maxOf(open, close) + hiW,
+                    minOf(open, close) - loW,
+                    close,
+                    volume,
+                    closed
+                )
+            )
+        }
+        // 与静态序列同量级（500 根）：静态历史在前，实时段接在后面
+        return (base + live).takeLast(500).also {
+            liveCacheKey = key
+            liveCacheValue = it
+        }
+    }
 
     /** 24h 概览（以最后 1440 根 1m 为窗口）。 */
     fun tickerOf(symbol: String): Ticker = tickerCache.getOrPut(symbol) {

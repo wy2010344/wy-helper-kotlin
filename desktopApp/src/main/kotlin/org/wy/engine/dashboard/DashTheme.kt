@@ -45,6 +45,8 @@ private val DK_PANE_HEAD = rgba(22, 28, 39)
 private val DK_PLOT = rgba(13, 17, 24)
 private val DK_LINE = rgba(255, 255, 255, 15)
 private val DK_LINE_SOFT = rgba(255, 255, 255, 8)
+// 分割带底色：对应 web 的 bg-white/[0.02]（在盘口行之间拉出层次）
+private val DK_BAND = rgba(255, 255, 255, 5)
 private val DK_TEXT = rgba(230, 234, 242)
 // 次要文字与 demo 深色板同步提亮一档，层级仍弱于 DK_TEXT
 private val DK_TEXT2 = rgba(178, 188, 206)
@@ -62,6 +64,8 @@ private val LT_PANE_HEAD = rgba(248, 250, 252)
 private val LT_PLOT = rgba(255, 255, 255)
 private val LT_LINE = rgba(30, 41, 59, 15)
 private val LT_LINE_SOFT = rgba(30, 41, 59, 8)
+// 浅色下对应 web 的 bg-white/[0.02]：用极淡的墨色代替白色叠加
+private val LT_BAND = rgba(30, 41, 59, 6)
 private val LT_TEXT = rgba(30, 41, 59)
 private val LT_TEXT2 = rgba(100, 116, 139)
 private val LT_TEXT3 = rgba(148, 163, 184)
@@ -85,6 +89,7 @@ internal val D_PANE_HEAD get() = if (demoDark.value) DK_PANE_HEAD else LT_PANE_H
 internal val D_PLOT get() = if (demoDark.value) DK_PLOT else LT_PLOT
 internal val D_LINE get() = if (demoDark.value) DK_LINE else LT_LINE
 internal val D_LINE_SOFT get() = if (demoDark.value) DK_LINE_SOFT else LT_LINE_SOFT
+internal val D_BAND get() = if (demoDark.value) DK_BAND else LT_BAND
 internal val D_TEXT get() = if (demoDark.value) DK_TEXT else LT_TEXT
 internal val D_TEXT2 get() = if (demoDark.value) DK_TEXT2 else LT_TEXT2
 internal val D_TEXT3 get() = if (demoDark.value) DK_TEXT3 else LT_TEXT3

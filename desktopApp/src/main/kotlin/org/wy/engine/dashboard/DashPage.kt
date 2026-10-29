@@ -126,6 +126,13 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
     // ── 行情心跳：盘口/深度的版本号，300ms 节流 +1，消费方按 rev 取数 ──
     private val marketRev = createSignal(0)
 
+    // 看历史时冻结的行情快照：offset>0 表示用户已滚离最新端。
+    // 实时段每 3 秒 append 一根，会让 takeLast(500) 窗口持续左滑、历史视图跟着右漂，
+    // 拖拽因此不跟手；冻结后平移基于固定总长，与真实交易终端「看历史不自动滚」一致。
+    private val frozenSym = createSignal("")
+    private val frozenIv = createSignal("")
+    private val frozenView = createSignal<List<Candle>?>(null)
+
     /** 心跳订阅句柄：null = 未订阅（holder 重建后由 argChildren 重新拉起）。 */
     private var tickSub: FrameSubscription? = null
     // ── 布局尺寸（持久化，口径对齐 ooc layout.ts：加载 clamp / 拖拽落盘 / 重置清除）──
@@ -268,11 +275,30 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
             // 中列：K 线 + 行情活动
             dCol(gap = 0f, grow = true) {
                 dPane("Chart", hintOf = { interval.value }, grow = true) {
-                    dChartPane(
-                        klines = { MarketData.klinesOf(symbol.value, interval.value) },
-                        count = chartCount,
-                        offset = chartOffset
-                    )
+                dChartPane(
+                    // 实时段每 10 个心跳滚一根新 K 线（末根随心跳走，rev=0 为静态快照）。
+                    // 钉在最新(offset==0)时实时跟随；滚离最新(offset>0)时冻结当前快照，
+                    // 实时增长不再顶入窗口，左右拖拽才跟手。
+                    klines = {
+                        val sym = symbol.value
+                        val iv = interval.value
+                        if (sym != frozenSym.value || iv != frozenIv.value) {
+                            frozenSym.value = sym
+                            frozenIv.value = iv
+                            frozenView.value = null
+                        }
+                        if (chartOffset.value == 0) {
+                            frozenView.value = null
+                            MarketData.liveKlines(sym, iv, marketRev.value)
+                        } else {
+                            frozenView.value
+                                ?: MarketData.liveKlines(sym, iv, marketRev.value)
+                                    .also { frozenView.value = it }
+                        }
+                    },
+                    count = chartCount,
+                    offset = chartOffset
+                )
                 }
                 dSplitH({ centerMiddle.value }, 120f, 420f, -1f) { centerMiddle.value = it; saveLayout() }
                 // 深度图窗格（拆至 DashActivity.kt；对齐 ooc：Depth/Trades 各自独立不做 tab）

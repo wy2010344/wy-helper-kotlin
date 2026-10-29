@@ -270,6 +270,15 @@ internal fun StateHolder<Node, List<Node>>.dOrderbook(
                 override val gap: Float get() = 0f
                 override val hide: Boolean get() = mode.value == "bids"
 
+                override fun draw(canvas: PlatformCanvas) {
+                    // 对齐 web 的 overflow-hidden：行数下限 3 大于块高时行会溢出，
+                    // 裁在自己的块内，避免压到列头 / 中间带。
+                    canvas.save()
+                    canvas.clipRect(0f, 0f, outerWidth, outerHeight)
+                    super.draw(canvas)
+                    canvas.restore()
+                }
+
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
                     // 行列表走 renderForEach：forEach lambda 里读 viewOf()（心跳
                     // rev / 窗口高 / 精度 / 条口径都是它的依赖），信号一变按
@@ -284,6 +293,57 @@ internal fun StateHolder<Node, List<Node>>.dOrderbook(
                 }
             }
 
+            // ── 卖盘 Avg.&Sum（对齐 web：卖盘汇总紧贴中间带上沿）──
+            renderForEach({ callback ->
+                if (avgSum.value) callback(0, Unit)
+            }) { _, _ ->
+                dRow(gap = 8f, height = 15f, padX = 10f) {
+                    dText({ "AVG ${fmtPrice(BookMath.summary(viewOf().asks).avg)}" }, 9f, { D_DOWN })
+                    dSpacer()
+                    dText({ "Σ ${fmtTotal(BookMath.summary(viewOf().asks).sum, !rounding.value)}" }, 9f, { D_TEXT3 })
+                }
+            }
+
+            // ── 中间分割带：最新价 + 涨跌箭头 + 价差 ──
+            // 对齐 web（orderbook.ooc）：夹在卖盘汇总与买盘之间，整宽淡底色 + 上下 1px 描边；
+            // 内容仍全部走 lambda 读活信号（心跳 / 切币后原地刷新）。
+            object : RectNode(this), FlexParam, GrowChild {
+                override val debugName: String get() = "盘口中间带"
+                override val layout: LayoutDirection = FlexObject(this)
+                override val direction: Direction get() = Direction.x
+                override val directionJustify: DirectionJustify get() = DirectionJustify.start
+                override val alignItem: AlignItem get() = AlignItem.center
+                override val alignFix: Boolean get() = true
+                override val gap: Float get() = 8f
+                override val argHeight: LayoutSize get() = LayoutSize(28f, false)
+
+                override fun argPadding(direction: Direction, startEnd: StartEnd): Float =
+                    if (direction == Direction.x) 10f else 0f
+
+                override fun draw(canvas: PlatformCanvas) {
+                    fillOuterRect(canvas, D_BAND)
+                    canvas.fillRect(0f, 0f, outerWidth, 1f, D_LINE_SOFT)
+                    canvas.fillRect(0f, outerHeight - 1f, outerWidth, 1f, D_LINE_SOFT)
+                    super.draw(canvas)
+                }
+
+                override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
+                    val upOf = { (ticker()?.change ?: 0.0) >= 0 }
+                    dText({ fmtPrice(ticker()?.last) }, 15f, { if (upOf()) D_UP else D_DOWN }, 600)
+                    dText({ if (upOf()) "↑" else "↓" }, 10f, { if (upOf()) D_UP else D_DOWN })
+                    dSpacer()
+                    dText(
+                        {
+                            val d = depth()
+                            val ask = d?.asks?.firstOrNull()?.price ?: 0.0
+                            val bid = d?.bids?.firstOrNull()?.price ?: 0.0
+                            if (ask > 0 && bid > 0) "Spread ${fmtPrice(ask - bid)}" else "Spread --"
+                        },
+                        9.5f, { D_TEXT3 }
+                    )
+                }
+            }
+
             // ── 买盘（最优价贴中间行）──
             val bidsBlock = object : RectNode(this), FlexParam, GrowChild {
                 override fun argGrow(direction: Direction): Float = if (direction == Direction.y) 1f else 0f
@@ -294,6 +354,14 @@ internal fun StateHolder<Node, List<Node>>.dOrderbook(
                 override val alignFix: Boolean get() = true
                 override val gap: Float get() = 0f
                 override val hide: Boolean get() = mode.value == "asks"
+
+                override fun draw(canvas: PlatformCanvas) {
+                    // 同卖盘：overflow-hidden 兜底，行溢出时裁在块内（不压到比例条）。
+                    canvas.save()
+                    canvas.clipRect(0f, 0f, outerWidth, outerHeight)
+                    super.draw(canvas)
+                    canvas.restore()
+                }
 
                 override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
                     renderForEach({ callback ->
@@ -306,39 +374,15 @@ internal fun StateHolder<Node, List<Node>>.dOrderbook(
                 }
             }
 
-            // asksBlock / bidsBlock 已在上面按文档序注册（构造即入树）
-
-            // ── Avg.&Sum（renderForEach：开关关闭时不建任何行）──
+            // ── 买盘 Avg.&Sum（对齐 web：买盘汇总在买盘下方）──
             renderForEach({ callback ->
                 if (avgSum.value) callback(0, Unit)
             }) { _, _ ->
-                dRow(gap = 8f, height = 15f, padX = 10f) {
-                    dText({ "AVG ${fmtPrice(BookMath.summary(viewOf().asks).avg)}" }, 9f, { D_DOWN })
-                    dSpacer()
-                    dText({ "Σ ${fmtTotal(BookMath.summary(viewOf().asks).sum, !rounding.value)}" }, 9f, { D_TEXT3 })
-                }
                 dRow(gap = 8f, height = 15f, padX = 10f) {
                     dText({ "AVG ${fmtPrice(BookMath.summary(viewOf().bids).avg)}" }, 9f, { D_UP })
                     dSpacer()
                     dText({ "Σ ${fmtTotal(BookMath.summary(viewOf().bids).sum, !rounding.value)}" }, 9f, { D_TEXT3 })
                 }
-            }
-
-            // ── 中间行：最新价 + 涨跌箭头 + 价差（内容全走 lambda 读活信号）──
-            dRow(gap = 8f, height = 28f, padX = 10f) {
-                val upOf = { (ticker()?.change ?: 0.0) >= 0 }
-                dText({ fmtPrice(ticker()?.last) }, 15f, { if (upOf()) D_UP else D_DOWN }, 600)
-                dText({ if (upOf()) "↑" else "↓" }, 10f, { if (upOf()) D_UP else D_DOWN })
-                dSpacer()
-                dText(
-                    {
-                        val d = depth()
-                        val ask = d?.asks?.firstOrNull()?.price ?: 0.0
-                        val bid = d?.bids?.firstOrNull()?.price ?: 0.0
-                        if (ask > 0 && bid > 0) "Spread ${fmtPrice(ask - bid)}" else "Spread --"
-                    },
-                    9.5f, { D_TEXT3 }
-                )
             }
 
             // ── B/S 比例条（renderForEach：开关关闭时不建）──
@@ -348,13 +392,11 @@ internal fun StateHolder<Node, List<Node>>.dOrderbook(
                 dRow(gap = 6f, height = 16f, padX = 10f) {
                     dText({ "B ${fmtShare(viewOf().buyRatio)}%" }, 9f, { D_UP }, 600, width = 42f)
                     // 轨道：卖色淡底；填充：买色，宽度 = 买盘占比
-                    object : RectNode(this), FlexParam, GrowChild {
+                    // 纯叶子节点（无子节点）不要挂 layout：一旦声明成 FlexObject，
+                    // argSize 会按「由子节点撑起」求值，无子节点 → 宽度恒为 0（轨道不显示）。
+                    object : RectNode(this), GrowChild {
                         override fun argGrow(direction: Direction): Float =
                             if (direction == Direction.x) 1f else 0f
-                        override val layout: LayoutDirection = FlexObject(this)
-                        override val direction: Direction get() = Direction.x
-                        override val alignItem: AlignItem get() = AlignItem.center
-                        override val alignFix: Boolean get() = true
                         override val argHeight: LayoutSize get() = LayoutSize(3f, false)
 
                         override fun draw(canvas: PlatformCanvas) {

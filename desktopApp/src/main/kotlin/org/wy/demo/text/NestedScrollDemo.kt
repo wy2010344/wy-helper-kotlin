@@ -113,11 +113,9 @@ fun StateHolder<Node, List<Node>>.innerHorizontalScroll() {
             }
         }
 
-        override fun onPointerWheel(e: PointerEvent) {
-            // 横向滚动只响应横向滚轮（Shift+滚轮），纵向滚轮放行给外层
-            if (!engineGlobal.shift) return
-            super.onPointerWheel(e)
-        }
+        // 无需覆写 onPointerWheel：SimpleScrollNode 只消费与自身滚动轴同向的增量
+        // （横向容器只认 wheelDeltaX），纵向滚轮会自动放行给外层纵向容器。
+        // 桌面端 Shift+滚轮已被宿主映射为 wheelDeltaX（AWT 无横向分量）。
     }
 }
 
