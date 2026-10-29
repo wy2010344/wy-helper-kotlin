@@ -199,7 +199,11 @@ internal object LayoutDep {
         append("    1) 让该节点有确定尺寸（不依赖父级）。宽度由内容测量得出时，\n")
         append("       写成 LayoutSize(测得宽度, false)；高度同理。\n")
         append("    2) 让该节点成为 grow 子节点，由父级分配尺寸，父级便不会回读它：\n")
-        append("       object : …, GrowChild { override fun argGrow(d) = 1f }")
+        append("       object : …, GrowChild { override fun argGrow(d) = 1f }\n")
+        append("  排查顺序（「没有子节点的尺寸」这类 LayoutError 的真凶常常是父容器）：\n")
+        append("    a) 父容器带 children 却没指定 layout —— 给它一个 flex 布局；\n")
+        append("    b) 子节点在该轴上没有自身尺寸 —— 给显式尺寸，或让父容器拉伸分配；\n")
+        append("    c) 该子节点本就不该参与布局 —— 标 notInLayout。")
     }
 
     /** 渲染依赖链；[from] 为环起点索引（-1 表示无重复，仅列出当前链）。 */

@@ -145,8 +145,9 @@ abstract class Flex : FlexObject<LayoutNode> ,LayoutDirection{
             get() = this@Flex.alignFix
 
         override fun align(n: LayoutNode): Align? {
-            if(n is AlignChild){
-                when(direction){
+            // 注意：这里必须 return，否则 when 只是语句、值被丢弃 → AlignChild 自对齐永远失效
+            if (n is AlignChild) {
+                return when (direction) {
                     Direction.x -> n.alignY
                     Direction.y -> n.alignX
                 }

@@ -342,6 +342,25 @@ fun LayoutNode.sizeFromParent(direction: Direction): LayoutSize {
         if (LayoutDep.probeMode) {
             return LayoutDep.probeTrack(this, direction, lp)
         }
+        // 提前判环：父级该轴的尺寸也来自子节点 ⇒ 父要子、子要父，必然成环。
+        // 等到 memo 重入再报，看到的只是"某个 memo 被重复进入"，指不到节点
+        // （环闭合在 memo 上，本地栈根本看不到重复）。
+        //
+        // 只在「本节点确实参与父级布局」时判：notInLayout 的不在父级的测量
+        // 范围里，父级尺寸并不依赖它（真问题是 layoutIndex 取不到）。
+        if (LayoutDep.enabled && !notInLayout &&
+            lp.layoutValue(direction).allowSizeFromChildren
+        ) {
+            throw LayoutCycleError(
+                "布局依赖成环：${sizeEdgeText(this, direction)} 向父级索要尺寸，" +
+                    "而父级 ${sizeEdgeText(lp, direction)} 该轴的尺寸也来自子节点" +
+                    "（父要子、子要父）。\n" +
+                    "修法（二选一）：\n" +
+                    "  1) 让 ${sizeEdgeText(this, direction)} 有确定尺寸" +
+                    "（不依赖父级），宽度由内容测量得出时写成 LayoutSize(测得宽度, false)；\n" +
+                    "  2) 让它成为 grow 子节点，由父级分配尺寸，父级便不会回读它。"
+            )
+        }
         return LayoutDep.track(this, direction) {
             LayoutSize(
                 lp.layoutValue(direction).childSize(layoutIndex),
@@ -350,6 +369,13 @@ fun LayoutNode.sizeFromParent(direction: Direction): LayoutSize {
         }
     }
     throw Error("未找到父节点")
+}
+
+/** 「业务名(宽/高)」——出现在成环报错里，比类名 + 序号好定位一个数量级。 */
+private fun sizeEdgeText(n: LayoutNode, direction: Direction): String {
+    val name = n.debugName ?: (n::class.simpleName ?: "Node")
+    val dir = if (direction == Direction.x) "宽" else "高"
+    return "$name($dir)"
 }
 
 fun LayoutNode.sizeFromChildren(direction: Direction): LayoutSize {

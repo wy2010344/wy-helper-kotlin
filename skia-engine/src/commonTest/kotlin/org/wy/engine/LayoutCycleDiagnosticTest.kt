@@ -1,6 +1,9 @@
 package org.wy.engine
 
 import kotlin.test.Test
+import org.wy.engine.layout.FlexObject
+import org.wy.engine.layout.FlexParam
+import org.wy.engine.layout.LayoutDirection
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -88,6 +91,57 @@ class LayoutCycleDiagnosticTest {
         assertTrue(chainAt >= 0, "报告应含依赖链段：$msg")
         val chain = msg.substring(chainAt)
         assertTrue(chain.contains("[A容器"), "环起点应被 [ ] 包住：$msg")
+    }
+
+    /** 主轴 grow（尺寸来自子项）的父容器，用于验证「提前判环」。 */
+    private fun growParent(name: String?): LayoutNode =
+        object : RectNode(holder()), FlexParam {
+            override val debugName: String? get() = name
+            override val layout: LayoutDirection = FlexObject(this)
+        }
+
+    /**
+     * 提前判环：父级该轴的尺寸来自子项时，**不必等 memo 重入**就点名父子 + 轴。
+     *
+     * 环闭合在 memo 上，本地栈看不到重复进入；等重入再报只能看到
+     * "某个 memo 被重复进入"，指不到节点。
+     */
+    @Test
+    fun earlyCycleIsDetectedBeforeMemoReentry() {
+        val child = node("按钮")
+        val parent = growParent("卡片")
+        setLayoutParentForTest(child, parent)
+
+        val err = assertFailsWith<LayoutCycleError> {
+            child.sizeFromParent(Direction.y)
+        }
+        val msg = err.message ?: ""
+        assertContains(msg, "按钮")
+        assertContains(msg, "卡片")
+        assertContains(msg, "父要子、子要父")
+        assertContains(msg, "(高)")
+    }
+
+    /**
+     * notInLayout 的子节点不在父级的测量范围里，父级尺寸并不依赖它 ——
+     * 不该被扣成环的帽子（真问题是 layoutIndex 取不到）。
+     */
+    @Test
+    fun notInLayoutChildIsNotLabeledAsCycle() {
+        val child = object : RectNode(holder()) {
+            override val debugName: String? get() = "浮层"
+            override val notInLayout: Boolean get() = true
+        }
+        setLayoutParentForTest(child, growParent("卡片"))
+
+        val err = assertFailsWith<LayoutCycleError> {
+            child.sizeFromParent(Direction.y)
+        }
+        val msg = err.message ?: ""
+        assertTrue(
+            !msg.contains("父要子、子要父"),
+            "notInLayout 的子节点不该被判成环：$msg"
+        )
     }
 
     // ── 2. 不误报 ──────────────────────────────────────────────

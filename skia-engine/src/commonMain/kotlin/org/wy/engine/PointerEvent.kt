@@ -12,8 +12,8 @@ enum class PointerType {
     /**
      * 双击：两次点击（时间间隔与落点都接近）中的第二次额外派发此事件。
      *
-     * 与浏览器一致，双击**不会**吞掉普通单击——同一次双击仍会先派发 [Click]
-     * 再派发本事件，因此只关心单击的节点无需为双击做任何特殊处理。
+     * 与 Flutter / Compose 的手势语义一致，双击**不会**吞掉普通单击——同一次双击
+     * 仍会先派发 [Click] 再派发本事件，因此只关心单击的节点无需为双击做任何特殊处理。
      */
     DoubleClick,
 
@@ -102,7 +102,12 @@ class PointerEvent(
     val rootY: Float = 0f,
     val buttons: Int = 0,
     val pressure: Float = 1f,
+    /** 垂直滚轮增量（旧字段，语义等价于 wheelDeltaY，保留以兼容既有读取方） */
     val wheelDelta: Float = 0f,
+    /** 水平滚轮增量（触控板横向滑动 / 带横向滚轮的设备） */
+    val wheelDeltaX: Float = 0f,
+    /** 垂直滚轮增量 */
+    val wheelDeltaY: Float = 0f,
     val button: Int = 0
 ) {
     var stoppedProgression = false

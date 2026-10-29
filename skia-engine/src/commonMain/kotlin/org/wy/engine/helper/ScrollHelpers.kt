@@ -70,8 +70,22 @@ open class SimpleScrollNode(
     val innerScroll = Scroll(this, direction, context)
 
     override fun onPointerWheel(e: PointerEvent) {
-        // 同向嵌套：内层纵向先消费，滚到底（返回 0）再放行给外层
-        innerScroll.scroll(e.wheelDelta)
+        // 同向嵌套：内层先消费，滚到底（返回 0）再放行给外层。
+        //
+        // 陷阱：这里必须取**滚动方向** `scrollDirection`，绝不能取 `direction`。
+        // `direction` 是容器布局方向，恰好是 `scrollDirection.opposite`
+        // （纵向滚动时内容与滚动条横排，故 direction = x）。用 `direction` 判断会把
+        // 纵向滚轮错读成 `wheelDeltaX`——桌面端横向增量恒为 0，于是「只能横向滚、
+        // 不能纵向滚」（之前正是这个 bug）。等价写法：`innerScroll.direction`。
+        //
+        // 滚轮增量按滚动方向取对应轴：纵向取 wheelDeltaY，横向取 wheelDeltaX，
+        // 与 TS 侧 Scroll 的 `scroll.direction === 'y' ? wheelDeltaY : wheelDeltaX` 同义。
+        val delta = if (scrollDirection == Direction.y) e.wheelDeltaY else e.wheelDeltaX
+        // 本轴没有分量就放行：不要把交叉轴滚轮吞掉（否则横向父容器收不到 Shift+滚轮），
+        // 与 Flutter Scrollable「只消费自身滚动轴的 delta」及 TS `scrollWheel` 的
+        // `if (delta === 0) return` 一致。同向嵌套仍在 Scroll.scroll 内由 parentScroll 接续。
+        if (delta == 0f) return
+        innerScroll.scroll(delta)
         e.stopPropagation()
     }
 

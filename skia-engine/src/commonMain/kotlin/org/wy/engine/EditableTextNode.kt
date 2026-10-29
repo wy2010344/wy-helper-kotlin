@@ -106,6 +106,18 @@ open class EditableTextNode(
 
     open val singleLine: Boolean get() = false
 
+    /**
+     * 单行回车 / 多行 Ctrl+Enter 的提交回调（对齐 TS `onSubmit`）。
+     * 默认空实现：无提交语义；表单 / 搜索框等覆盖此属性触发提交。
+     */
+    open val onSubmit: () -> Unit get() = {}
+
+    /**
+     * 是否消费 Tab 键插入制表符（仅多行生效）。默认 false —— 保留焦点遍历
+     * （表单里 Tab 在字段间跳转）。代码编辑器等需要缩进语义时覆盖为 true。
+     */
+    open val tabInsert: Boolean get() = false
+
     /** 单行输入即不折行：段落按无限宽排版，溢出部分裁剪 + 水平跟随光标。 */
     override val noWrap: Boolean get() = singleLine
 
@@ -625,6 +637,7 @@ open class EditableTextNode(
                     e.shift -> selectHome()
                     else -> moveHome()
                 }
+                preferredX = Float.NaN
                 return true
             }
             e.code == KeyCode.End -> {
@@ -634,16 +647,29 @@ open class EditableTextNode(
                     e.shift -> selectEnd()
                     else -> moveEnd()
                 }
+                preferredX = Float.NaN
                 return true
             }
             e.code == KeyCode.PageUp -> { if (e.shift) selectPageUp() else movePageUp(); return true }
             e.code == KeyCode.PageDown -> { if (e.shift) selectPageDown() else movePageDown(); return true }
             e.code == KeyCode.Up -> { if (e.shift) selectUp() else moveUp(); return true }
             e.code == KeyCode.Down -> { if (e.shift) selectDown() else moveDown(); return true }
-            e.code == KeyCode.Enter -> { if (!singleLine) insertText("\n"); preferredX = Float.NaN; return true }
-            e.code == KeyCode.Tab -> { if (!singleLine) { insertText("\t"); return true }; return false }
+            e.code == KeyCode.Enter -> {
+                // 单行回车即提交；多行回车换行，Ctrl/Cmd+Enter 才提交
+                if (singleLine) onSubmit() else if (e.ctrl || e.meta) onSubmit() else insertText("\n")
+                preferredX = Float.NaN
+                return true
+            }
+            e.code == KeyCode.Tab -> {
+                // 默认不消费 Tab，交给上层做焦点遍历；tabInsert 开启时才插入制表符
+                if (tabInsert && !singleLine) { insertText("\t"); return true }
+                return false
+            }
             e.ctrl || e.alt -> return false
             e.key.code < 0x20 || e.key.code == 0x7F -> return false
+            // 组合输入进行中：键盘由输入法独占（此时 e.key 多为 KEYCODE_UNKNOWN /
+            // 过程串），不再按可打印字符插入，避免把组合态键码录成字面量
+            composingText.isNotEmpty() -> return false
             else -> {
                 preferredX = Float.NaN
                 endComposition(restore = false) // 裸字符键放行时放弃进行中的组合
@@ -791,7 +817,7 @@ open class EditableTextNode(
         val pos = displayToLogicIndex(
             p.getGlyphPositionAtCoordinate(
                 e.x - textOriginX,
-                e.y - paddingBlockStart
+                e.y - textOriginY
             )
         )
         setCursor(pos)
@@ -803,17 +829,17 @@ open class EditableTextNode(
             val list = p.getRectsForRange(pos, pos + 1, RectStyle.TIGHT)
             if (list.isNotEmpty()) {
                 return (absoluteX + textOriginX + list[0].left) to
-                       (absoluteY + paddingBlockStart + list[0].top)
+                       (absoluteY + textOriginY + list[0].top)
             }
             if (pos > 0) {
                 val r = p.getRectsForRange(pos - 1, pos, RectStyle.TIGHT)
                 if (r.isNotEmpty()) {
                     return (absoluteX + textOriginX + r[0].right) to
-                           (absoluteY + paddingBlockStart + r[0].top)
+                           (absoluteY + textOriginY + r[0].top)
                 }
             }
         }
-        return absoluteX + textOriginX to absoluteY + paddingBlockStart
+        return absoluteX + textOriginX to absoluteY + textOriginY
     }
 
     override fun draw(canvas: PlatformCanvas) {
@@ -836,7 +862,7 @@ open class EditableTextNode(
         if (p == null) {
             canvas.fillRect(
                 textOriginX,
-                paddingBlockStart,
+                textOriginY,
                 cursorWidth,
                 max(fontSize * 1.4f, 8f),
                 cursorColor
@@ -845,7 +871,7 @@ open class EditableTextNode(
         }
         val pos = logicToDisplayIndex(logicPos)
         val px = textOriginX
-        val py = paddingBlockStart
+        val py = textOriginY
         val list = p.getRectsForRange(pos, pos + 1, RectStyle.TIGHT)
         if (list.isNotEmpty()) {
             val r = list[0]
@@ -862,7 +888,7 @@ open class EditableTextNode(
         if (composingLength <= 0) return
         val p = paragraph ?: return
         val px = textOriginX
-        val py = paddingBlockStart
+        val py = textOriginY
         val s = logicToDisplayIndex(composingStart)
         val e = logicToDisplayIndex(composingStart + composingLength)
         for (rect in p.getRectsForRange(s, e, RectStyle.TIGHT)) {

@@ -170,7 +170,7 @@ class EventIntegrationTest : SkiaTestBase() {
             // 鼠标事件不携带也不写入修饰键
             renderer.mouseDown(0f, 0f)
             renderer.mouseMove(5f, 5f)
-            renderer.mouseWheel(5f, 5f, 10f)
+            renderer.mouseWheel(5f, 5f, deltaY = 10f)
             assertFalse(renderer.engineGlobal.shift, "鼠标事件不应写入修饰键")
 
             // keyPress 只做按键分发，不应污染修饰键

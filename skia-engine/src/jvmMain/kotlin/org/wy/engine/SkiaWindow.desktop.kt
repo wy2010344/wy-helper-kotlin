@@ -348,9 +348,23 @@ open class SkiaApp(width: Int = 800, height: Int = 600, context: StateHolder<*,*
             skiaLayer.addMouseWheelListener(object : MouseWheelListener {
                 override fun mouseWheelMoved(e: MouseWheelEvent?) {
                     if (e == null) return
-                    this@SkiaApp.mouseWheel(
-                        e.x.toFloat(), e.y.toFloat(), e.preciseWheelRotation.toFloat() * 40f
-                    )
+                    // AWT 只暴露纵向精确滚轮量，没有横向分量。
+                    // 约定：按住 Shift 时把纵向滚轮映射成横向滚动——这是桌面端
+                    // 用普通鼠标驱动「横向滚动容器」的唯一入口（否则横向容器
+                    // 永远收不到 wheelDeltaX）。无 Shift 时走纵向，交给滚动容器
+                    // 按自身 scrollDirection 决定消费与否。
+                    val rot = e.preciseWheelRotation.toFloat() * 40f
+                    if (e.isShiftDown) {
+                        this@SkiaApp.mouseWheel(
+                            e.x.toFloat(), e.y.toFloat(),
+                            deltaX = rot
+                        )
+                    } else {
+                        this@SkiaApp.mouseWheel(
+                            e.x.toFloat(), e.y.toFloat(),
+                            deltaY = rot
+                        )
+                    }
                 }
             })
 

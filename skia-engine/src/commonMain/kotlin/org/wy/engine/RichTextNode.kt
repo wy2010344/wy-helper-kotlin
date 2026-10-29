@@ -64,6 +64,27 @@ open class RichTextNode(
     /** 文本绘制原点 x：padding 起点左移 [textOffsetX]，再叠加无限宽对齐平移。 */
     protected val textOriginX: Float get() = paddingInlineStart - textOffsetX + noWrapAlignShift
 
+    /**
+     * 单行墨迹垂直居中补偿（光学居中）。
+     *
+     * Skia 对小字号（≤16px）的段落行高有约 19px 的下限，且多出来的留白全部堆在字形上方，
+     * 行盒垂直居中时墨迹会整体下沉 1~2px——这就是"按钮 / 标签文字没上下居中"的根因。
+     * 单行文本按紧致墨迹盒把绘制原点平移到内容盒中心；多行保持自然行高（段落排版语义）。
+     */
+    private val inkShiftY by memo {
+        if (!(autoWidth || noWrap || maxLines == 1)) return@memo 0f
+        val p = paragraph ?: return@memo 0f
+        if (fullText.isEmpty()) return@memo 0f
+        val rects = p.getRectsForRange(0, fullText.length, RectStyle.TIGHT)
+        if (rects.isEmpty()) return@memo 0f
+        val top = rects.minOf { it.top }
+        val bottom = rects.maxOf { it.bottom }
+        (innerHeight - (bottom - top)) / 2f - top
+    }
+
+    /** 文本绘制原点 y：内容盒上缘 + 单行墨迹居中补偿。 */
+    protected val textOriginY: Float get() = paddingBlockStart + inkShiftY
+
     protected val paragraph by memo {
         if (fullText.isEmpty()) return@memo null
         val expanded = spans.map {
@@ -148,9 +169,9 @@ open class RichTextNode(
             val first = rects.first()
             val last = rects.last()
             val left = absoluteX + textOriginX + minOf(first.left, last.left)
-            val top = absoluteY + paddingBlockStart + minOf(first.top, last.top)
+            val top = absoluteY + textOriginY + minOf(first.top, last.top)
             val right = absoluteX + textOriginX + maxOf(first.right, last.right)
-            val bottom = absoluteY + paddingBlockStart + maxOf(first.bottom, last.bottom)
+            val bottom = absoluteY + textOriginY + maxOf(first.bottom, last.bottom)
             return RectF(left, top, right, bottom)
         }
 
@@ -173,7 +194,7 @@ open class RichTextNode(
         val p = paragraph ?: return 0
         val displayPos = p.getGlyphPositionAtCoordinate(
             globalX - absoluteX - textOriginX,
-            globalY - absoluteY - paddingBlockStart
+            globalY - absoluteY - textOriginY
         ).coerceIn(0, fullText.length)
         return displayToLogicIndex(displayPos)
     }
@@ -222,7 +243,9 @@ open class RichTextNode(
 
     override fun onPointerClick(e: PointerEvent) {
         super.onPointerClick(e)
-        linkAt(positionForPoint(e.x, e.y))?.let { UrlOpener.open(it) }
+        // positionForPoint 期望全局坐标；e.x/e.y 是相对当前节点的局部坐标（随命中链换算），
+        // 用局部坐标会让链接命中偏移 / 打开错误的 URL。改用 rootX/rootY。
+        linkAt(positionForPoint(e.rootX, e.rootY))?.let { UrlOpener.open(it) }
     }
 
     // 可选集合由 SelectionManager 从渲染树遍历派生，节点无需注册/注销；
@@ -240,14 +263,14 @@ open class RichTextNode(
                     )) {
                         it.fillRect(
                             rect.left + textOriginX,
-                            rect.top + paddingBlockStart,
+                            rect.top + textOriginY,
                             rect.width,
                             rect.height,
                             selectionColor
                         )
                     }
                 }
-                it.drawParagraph(p, textOriginX, paddingBlockStart)
+                it.drawParagraph(p, textOriginX, textOriginY)
             }
         }
         super.draw(canvas)

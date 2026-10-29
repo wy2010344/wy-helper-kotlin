@@ -149,6 +149,16 @@ open class Renderer private constructor(
         register.focused = node
     }
 
+    /** 从命中叶子沿父链上溯，返回最近的 focusable 节点（焦点落在非焦点节点上无效）。 */
+    private fun focusableLeaf(node: Node?): Node? {
+        var cur = node
+        while (cur != null) {
+            if (cur.focusable && !cur.hide) return cur
+            cur = cur.parent
+        }
+        return null
+    }
+
     private fun collectFocusable(root: Node): List<Node> {
         val result = mutableListOf<Node>()
         fun collect(node: Node) {
@@ -195,7 +205,8 @@ open class Renderer private constructor(
      * （Up 即清除），而连击判定需要离散的历史按下记录。
      */
     private class ClickTracker {
-        var node: Selectable? = null
+        /** 上一次按下的原始节点身份（不取 Selectable：按钮等非可选节点也该累计连击）。 */
+        var node: Node? = null
         var x = 0f
         var y = 0f
         var time = 0L
@@ -209,7 +220,7 @@ open class Renderer private constructor(
                 kotlin.math.abs(x - this.x) < 5f &&
                 kotlin.math.abs(y - this.y) < 5f
             count = if (repeated) count + 1 else 1
-            node = target as? Selectable
+            node = target
             this.x = x; this.y = y; time = now
             return count
         }
@@ -328,7 +339,7 @@ open class Renderer private constructor(
                 // 否则按普通点击处理（onPointerClick 兜底）。
                 val sel = leaf as? Selectable
                 if (sel != null && register.selectionManager.isSelectable(sel)) {
-                    setFocused(leaf)
+                    setFocused(focusableLeaf(leaf))
                     val off = sel.positionForPoint(hit.x, hit.y)
                     val para = sel.paragraphRangeAt(off) ?: (0 to sel.textLength)
                     if (para.second > para.first) {
@@ -345,7 +356,7 @@ open class Renderer private constructor(
                 // [wordDragSession] 在 mouseMove 中单独驱动，松手即结束。
                 val sel = leaf as? Selectable
                 if (sel != null && register.selectionManager.isSelectable(sel)) {
-                    setFocused(leaf)
+                    setFocused(focusableLeaf(leaf))
                     val off = sel.positionForPoint(hit.x, hit.y)
                     val word = sel.wordRangeAt(off)
                     if (word != null && word.second > word.first) {
@@ -367,7 +378,7 @@ open class Renderer private constructor(
             } else {
                 PointerSelect(hit, null)
             }
-            setFocused(hit.chain.lastOrNull()?.node)
+            setFocused(focusableLeaf(hit.chain.lastOrNull()?.node))
             dispatchPointer(hit, PointerType.Down, x, y, device = device, buttons = heldButtons)
         } catch (e: Throwable) {
             engineLogError("mouseDown error", e)
@@ -485,10 +496,17 @@ open class Renderer private constructor(
         heldButtons = 0
     }
 
-    fun mouseWheel(x: Float, y: Float, delta: Float) {
+    fun mouseWheel(x: Float, y: Float, deltaX: Float = 0f, deltaY: Float = 0f) {
         try {
             val hit = hitTestResult(x, y)
-            dispatchPointer(hit, PointerType.Wheel, x, y, wheelDelta = delta)
+            dispatchPointer(
+                hit,
+                PointerType.Wheel,
+                x,
+                y,
+                wheelDeltaX = deltaX,
+                wheelDeltaY = deltaY
+            )
         } catch (e: Throwable) {
             engineLogError("mouseWheel error", e)
         }
@@ -505,9 +523,10 @@ open class Renderer private constructor(
         try {
             val e = KeyEvent(key, code, ctrl, shift, alt, meta)
 
-            // 检查是否是全局选择快捷键（Cmd+A/C/X/V）；
-            // 大小写归一：CapsLock 开启时平台上报大写字符
-            if (ctrl && !shift && !alt && !meta) {
+            // 检查是否是全局选择快捷键（Cmd+A/C/X/V，Windows/Linux 用 Ctrl）；
+            // 大小写归一：CapsLock 开启时平台上报大写字符。
+            // ctrl 与 meta 互斥取一：避免跨平台"Ctrl+Cmd"误触，且 macOS 的 Cmd 不被 Ctrl 分支漏掉。
+            if ((ctrl != meta) && !shift && !alt) {
                 when (key.lowercaseChar()) {
                     'a' -> {
                         register.selectionManager.selectAll()
@@ -518,24 +537,24 @@ open class Renderer private constructor(
                         val text = register.selectionManager.selectedText
                         if (text != null && text.isNotEmpty()) {
                             clipboardSetText(text)
-                            return
                         }
+                        return
                     }
 
                     'x' -> {
                         val editor = register.activeEditor
                         if (editor != null && editor.hasSelection) {
                             editor.cut()
-                            return
                         }
+                        return
                     }
 
                     'v' -> {
                         val editor = register.activeEditor
                         if (editor != null) {
                             editor.paste()
-                            return
                         }
+                        return
                     }
                 }
             }
@@ -592,6 +611,8 @@ private fun dispatchPointer(
     rootX: Float,
     rootY: Float,
     wheelDelta: Float = 0f,
+    wheelDeltaX: Float = 0f,
+    wheelDeltaY: Float = 0f,
     device: PointerDevice = PointerDevice.Mouse,
     button: Int = 0,
     buttons: Int = 0
@@ -605,7 +626,9 @@ private fun dispatchPointer(
             y = it.y,
             rootX = rootX,
             rootY = rootY,
-            wheelDelta = wheelDelta,
+            wheelDelta = wheelDeltaY,
+            wheelDeltaX = wheelDeltaX,
+            wheelDeltaY = wheelDeltaY,
             buttons = buttons,
             button = button
         )
@@ -623,7 +646,9 @@ private fun dispatchPointer(
             y = it.y,
             rootX = rootX,
             rootY = rootY,
-            wheelDelta = wheelDelta,
+            wheelDelta = wheelDeltaY,
+            wheelDeltaX = wheelDeltaX,
+            wheelDeltaY = wheelDeltaY,
             buttons = buttons,
             button = button
         )
