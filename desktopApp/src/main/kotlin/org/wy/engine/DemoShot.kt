@@ -10,6 +10,7 @@ import org.jetbrains.skia.Surface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.wy.engine.dashboard.DashMarket
 import org.wy.engine.dashboard.MarketData
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
@@ -416,10 +417,14 @@ fun main() {
             shotMain()
         }
     }
+    // AWT EDT / 帧源是非守护线程，截图写完后 JVM 不会自行退出；离屏截图是一次性 CLI，显式退出
+    kotlin.system.exitProcess(0)
 }
 
 private fun shotMain() {
     val out = "build/shots"
+    // 截图走确定性模拟：断开实时行情源（否则用户偏好里选过 LIVE 时会带网络抖动进来）
+    DashMarket.disableNetwork()
     // 首访免责声明弹窗会盖住看板截图：截图期间置为已读，结束后恢复用户偏好
     val noticePrefWas = prefs.get("dash.noticeSeen", "")
     prefs.put("dash.noticeSeen", "1")
@@ -521,14 +526,17 @@ private fun shotMain() {
         val n = dashShots[dw]!!
         println("[dash w=$dw] candles red = " + colorBox(n, 200, 180, dw - 220, dh - 180, dashUp))
     }
-    // 实时 K 线探针：rev=0 应为静态快照；rev 前进时末根在走、每 10 个心跳滚出新根
-    for (r in listOf(0, 3, 10, 37)) {
-        val ks = MarketData.liveKlines("BTCUSDT", "15m", r)
-        val last = ks.last()
-        println(
-            "[dash] klines rev=$r size=${ks.size} last=" + last.time +
-                " o=" + last.open + " c=" + last.close + " closed=" + last.closed
-        )
+    // 实时 K 线探针：滚根节奏应按周期（1m=200 心跳 / 15m=3000 / 1h=12000）。
+    // 同一个 rev 下，1m 应已收盘换根、15m 仍在一根里走（相位插值），间距也应 = 周期
+    for (iv in listOf("1m", "15m", "1h")) {
+        for (r in listOf(0, 200, 3000)) {
+            val ks = MarketData.liveKlines("BTCUSDT", iv, r)
+            val last = ks.last()
+            println(
+                "[dash] klines $iv rev=$r size=${ks.size} stepMs=" + (last.time - ks[ks.size - 2].time) +
+                    " last=" + last.time + " closed=" + last.closed + " c=" + last.close
+            )
+        }
     }
 
     // ── 深色模式验证 ──

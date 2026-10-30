@@ -114,6 +114,12 @@ object MarketData {
         "BNBUSDT" to 0.10, "XRPUSDT" to 0.0001, "DOGEUSDT" to 0.00001
     )
 
+    /** 单档基准挂单量（对齐 mock-api PROFILES 的 lot）。 */
+    private val lotSize = mapOf(
+        "BTCUSDT" to 0.012, "ETHUSDT" to 0.35, "SOLUSDT" to 6.0,
+        "BNBUSDT" to 1.6, "XRPUSDT" to 900.0, "DOGEUSDT" to 4200.0
+    )
+
     /** 锚定基准价：让最后一根收盘落在熟悉的量级。 */
     private val basePrice = mapOf(
         "BTCUSDT" to 96432.5, "ETHUSDT" to 3412.8, "SOLUSDT" to 198.42,
@@ -136,6 +142,10 @@ object MarketData {
     // 实时 K 线单条缓存：klines() 每帧调用，同一 rev 内复用整条游走结果
     private var liveCacheKey: Triple<String, String, Int>? = null
     private var liveCacheValue: List<Candle> = emptyList()
+
+    // 实时盘口缓存：depthOf() 每帧调用，同一 (symbol, rev) 内复用
+    private var liveDepthKey: Pair<String, Int>? = null
+    private var liveDepthValue: Depth? = null
 
     fun tickOf(symbol: String): Double = tickSize[symbol] ?: 0.01
 
@@ -202,13 +212,15 @@ object MarketData {
             }
         }
 
-    /** 实时心跳下滚出一根新 K 线所需的 rev 数（300ms/rev）。 */
-    private const val LIVE_TICKS = 10
+    /** 行情心跳间隔（与 DashPage 里 marketRev 的 300ms 节流一致）。 */
+    private const val HEARTBEAT_MS = 300L
 
     /**
      * 带行情心跳的 K 线：[rev] = 0 时直接返回静态快照（截图逐像素可复现）。
      *
-     * 每 [LIVE_TICKS] 个心跳滚出一根新 K 线，最后一根是「正在走」的未收盘 K 线。
+     * 收盘节奏对齐交易所：1m / 5m / 15m / 1h 各按自己的周期边界滚出新根
+     * （rev 即 300ms 心跳 → 1m = 200 个心跳、5m = 1000、15m = 3000、1h = 12000）。
+     * 最后一根「正在走」的未收盘 K 线每个心跳都更新 OHLC（用步内相位做插值）。
      *
      * 实时段用**确定性随机游走**生成（种子由 symbol/interval 固定；第 i 根的取数
      * 次数与可见窗口无关），因此同一 rev 每次求值完全一致。波动率、影线与成交量
@@ -226,6 +238,8 @@ object MarketData {
         if (liveCacheKey == key) return liveCacheValue
 
         val stepMs = minutesOf(interval) * 60_000L
+        // 一根 K 线要走多少个心跳才收盘：1m=200、5m=1000、15m=3000、1h=12000
+        val ticksPerCandle = maxOf(1, (stepMs / HEARTBEAT_MS).toInt())
         val anchor = base.last().close
         // 与静态序列同量级：单根约 0.11% 的价格波动
         val vol = anchor * 0.0011
@@ -236,8 +250,8 @@ object MarketData {
                 (interval.hashCode().toLong() * 0x2545F4914F6CDD1DL)
         )
 
-        val rolled = rev / LIVE_TICKS
-        val phase = (rev % LIVE_TICKS).toDouble() / LIVE_TICKS
+        val rolled = rev / ticksPerCandle
+        val phase = (rev % ticksPerCandle).toDouble() / ticksPerCandle
         // 已收盘：第 1..rolled 根；正在走的是第 rolled+1 根（phase 走完才收盘）
         val liveIndex = rolled + 1
         val from = maxOf(1, liveIndex - 499)
@@ -303,38 +317,61 @@ object MarketData {
         )
     }
 
-    /** 40 档盘口：最优价附近密、偶尔来一面墙。rev = 0 用缓存快照（截图可复现）。 */
-    fun depthOf(symbol: String, rev: Int = 0): Depth =
-        if (rev == 0) depthCache.getOrPut(symbol) { genDepth(symbol, 0) } else genDepth(symbol, rev)
+    /** 模拟盘口：算法逐行对齐 mock-api 的 getDepth（ooc 的 MOCK 数据源）。rev = 0 用缓存快照。 */
+    fun depthOf(symbol: String, rev: Int = 0): Depth {
+        if (rev == 0) return depthCache.getOrPut(symbol) { genDepth(symbol, 0) }
+        // 每帧都会求值，同一 rev 内复用（5000 档 × 2 侧，不缓存会有明显分配压力）
+        val key = symbol to rev
+        if (liveDepthKey == key) return liveDepthValue!!
+        return genDepth(symbol, rev).also {
+            liveDepthKey = key
+            liveDepthValue = it
+        }
+    }
 
-    /** 生成第 [rev] 版盘口：种子掺 rev（固定序列，不读时钟，逐像素仍可复现）。 */
+    /**
+     * 生成第 [rev] 版盘口：种子掺 rev（固定序列，不读时钟，逐像素仍可复现）。
+     *
+     * 形态对齐 mock-api（`lib/binance-mock/market.ts` 的 getDepth）：
+     * - 每侧 5000 档，档距 = mid × 1% / 5000（整本铺满约 ±0.5%，与深度图 halfSpan 一致）；
+     * - 单档量 = lot × (0.6 + rand × 1.6) × (1 + index × 0.02) × 侧向偏置 × 墙，
+     *   即随离中间价的距离线性增厚 → 累计量近似二次曲线（这是 ooc 那边看到的下圆弧形）；
+     * - 3% 概率出现 4~8 倍的「墙」，保留盘口的层次感。
+     */
     private fun genDepth(symbol: String, rev: Int): Depth {
         // 0x9E3779B97F4A7C15（黄金比例常数）超出十六进制字面量上限，取其有符号等值
         val rng = Rng(symbol.hashCode().toLong() * -0x61c8864680b583ebL xor 0x5DEECE66DL xor (rev.toLong() * -7046029254386353131L))
         val t = tickerOf(symbol)
-        val step = tickOf(symbol)
-        val scale = when {
-            t.last >= 1000 -> 3.2
-            t.last >= 100 -> 12.0
-            t.last >= 1 -> 260.0
-            else -> 9000.0
-        }
-        fun side(from: Double, sign: Double): List<DepthLevel> {
-            val list = ArrayList<DepthLevel>(60)
-            // 档距按中间价百分比几何递增（贴近真实交易所越远越疏的挂单分布）：
-            // 60 档覆盖约 ±1.2%，保证深度图 zoom=1（±1%）内呈现完整阶梯累计形态；
-            // 旧实现 40 档 tick 级档距只覆盖 ±0.05%，深度图里全量挤在贴中线的头两档。
-            for (i in 0 until 60) {
-                val pct = 0.00002 * 1.115.pow(i)
-                val price = t.last + sign * t.last * pct * rng.range(0.85, 1.2)
-                var qty = rng.range(0.25, 1.0) * scale
-                if (rng.nextDouble() < 0.10) qty *= rng.range(5.0, 11.0) // 随机墙
-                list.add(DepthLevel(price, qty))
+        val tick = tickOf(symbol)
+        val lot = lotSize[symbol] ?: 1.0
+        val mid = t.last
+        val size = 5000
+        val stepSize = max(tick, alignTo((mid * 0.01) / size, tick))
+        val half = max(tick, mid * 0.00004)
+        val bidBias = 0.85 + rng.nextDouble() * 0.45
+        val askBias = 0.85 + rng.nextDouble() * 0.45
+        fun side(sign: Double, bias: Double): List<DepthLevel> {
+            val list = ArrayList<DepthLevel>(size)
+            for (i in 0 until size) {
+                val wall = if (rng.nextDouble() < 0.03) 4.0 + rng.nextDouble() * 4.0 else 1.0
+                val depthFactor = 1.0 + i * 0.02
+                val qty = max(lot, lot * (0.6 + rng.nextDouble() * 1.6) * depthFactor * bias * wall)
+                list.add(DepthLevel(alignTo(mid + sign * (half + i * stepSize), tick), qty))
             }
             return list
         }
         // 时间随 rev 前推（每版 300ms），消费方显示的时间戳随之走动
-        return Depth(side(t.bid, -1.0), side(t.ask, 1.0), t.time + rev * 300L)
+        return Depth(side(-1.0, bidBias), side(1.0, askBias), t.time + rev * 300L)
+    }
+
+    /** 按最小变动价位对齐（对齐 mock-api 的 align：round 到 tick 的整数倍并截到 tick 的小数位）。 */
+    private fun alignTo(value: Double, step: Double): Double {
+        if (!value.isFinite() || step <= 0) return value
+        // tick 都是 10 的整数次幂，直接按小数位放大取整，避开 String.format 的开销
+        //（每版盘口 1 万档，格式化字符串会成为每 300ms 一次的卡顿）
+        val digits = if (step >= 1) 0 else min(8, ceil(-log10(step)).toInt())
+        val scale = 10.0.pow(digits)
+        return (value * scale).roundToLong().toDouble() / scale
     }
 
     /** 最近 30 笔成交（时间倒序，最新在前）。 */

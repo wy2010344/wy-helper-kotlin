@@ -39,6 +39,7 @@ import kotlin.math.sqrt
 
 internal object DepthGeom {
     const val BUCKETS = 80
+    /** 整幅价差 1%（中间价 ±0.5%），对齐 ooc depth-group.ts 的 DEPTH_RANGE_PCT。 */
     const val RANGE_PCT = 1.0
     const val MIN_ZOOM = 1.0
     const val MAX_ZOOM = 24.0
@@ -124,7 +125,8 @@ internal object DepthGeom {
             bestAsk != null -> bestAsk
             else -> bestBid ?: 0.0
         }
-        val halfSpan = mid * (RANGE_PCT / 100.0) / zoomClamp(zoom)
+        // 半幅 = 中间价 × 0.5% / 缩放（ooc depth.ts: Math.max(mid * (DEPTH_RANGE_PCT / 200), 1e-8) / z）
+        val halfSpan = max(mid * (RANGE_PCT / 200.0) / zoomClamp(zoom), 1e-8)
         val bid = group(depth.bids, false, mid, halfSpan)
         val ask = group(depth.asks, true, mid, halfSpan)
         val rawMax = max(bid.max, ask.max)
@@ -171,14 +173,26 @@ internal object DepthGeom {
 
     /** 带符号的偏移百分比（绝对值自适应小数位），口径对齐 ooc formatSignedDepthRange。 */
     fun fmtSignedRangePct(pct: Double): String {
-        val sign = if (pct >= 0) "+" else "-"
         val a = abs(pct)
+        if (a < 0.0005) return "0.0%"
+        val sign = if (pct >= 0) "+" else "-"
         val dec = when {
-            a >= 1 -> 2
-            a >= 0.01 -> 3
-            else -> 4
+            a >= 0.1 -> 1
+            a >= 0.01 -> 2
+            else -> 3
         }
         return sign + String.format(java.util.Locale.US, "%.${dec}f", a) + "%"
+    }
+
+    /** 整幅价差文案，口径对齐 ooc formatDepthRange。 */
+    fun fmtRangePct(value: Double): String {
+        if (!value.isFinite() || value <= 0) return "0%"
+        val dec = when {
+            value >= 0.1 -> 2
+            value >= 0.01 -> 3
+            else -> 4
+        }
+        return String.format(java.util.Locale.US, "%.${dec}f", value) + "%"
     }
 }
 
@@ -245,7 +259,8 @@ internal fun StateHolder<Node, List<Node>>.depthCanvas(
                 val v = geo.axisMax / segments * i
                 val y = yOf(v)
                 canvas.drawLine(0f, y, pw, y, D_GRID, 1f)
-                drawText(canvas, fmtQty(v), pw + 5f, y - 6f, 8.5f, D_AXIS)
+                // 累计量轴用 compact 记法（对齐 ooc depth-chart 的 formatCompact）
+                drawText(canvas, fmtCompact(v), pw + 5f, y - 6f, 8.5f, D_AXIS)
             }
             // 价格轴（底）：等距对称刻度（档数随宽度自适应，72px/档 夹 3..9，
             // 口径对齐 ooc depthXTickCount + depth.ts:239-244）
@@ -300,9 +315,14 @@ internal fun StateHolder<Node, List<Node>>.depthCanvas(
             area(geo.bid, D_UP, stepAfter = false)
             area(geo.ask, D_DOWN, stepAfter = true)
 
-            // 中间价竖线
+            // 中间价竖线：虚线（对齐 ooc 的 dash 3 5 / 白 18%）
             val midX = xOf(geo.mid)
-            canvas.drawLine(midX, 0f, midX, ph, D_TEXT3.withAlpha(0.6f), 1f)
+            var my = 0f
+            while (my < ph) {
+                val seg = min(3f, ph - my)
+                if (seg > 0f) canvas.drawLine(midX, my, midX, my + seg, D_TEXT.withAlpha(0.18f), 1f)
+                my += 8f
+            }
 
             // 悬停：双 tooltip 镜像（左 BID 右 ASK）+ 对称双虚线 + 带符号偏移%
             // 口径对齐 ooc depthHoverPair（depth.ts:321-339）：光标取 near 镜像点，
@@ -310,6 +330,8 @@ internal fun StateHolder<Node, List<Node>>.depthCanvas(
             val hov = hover.value
             if (hov != null) {
                 val near = min(hov.x, 1f - hov.x)
+                // 光标靠近中线（near < 0.3）时两张 tooltip 向外翻，否则朝内贴（对齐 ooc wide 判定）
+                val wide = near < 0.3f
                 val hovBid = DepthGeom.hover(geo, near, hov.x)
                 val hovAsk = DepthGeom.hover(geo, 1f - near, hov.x)
 
@@ -329,37 +351,57 @@ internal fun StateHolder<Node, List<Node>>.depthCanvas(
                     // 对称遮罩：双线外侧压暗（对齐 ooc 对称遮罩语义）
                     canvas.fillRect(0f, 0f, min(bx, ax), ph, rgba(0, 0, 0, 70))
                     canvas.fillRect(max(bx, ax), 0f, pw - max(bx, ax), ph, rgba(0, 0, 0, 70))
-                    // 着色按偏移方向走本地涨红跌绿（正=高于中间价=红）
-                    fun drawTip(h: DepthGeom.Hover, left: Boolean) {
-                        val tone = if (h.rangePct >= 0) D_UP else D_DOWN
-                        val lines = listOf(
-                            (if (h.ask) "ASK" else "BID") to tone,
-                            fmtPrice(h.price) to D_TEXT,
-                            DepthGeom.fmtSignedRangePct(h.rangePct) to tone,
-                            "累计 ${fmtQty(h.total)}" to D_TEXT2,
-                            "Σ ${fmtCompact(h.notional)}" to D_TEXT2
+                    // 着色跟盘口两侧一致（买红 / 卖绿），对齐 ooc 圆点与面积同色
+                    fun drawTip(h: DepthGeom.Hover, bid: Boolean) {
+                        val tone = if (h.ask) D_DOWN else D_UP
+                        // 两列版式（对齐 ooc depth-chart tooltip）：
+                        // 表头 BID/ASK + 带符号偏移%，下面 Price / Amount / Value
+                        val rows = listOf(
+                            "Price" to fmtPrice(h.price),
+                            "Amount" to fmtQty(h.total),
+                            "Value" to fmtCompact(h.notional)
                         )
                         val lineH = 12f
-                        val boxW = 104f
-                        val boxH = lines.size * lineH + 8f
+                        val boxW = 118f
+                        val boxH = lineH * (rows.size + 1) + 6f
                         val hx = h.x * pw
-                        val bx2 = if (left) {
-                            (hx - boxW - 6f).takeIf { it >= 2f } ?: (hx + 6f)
-                        } else {
-                            (hx + 6f).takeIf { it + boxW <= pw - 2f } ?: (hx - boxW - 6f)
-                        }.coerceIn(2f, (pw - boxW - 2f).coerceAtLeast(2f))
-                        val by = (ph - boxH - 4f).coerceIn(2f, ph - boxH - 2f)
+                        // 横向：wide 时 bid 框贴点的右侧、ask 框贴点的左侧（朝内）；
+                        // 窄时相反（向外翻），与 ooc tipLeftStyle/tipRightStyle 同规则
+                        val bx2 = (
+                            if (wide == bid) hx + 8f else hx - boxW - 8f
+                            ).coerceIn(2f, (pw - boxW - 2f).coerceAtLeast(2f))
+                        // 纵向：贴曲线交点。Hover.y 是「累计量 / 轴顶」的底为 0 比例，
+                        // 而画布 y 向下增长（顶为 0），故取 1-y 才是交点高度
+                        //（对齐 ooc depthHoverAt 的 y = HEIGHT - total/axisMax*HEIGHT）。
+                        val yTop = (1f - h.y).coerceIn(0f, 1f)
+                        val hy = yTop * ph
+                        val by = when {
+                            yTop < 0.26f -> hy + 6f
+                            yTop > 0.74f -> hy - boxH - 6f
+                            else -> hy - boxH / 2f
+                        }.coerceIn(2f, (ph - boxH - 2f).coerceAtLeast(2f))
                         canvas.fillRoundRect(bx2, by, boxW, boxH, 4f, D_PANE_HEAD)
                         canvas.strokeRoundRect(bx2, by, boxW, boxH, 4f, D_LINE, 1f)
-                        lines.forEachIndexed { i, (text, color) ->
-                            drawText(
-                                canvas, text, bx2 + 6f, by + 4f + i * lineH, 8.5f, color,
-                                if (i == 0) 700 else 400
+                        // 表头：左侧方向、右侧偏移%
+                        drawText(canvas, if (h.ask) "ASK" else "BID", bx2 + 6f, by + 3f, 8.5f, tone, 700)
+                        drawTextEnd(
+                            canvas, DepthGeom.fmtSignedRangePct(h.rangePct),
+                            bx2 + boxW - 6f, by + 8.5f, 8.5f, tone
+                        )
+                        rows.forEachIndexed { i, (label, value) ->
+                            val ty = by + 3f + lineH * (i + 1)
+                            drawText(canvas, label, bx2 + 6f, ty, 8.5f, D_TEXT3)
+                            drawTextEnd(
+                                canvas, value, bx2 + boxW - 6f, ty + 5.5f, 8.5f,
+                                if (i == 0) D_TEXT else D_TEXT2
                             )
                         }
                     }
-                    drawTip(hovBid, left = true)
-                    drawTip(hovAsk, left = false)
+                    drawTip(hovBid, bid = true)
+                    drawTip(hovAsk, bid = false)
+                    // 交点圆点（对齐 ooc 的 6px 圆点，颜色与所在侧面积一致）
+                    canvas.fillOval(bx - 3f, (1f - hovBid.y) * ph - 3f, 6f, 6f, D_UP)
+                    canvas.fillOval(ax - 3f, (1f - hovAsk.y) * ph - 3f, 6f, 6f, D_DOWN)
                 }
             }
         }

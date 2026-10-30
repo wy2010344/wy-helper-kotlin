@@ -17,6 +17,8 @@ dependencies {
 
     implementation(compose.desktop.currentOs)
     implementation(libs.kotlinx.coroutinesSwing)
+    // 实时行情源：币安 REST/WS 报文解析（仅桌面 demo 用）
+    implementation(libs.gson)
 
     implementation(libs.compose.uiToolingPreview)
 }

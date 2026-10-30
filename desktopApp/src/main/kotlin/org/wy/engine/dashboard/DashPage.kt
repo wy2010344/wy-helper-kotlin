@@ -222,6 +222,8 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                 if (now - lastTickMs >= 300f) {
                     lastTickMs = now
                     marketRev.value = marketRev.value + 1
+                    // 实时数据源：交易对/周期变化时重建币安会话（幂等，模拟模式直接忽略）
+                    DashMarket.ensureWatch(symbol.value, interval.value)
                 }
                 false
             }) { }
@@ -256,7 +258,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
             dCol(gap = 0f, widthOf = { leftWidth.value }) {
                 dPane("Watchlist", "24h", grow = true) {
                     dWatchlist(
-                        tickers = { MarketData.watchTickers() },
+                        tickers = { DashMarket.watchTickers() },
                         activeSymbol = { symbol.value }
                     ) { s ->
                         symbol.value = s
@@ -266,7 +268,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                 }
                 dSplitH({ leftBottom.value }, 120f, 420f, -1f) { leftBottom.value = it; saveLayout() }
                 dPane("Market stats", "Binance", heightOf = { leftBottom.value }) {
-                    dStats { MarketData.tickerOf(symbol.value) }
+                    dStats { DashMarket.tickerOf(symbol.value) }
                 }
             }
 
@@ -276,7 +278,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
             dCol(gap = 0f, grow = true) {
                 dPane("Chart", hintOf = { interval.value }, grow = true) {
                 dChartPane(
-                    // 实时段每 10 个心跳滚一根新 K 线（末根随心跳走，rev=0 为静态快照）。
+                    // 按周期边界滚新根（1m/5m/15m/1h 各按真实周期，末根随心跳走，rev=0 为静态快照）。
                     // 钉在最新(offset==0)时实时跟随；滚离最新(offset>0)时冻结当前快照，
                     // 实时增长不再顶入窗口，左右拖拽才跟手。
                     klines = {
@@ -289,10 +291,10 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                         }
                         if (chartOffset.value == 0) {
                             frozenView.value = null
-                            MarketData.liveKlines(sym, iv, marketRev.value)
+                            DashMarket.klinesOf(sym, iv, marketRev.value)
                         } else {
                             frozenView.value
-                                ?: MarketData.liveKlines(sym, iv, marketRev.value)
+                                ?: DashMarket.klinesOf(sym, iv, marketRev.value)
                                     .also { frozenView.value = it }
                         }
                     },
@@ -306,7 +308,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                 dSplitH({ centerBottom.value }, 120f, 420f, -1f) { centerBottom.value = it; saveLayout() }
                 // 逐笔窗格：与深度是两条不同的流，各自一份高度条才不用互相将就
                 dPane("Trades", "Tape", heightOf = { centerBottom.value }) {
-                    dTrades { MarketData.tradesOf(symbol.value) }
+                    dTrades { DashMarket.tradesOf(symbol.value) }
                 }
             }
 
@@ -379,8 +381,8 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                     }
                 ) {
                     dOrderbook(
-                        depth = { MarketData.depthOf(symbol.value, marketRev.value) },
-                        ticker = { MarketData.tickerOf(symbol.value) },
+                        depth = { DashMarket.depthOf(symbol.value, marketRev.value) },
+                        ticker = { DashMarket.tickerOf(symbol.value) },
                         mode = bookMode,
                         avgSum = bookAvgSum,
                         ratio = bookRatio,
@@ -394,7 +396,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                 dSplitH({ rightBottom.value }, 140f, 420f, -1f) { rightBottom.value = it; saveLayout() }
                 dPane("Paper order", "Demo only", heightOf = { rightBottom.value }) {
                     dTicket(
-                        ticker = { MarketData.tickerOf(symbol.value) },
+                        ticker = { DashMarket.tickerOf(symbol.value) },
                         limitPrice = limitPrice,
                         note = { note.value },
                         onNote = { note.value = it }
@@ -405,11 +407,25 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
 
         // ── footer ──
         dRow(gap = 8f, height = DASH_FOOTER_H, padX = 12f, justify = DirectionJustify.between) {
+            // 免责声明随数据源切换口径：LIVE 时不能还写着「模拟行情」
             dText(
-                { "UNOFFICIAL DEMO · 模拟行情 · 非投资建议" },
+                {
+                    if (DashMarket.source.value == FeedSource.LIVE) {
+                        "UNOFFICIAL DEMO · 币安公共行情 · 非投资建议"
+                    } else {
+                        "UNOFFICIAL DEMO · 模拟行情 · 非投资建议"
+                    }
+                },
                 9f, { D_TEXT3 }
             )
             dRow(gap = 8f, height = 16f) {
+                // 行情错误红字（对齐 ooc footer 的 error）：只在非空时占位，定宽单行裁切
+                renderForEach({ callback ->
+                    val e = DashMarket.error.value
+                    if (e.isNotEmpty()) callback(0, e)
+                }) { _, each ->
+                    dText({ each.value }, 9f, { D_UP.withAlpha(0.7f) }, width = 170f)
+                }
                 // 提示语走 renderForEach：结构 if 读 note 是启动快照，重置后不出现
                 renderForEach({ callback ->
                     val n = note.value
