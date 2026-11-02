@@ -11,9 +11,15 @@
 > <!-- TODO: 用 ScreenToGif 录一张 3–6 秒 GIF（启动 demo → Ctrl+1/2/3 切 Tab → 输入框打字 → 弹 Dialog），放 docs/demo.gif 并取消下面这行注释，与截图并存。控制在 3MB 以内。 -->
 > <!-- ![demo](docs/demo.gif) -->
 
-**一眼看懂**——Release 下载解压双击 `run.bat` 即可运行的桌面 Demo 首屏（图表 / 动态列表 / 5 个 Tab / 深色模式）：
+**一眼看懂**——Release 下载解压双击 `run.bat` 即可运行的桌面 Demo：
+
+概览页：图表 / 动态列表 / 5 个 Tab / 深色模式
 
 ![demo](docs/screenshot.png)
+
+看板页：K 线 / 盘口 / 深度图，数据源可在币安实时行情与本地模拟间一键切换
+
+![看板](docs/screenshot-dashboard.png)
 
 ## 能做什么
 
@@ -32,7 +38,7 @@
 
 ### 直接运行（无需编译）
 
-从 [v0.1.0-demo Release](https://github.com/wy2010344/wy-helper-kotlin/releases/tag/v0.1.0-demo) 下载 `wy-helper-demo-windows-x64.zip`，解压后双击 `run.bat`（需本机 JRE 21+）。
+从 [v0.1.1-demo Release](https://github.com/wy2010344/wy-helper-kotlin/releases/tag/v0.1.1-demo) 下载 `wy-helper-demo-windows-x64.zip`，解压后双击 `run.bat`（需本机 JRE 21+）。
 
 ### 从源码运行
 
