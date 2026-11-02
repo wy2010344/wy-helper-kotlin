@@ -59,7 +59,12 @@ internal open class StateHolderI<Node, Target>(
             return
         }
         destroyed = true
-        children.forEach(::destroyHolder)
+        // 从父节点的 children 摘除：renderForEach 每次移除的行走的就是 destroy()，
+        // 不摘除会留在集合里，关窗时再被父节点销毁一次（duplicate destroy），
+        // 同时被移除的行也不会释放引用（列表频繁增删时持续泄漏）。
+        parent?.children?.remove(this)
+        // 复制一份再遍历：destroy() 会从 children 里移除自身
+        children.toList().forEach(::destroyHolder)
         destroyList.forEach(::run)
     }
 
