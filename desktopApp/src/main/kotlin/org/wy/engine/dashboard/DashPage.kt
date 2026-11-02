@@ -123,9 +123,6 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
     private val depthZoom = createSignal(1.0)
     private val note = createSignal("")
 
-    // ── 行情心跳：盘口/深度的版本号，300ms 节流 +1，消费方按 rev 取数 ──
-    private val marketRev = createSignal(0)
-
     // 看历史时冻结的行情快照：offset>0 表示用户已滚离最新端。
     // 实时段每 3 秒 append 一根，会让 takeLast(500) 窗口持续左滑、历史视图跟着右漂，
     // 拖拽因此不跟手；冻结后平移基于固定总长，与真实交易终端「看历史不自动滚」一致。
@@ -214,15 +211,14 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
     }
 
     override fun StateHolderWithNode<Node, List<Node>>.argChildren() {
-        // 行情心跳：帧源 UI 线程回调、300ms 节流写 marketRev；
+        // 行情心跳：帧源 UI 线程回调、300ms 节流；
         // 挂 addDestroy 与本 holder 同生命周期——子树重建时旧订阅取消、新订阅拉起。
         if (tickSub == null) {
             var lastTickMs = 0f
             val sub = DefaultFrameSource.subscribe({ now ->
                 if (now - lastTickMs >= 300f) {
                     lastTickMs = now
-                    marketRev.value = marketRev.value + 1
-                    // 实时数据源：交易对/周期变化时重建币安会话（幂等，模拟模式直接忽略）
+                    // 交易对/周期变化时重建行情会话（幂等：会话未变直接返回）
                     DashMarket.ensureWatch(symbol.value, interval.value)
                 }
                 false
@@ -291,10 +287,10 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                         }
                         if (chartOffset.value == 0) {
                             frozenView.value = null
-                            DashMarket.klinesOf(sym, iv, marketRev.value)
+                            DashMarket.klinesOf(sym, iv)
                         } else {
                             frozenView.value
-                                ?: DashMarket.klinesOf(sym, iv, marketRev.value)
+                                ?: DashMarket.klinesOf(sym, iv)
                                     .also { frozenView.value = it }
                         }
                     },
@@ -304,7 +300,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                 }
                 dSplitH({ centerMiddle.value }, 120f, 420f, -1f) { centerMiddle.value = it; saveLayout() }
                 // 深度图窗格（拆至 DashActivity.kt；对齐 ooc：Depth/Trades 各自独立不做 tab）
-                dDashDepth(centerMiddle, symbol, marketRev, depthZoom)
+                dDashDepth(centerMiddle, symbol, depthZoom)
                 dSplitH({ centerBottom.value }, 120f, 420f, -1f) { centerBottom.value = it; saveLayout() }
                 // 逐笔窗格：与深度是两条不同的流，各自一份高度条才不用互相将就
                 dPane("Trades", "Tape", heightOf = { centerBottom.value }) {
@@ -381,7 +377,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                     }
                 ) {
                     dOrderbook(
-                        depth = { DashMarket.depthOf(symbol.value, marketRev.value) },
+                        depth = { DashMarket.depthOf(symbol.value) },
                         ticker = { DashMarket.tickerOf(symbol.value) },
                         mode = bookMode,
                         avgSum = bookAvgSum,
@@ -413,7 +409,7 @@ internal fun StateHolder<Node, List<Node>>.dDashboardPage(
                     if (DashMarket.source.value == FeedSource.LIVE) {
                         "UNOFFICIAL DEMO · 币安公共行情 · 非投资建议"
                     } else {
-                        "UNOFFICIAL DEMO · 模拟行情 · 非投资建议"
+                        "UNOFFICIAL DEMO · 本机 mock-api 伪行情 · 非投资建议"
                     }
                 },
                 9f, { D_TEXT3 }

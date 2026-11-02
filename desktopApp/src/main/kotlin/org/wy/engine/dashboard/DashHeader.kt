@@ -69,10 +69,10 @@ internal fun StateHolderWithNode<Node, List<Node>>.dDashHeader(
         dRow(gap = 8f, height = 30f) {
             dText({ symbol.value }, 13f, { D_TEXT }, 600)
             val tOf = { DashMarket.tickerOf(symbol.value) }
-            dText({ fmtPrice(tOf().last) }, 13f, { D_TEXT })
+            dText({ fmtPrice(tOf()?.last) }, 13f, { D_TEXT })
             dText(
-                { fmtPercent(tOf().changePercent) }, 11f,
-                { if (tOf().changePercent >= 0) D_UP else D_DOWN }, 600
+                { fmtPercent(tOf()?.changePercent) }, 11f,
+                { if ((tOf()?.changePercent ?: 0.0) >= 0) D_UP else D_DOWN }, 600
             )
         }
         dSpacer()
@@ -82,9 +82,9 @@ internal fun StateHolderWithNode<Node, List<Node>>.dDashHeader(
             val n = when {
                 tight() -> 2
                 compact() -> 4
-                else -> MarketData.symbols.size
+                else -> watchSymbols.size
             }
-            MarketData.symbols.take(n).forEach { s -> callback(s, s) }
+            watchSymbols.take(n).forEach { s -> callback(s, s) }
         }) { _, each ->
             dTabButton({ each.value }, { symbol.value == each.value }) {
                 if (symbol.value != each.value) {
@@ -97,7 +97,7 @@ internal fun StateHolderWithNode<Node, List<Node>>.dDashHeader(
         // 周期 tabs（窄窗口隐藏）
         renderForEach({ callback ->
             if (!hideIntervals()) {
-                MarketData.intervals.forEach { itv -> callback(itv, itv) }
+                chartIntervals.forEach { itv -> callback(itv, itv) }
             }
         }) { _, each ->
             dTabButton({ each.value }, { interval.value == each.value }, height = 22f, padX = 7f) {
@@ -126,16 +126,17 @@ internal fun StateHolderWithNode<Node, List<Node>>.dDashHeader(
                 fillOuterOval(canvas, feedStatusColor(DashMarket.status.value))
             }
         }
-        // 状态文案 + 数据源开关（MOCK ON = 正在吃本地模拟；点一下切币安实时）
+        // 状态文案 + 数据源开关（MOCK ON = 当前真的在吃本机 mock-api；服务没起时不会亮，对齐 ooc）
         // 超窄窗口只保留状态点：开关与文案让位给交易对/价格信息
         renderForEach({ callback -> if (!veryNarrow()) callback(0, Unit) }) { _, _ ->
             dText({ feedLabel(DashMarket.status.value) }, 9f, { D_TEXT3 }, 600)
+            val mockOn = { DashMarket.status.value == FeedStatus.MOCK }
             dTabButton(
-                { if (DashMarket.source.value == FeedSource.SIM) "MOCK ON" else "MOCK" },
-                { DashMarket.source.value == FeedSource.SIM },
+                { if (mockOn()) "MOCK ON" else "MOCK" },
+                mockOn,
                 height = 20f,
                 padX = 7f,
-                chipOf = { if (DashMarket.source.value == FeedSource.SIM) rgba(56, 189, 248) else null }
+                chipOf = { if (mockOn()) rgba(56, 189, 248) else null }
             ) { DashMarket.toggleSource() }
         }
     }

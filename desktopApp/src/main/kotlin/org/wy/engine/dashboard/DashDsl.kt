@@ -74,8 +74,8 @@ internal fun StateHolder<Node, List<Node>>.dRow(
     grow: Boolean = false,
     growY: Boolean = false,
     content: StateHolderWithNode<Node, List<Node>>.() -> Unit
-) {
-    object : RectNode(this), FlexParam, GrowChild {
+): Node {
+    return object : RectNode(this), FlexParam, GrowChild {
         override val debugName: String get() = "看板行"
         override val layout: LayoutDirection = FlexObject(this)
         override val direction: Direction get() = Direction.x
@@ -422,6 +422,9 @@ internal fun StateHolder<Node, List<Node>>.dClickRow(
     height: Float,
     active: Boolean = false,
     padX: Float = 10f,
+    // 动态选中态通道：argChildren 只执行一次，active 是启动快照；
+    // 行被 renderForEach 复用（不重建）时，靠这个 lambda 在每次绘制读活信号。
+    activeOf: (() -> Boolean)? = null,
     onClick: () -> Unit,
     content: StateHolderWithNode<Node, List<Node>>.() -> Unit
 ): ButtonBase = object : ButtonBase(this) {
@@ -437,7 +440,7 @@ internal fun StateHolder<Node, List<Node>>.dClickRow(
 
     override fun drawContent(canvas: PlatformCanvas) {
         when {
-            active -> fillOuterRect(canvas, D_ACTIVE_BG)
+            activeOf?.invoke() ?: active -> fillOuterRect(canvas, D_ACTIVE_BG)
             pressed -> fillOuterRect(canvas, D_HOVER)
             hovered -> fillOuterRect(canvas, D_HOVER)
         }

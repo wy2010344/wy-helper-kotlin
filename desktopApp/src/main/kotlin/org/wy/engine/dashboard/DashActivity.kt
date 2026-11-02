@@ -12,7 +12,7 @@ import kotlin.math.exp
 // 对齐 ooc 最新布局：中列 = Chart / Depth / Trades 三个独立窗格
 // 各自拖高度，不做 tab（深度与逐笔是两条不同的流：前者怕矮、
 // 后者怕短，各自一份高度条才不用互相将就）。
-// 行情心跳（marketRev）与深度缩放（depthZoom）作为页面级信号注入。
+// 深度缩放（depthZoom）作为页面级信号注入；行情数据由 DashMarket 的 gen 登记依赖。
 // ════════════════════════════════════════════════════
 
 /**
@@ -22,7 +22,6 @@ import kotlin.math.exp
 internal fun StateHolderWithNode<Node, List<Node>>.dDashDepth(
     centerMiddle: StoreRef<Float>,
     symbol: StoreRef<String>,
-    marketRev: StoreRef<Int>,
     depthZoom: StoreRef<Double>
 ) {
     val g = consume(engineGlobalContext)!!
@@ -30,7 +29,7 @@ internal fun StateHolderWithNode<Node, List<Node>>.dDashDepth(
         dCol(gap = 0f, growY = true) {
             // 图例 + 缩放控件行
             dRow(gap = 8f, height = 20f, padX = 8f, justify = DirectionJustify.between) {
-                val geoOf = { DepthGeom.geo(DashMarket.depthOf(symbol.value, marketRev.value), depthZoom.value) }
+                val geoOf = { DepthGeom.geo(DashMarket.depthOf(symbol.value), depthZoom.value) }
                 dRow(gap = 5f, height = 14f) {
                     object : RectNode(this) {
                         override val argWidth: LayoutSize get() = LayoutSize(10f, false)
@@ -83,7 +82,7 @@ internal fun StateHolderWithNode<Node, List<Node>>.dDashDepth(
                     dTabButton({ "FULL" }, { false }, height = 16f, padX = 5f) {
                         g.appendPop { pop ->
                             dDepthFull(
-                                depth = { DashMarket.depthOf(symbol.value, marketRev.value) },
+                                depth = { DashMarket.depthOf(symbol.value) },
                                 zoom = { depthZoom.value },
                                 onWheelZoom = { delta ->
                                     depthZoom.value = DepthGeom.zoomClamp(
@@ -97,7 +96,7 @@ internal fun StateHolderWithNode<Node, List<Node>>.dDashDepth(
                 }
             }
             depthCanvas(
-                depth = { DashMarket.depthOf(symbol.value, marketRev.value) },
+                depth = { DashMarket.depthOf(symbol.value) },
                 zoom = { depthZoom.value },
                 onWheelZoom = { delta ->
                     depthZoom.value = DepthGeom.zoomClamp(

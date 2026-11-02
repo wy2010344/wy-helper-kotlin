@@ -52,16 +52,17 @@ internal fun StateHolder<Node, List<Node>>.dTrades(trades: () -> List<Trade>) {
                 dText({ "Amount" }, 9f, { D_TEXT3 }, 600, width = 72f, align = TextAlign.END)
                 dText({ "Time" }, 9f, { D_TEXT3 }, 600, width = 56f, align = TextAlign.END)
             }
-            trades().forEach { t ->
+            // 同自选：成交流必须增量构建，否则首帧为空后永远补不上行
+            renderForEach({ callback -> trades().forEach { callback(it.id, it) } }) { _, t ->
                 dRow(gap = 8f, height = 20f, padX = 10f) {
                     dText(
-                        { fmtPrice(t.price) }, 10.5f,
-                        { if (t.buyerMaker) D_DOWN else D_UP }
+                        { fmtPrice(t.value.price) }, 10.5f,
+                        { if (t.value.buyerMaker) D_DOWN else D_UP }
                     )
                     dSpacer()
-                    dText({ fmtQty(t.qty) }, 10.5f, { D_TEXT2 }, width = 72f, align = TextAlign.END)
+                    dText({ fmtQty(t.value.qty) }, 10.5f, { D_TEXT2 }, width = 72f, align = TextAlign.END)
                     dText(
-                        { fmtClockHms(t.time) }, 10f, { D_TEXT3 },
+                        { fmtClockHms(t.value.time) }, 10f, { D_TEXT3 },
                         width = 56f, align = TextAlign.END
                     )
                 }

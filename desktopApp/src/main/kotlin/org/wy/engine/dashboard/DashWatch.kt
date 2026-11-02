@@ -56,20 +56,22 @@ internal fun StateHolder<Node, List<Node>>.dWatchlist(
                 dText({ "Last" }, 9f, { D_TEXT3 }, 600, width = 66f, align = TextAlign.END)
                 dText({ "24h" }, 9f, { D_TEXT3 }, 600, width = 54f, align = TextAlign.END)
             }
-            tickers().forEach { t ->
+            // 行必须用 renderForEach 增量构建：contentChildren 只在首次渲染执行一次，
+            // 用普通 forEach 时首帧列表为空（会话刚启动），后续数据到达也不会补行。
+            renderForEach({ callback -> tickers().forEach { callback(it.symbol, it) } }) { _, t ->
                 dClickRow(
                     height = 38f,
-                    active = t.symbol == activeSymbol(),
-                    onClick = { onPick(t.symbol) }
+                    activeOf = { t.value.symbol == activeSymbol() },
+                    onClick = { onPick(t.value.symbol) }
                 ) {
                     dCol(gap = 1f, align = AlignItem.start, grow = true) {
-                        dText({ t.symbol }, 11f, { D_TEXT }, 500)
-                        dText({ "Vol ${fmtCompact(t.quoteVolume)}" }, 9f, { D_TEXT3 })
+                        dText({ t.value.symbol }, 11f, { D_TEXT }, 500)
+                        dText({ "Vol ${fmtCompact(t.value.quoteVolume)}" }, 9f, { D_TEXT3 })
                     }
-                    dText({ fmtPrice(t.last) }, 11f, { D_TEXT }, width = 66f, align = TextAlign.END)
+                    dText({ fmtPrice(t.value.last) }, 11f, { D_TEXT }, width = 66f, align = TextAlign.END)
                     dText(
-                        { fmtPercent(t.changePercent) }, 10f,
-                        { if (t.changePercent >= 0) D_UP else D_DOWN },
+                        { fmtPercent(t.value.changePercent) }, 10f,
+                        { if (t.value.changePercent >= 0) D_UP else D_DOWN },
                         width = 54f, align = TextAlign.END
                     )
                 }
@@ -128,13 +130,18 @@ internal fun StateHolder<Node, List<Node>>.dStats(ticker: () -> Ticker?) {
                 dRow(height = 12f) {
                     dText({ "Low" }, 9f, { D_TEXT3 })
                     dSpacer()
-                    // 位置百分比在 text lambda 内现算（同上，快照会冻结）
+                    // 位置百分比在 text lambda 内现算（同上，快照会冻结）。
+                    // 无 ticker 时与 ooc rangeText 一致显示 '--'（而不是 50.0%）。
                     dText({
                         val t = ticker()
-                        val pct = if (t != null && t.high > t.low) {
-                            (t.last - t.low) / (t.high - t.low) * 100.0
-                        } else 50.0
-                        "${String.format(java.util.Locale.US, "%.1f", pct)}%"
+                        if (t == null) {
+                            "--"
+                        } else {
+                            val pct = if (t.high > t.low) {
+                                (t.last - t.low) / (t.high - t.low) * 100.0
+                            } else 50.0
+                            "${String.format(java.util.Locale.US, "%.1f", pct)}%"
+                        }
                     }, 9f, { D_TEXT2 })
                     dSpacer()
                     dText({ "High" }, 9f, { D_TEXT3 })

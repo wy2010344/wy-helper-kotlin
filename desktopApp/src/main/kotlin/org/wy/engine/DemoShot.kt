@@ -11,7 +11,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.wy.engine.dashboard.DashMarket
-import org.wy.engine.dashboard.MarketData
 import org.wy.engine.layout.FlexObject
 import org.wy.engine.layout.FlexParam
 import org.wy.engine.layout.LayoutDirection
@@ -412,6 +411,10 @@ private fun renderTyped(vararg inputs: String): Image {
  * 因此整个流程搬到 EDT 上执行，与 batch 串行。
  */
 fun main() {
+    // 截图前先等首份真实行情落地：数据源要么是币安，要么是本机 mock-api，
+    // 不再自带本地模拟；连不上时数据为空（探针输出 0），但不阻塞截图。
+    val ready = DashMarket.prewarm("BTCUSDT", "15m")
+    println("[shot] market ready = $ready")
     runBlocking {
         withContext(Dispatchers.Main) {
             shotMain()
@@ -423,8 +426,6 @@ fun main() {
 
 private fun shotMain() {
     val out = "build/shots"
-    // 截图走确定性模拟：断开实时行情源（否则用户偏好里选过 LIVE 时会带网络抖动进来）
-    DashMarket.disableNetwork()
     // 首访免责声明弹窗会盖住看板截图：截图期间置为已读，结束后恢复用户偏好
     val noticePrefWas = prefs.get("dash.noticeSeen", "")
     prefs.put("dash.noticeSeen", "1")
@@ -526,18 +527,8 @@ private fun shotMain() {
         val n = dashShots[dw]!!
         println("[dash w=$dw] candles red = " + colorBox(n, 200, 180, dw - 220, dh - 180, dashUp))
     }
-    // 实时 K 线探针：滚根节奏应按周期（1m=200 心跳 / 15m=3000 / 1h=12000）。
-    // 同一个 rev 下，1m 应已收盘换根、15m 仍在一根里走（相位插值），间距也应 = 周期
-    for (iv in listOf("1m", "15m", "1h")) {
-        for (r in listOf(0, 200, 3000)) {
-            val ks = MarketData.liveKlines("BTCUSDT", iv, r)
-            val last = ks.last()
-            println(
-                "[dash] klines $iv rev=$r size=${ks.size} stepMs=" + (last.time - ks[ks.size - 2].time) +
-                    " last=" + last.time + " closed=" + last.closed + " c=" + last.close
-            )
-        }
-    }
+    // 实时 K 线探针已移除：数据由 DashMarket（币安 / 本机 mock-api）提供，
+    // 截图时价格随真实时钟变化，不再有本地确定性模拟可供逐帧比对。
 
     // ── 深色模式验证 ──
     // 打开全局主题信号后重新渲染概览 / 组件库 / 设置 / 笔记 / 看板五页；

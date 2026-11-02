@@ -17,7 +17,7 @@
 
 ![demo](docs/screenshot.png)
 
-看板页：K 线 / 盘口 / 深度图，数据源可在币安实时行情与本地模拟间一键切换
+看板页：K 线 / 盘口 / 深度图，数据源可在币安实时行情与本机 mock-api 间一键切换（mock-api 需先启动，端口 8787）
 
 ![看板](docs/screenshot-dashboard.png)
 

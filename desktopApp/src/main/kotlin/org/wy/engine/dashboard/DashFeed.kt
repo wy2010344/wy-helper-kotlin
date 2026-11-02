@@ -17,6 +17,7 @@ import java.net.http.WebSocket
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.concurrent.CompletionStage
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
@@ -27,19 +28,22 @@ import javax.swing.SwingUtilities
 // ════════════════════════════════════════════════════
 // 数据源（对齐 ooc dashboard/feed.ts + market.ts）
 //
-//   SIM  —— 本地确定性模拟（MarketData，零网络，截图逐像素可复现）
 //   LIVE —— 币安公共行情：REST 快照 + WS 组合流
 //           wss://.../stream?streams=<全部自选>@ticker/<sym>@kline_<iv>/<sym>@aggTrade/<sym>@depth@100ms
 //           深度 = REST 5000 档快照 + 增量帧维护本地全簿（对齐 ooc order-book.ts）。
 //           WS 连续失败降级为 REST 轮询（4s），窗口/周期切换重建会话。
+//   MOCK —— 本机 mock-api（C:\github\mock-api，npm run dev，端口 8787）：
+//           REST /api/v3/** 每秒轮询一次，口径与 ooc 的 SSE(interval=1000) 一致；
+//           ticker / kline / depth / trades 全部由同一条时间价格函数生成，天然同源。
 //
-// 所有数据读取都走本对象，消费方（header/book/chart/activity）不再直接碰 MarketData。
+// 不再自带本地模拟引擎：数据要么来自币安，要么来自 mock-api。
+// 所有数据读取都走本对象，消费方（header/book/chart/activity）不直接碰网络层。
 //
 // 线程约定：网络回调在后台线程；信号（source/status/gen）只在 EDT 上写，
 // 快照通过 SwingUtilities.invokeLater 投递，与渲染同线程。
 // ════════════════════════════════════════════════════
 
-internal enum class FeedSource { SIM, LIVE }
+internal enum class FeedSource { MOCK, LIVE }
 
 internal enum class FeedStatus { MOCK, CONNECTING, LIVE, POLLING, RECONNECTING, OFFLINE }
 
@@ -53,6 +57,12 @@ internal class FeedSnap(
     val depth: Depth?,
     val trades: List<Trade>
 )
+
+/** 首屏是否齐备：至少要有 K 线、当前交易对 ticker、以及有档位的盘口。 */
+private fun FeedSnap.complete(): Boolean =
+    klines.isNotEmpty() &&
+        ticker != null &&
+        (depth?.bids?.isNotEmpty() == true || depth?.asks?.isNotEmpty() == true)
 
 /** 状态点颜色：LIVE 绿 / MOCK 蓝 / 轮询·重连 琥珀 / 连接中·离线 灰（对齐 ooc statusDot）。 */
 internal fun feedStatusColor(s: FeedStatus): ColorInt = when (s) {
@@ -72,16 +82,18 @@ internal fun feedLabel(s: FeedStatus): String = when (s) {
     FeedStatus.OFFLINE -> "OFFLINE"
 }
 
+/** 空盘口：数据还没到（首屏 / 断线）时给渲染层一个安全值。 */
+private val EMPTY_DEPTH = Depth(emptyList(), emptyList(), 0L)
+
 internal object DashMarket {
-    /** 默认接币安：只有用户显式切到 MOCK 才持久化为 sim（旧键 dash.source 不再读取）。 */
+    /** 默认接币安：只有用户显式切到 MOCK 才持久化为 mock（旧值 sim 一并视为 mock）。 */
     private const val PREF_SOURCE = "dash.source.v2"
 
+    private val savedSource = prefs.get(PREF_SOURCE, "")
     val source: StoreRef<FeedSource> = createSignal(
-        if (prefs.get(PREF_SOURCE, "") == "sim") FeedSource.SIM else FeedSource.LIVE
+        if (savedSource == "mock" || savedSource == "sim") FeedSource.MOCK else FeedSource.LIVE
     )
-    val status: StoreRef<FeedStatus> = createSignal(
-        if (source.value == FeedSource.LIVE) FeedStatus.CONNECTING else FeedStatus.MOCK
-    )
+    val status: StoreRef<FeedStatus> = createSignal(FeedStatus.CONNECTING)
     /** 最近一次行情错误文案（空 = 无错误）；footer 红字展示（对齐 ooc 的 error 信号）。 */
     val error: StoreRef<String> = createSignal("")
 
@@ -89,120 +101,192 @@ internal object DashMarket {
     private val gen: StoreRef<Int> = createSignal(0)
 
     private var snap: FeedSnap? = null
-
-    /** 截图/离屏渲染会关掉网络：画面始终是确定性模拟，rev=0 逐像素可复现。 */
-    private var networkAllowed = true
     private var watchSym = ""
     private var watchIv = ""
     private var session: LiveSession? = null
+    /** 自选列表独立会话（对齐 ooc createWatchlistSession）：不随交易对 / 周期 / 数据源切换清空。 */
+    private var watchFeed: WatchSession? = null
+    /** 自选行情快照：由 WatchSession 在 EDT 上写入，渲染读取即登记依赖。 */
+    private val watchRef: StoreRef<List<Ticker>> = createSignal(emptyList())
+    /** 会话代次：切换交易对 / 数据源后，旧会话的迟到回调直接丢弃。 */
+    private var sessionGen = 0
+    /** 自动降级到 mock-api 的节流时间戳（对齐 ooc SWITCH_GUARD_MS）。 */
+    private var lastFallbackAt = 0L
+    /** 截图预热：首份快照落地（或判定离线）时释放。 */
+    private var warmLatch: CountDownLatch? = null
+    private var warmGotData = false
 
-    /** 顶栏开关：SIM ⇄ LIVE。切回模拟时不保留实时快照，避免两套数据混用。 */
+    /** 顶栏开关：MOCK ⇄ LIVE。切到 MOCK 前先探活，服务没起就只提示、不改源（对齐 ooc toggleMockMode）。 */
     fun toggleSource() {
-        if (!networkAllowed) return
-        val next = if (source.value == FeedSource.SIM) FeedSource.LIVE else FeedSource.SIM
+        if (source.value == FeedSource.MOCK) {
+            applySource(FeedSource.LIVE)
+            return
+        }
+        feedTimer.execute {
+            val ok = probeMock()
+            SwingUtilities.invokeLater {
+                if (ok) applySource(FeedSource.MOCK) else error.value = MOCK_DOWN
+            }
+        }
+    }
+
+    private fun applySource(next: FeedSource) {
         source.value = next
-        error.value = ""
-        prefs.put(PREF_SOURCE, if (next == FeedSource.LIVE) "live" else "sim")
+        prefs.put(PREF_SOURCE, if (next == FeedSource.LIVE) "live" else "mock")
         session?.close()
         session = null
         snap = null
-        if (next == FeedSource.LIVE) {
-            status.value = FeedStatus.CONNECTING
-            val sym = watchSym.ifEmpty { MarketData.symbols.first() }
-            val iv = watchIv.ifEmpty { MarketData.intervals.first() }
-            watchSym = sym
-            watchIv = iv
-            startSession(sym, iv)
-        } else {
-            status.value = FeedStatus.MOCK
-        }
+        status.value = FeedStatus.CONNECTING
+        error.value = ""
+        val sym = watchSym.ifEmpty { watchSymbols.first() }
+        val iv = watchIv.ifEmpty { chartIntervals.first() }
+        watchSym = sym
+        watchIv = iv
+        startSession(sym, iv)
+        // 自选会话切源后重建；旧值保留在 watchRef 里，界面不会瞬间变空
+        watchFeed?.close()
+        watchFeed = null
+        startWatchFeed()
         gen.value = gen.value + 1
     }
 
-    /** 截图入口调用：禁网 + 归位到模拟，保证离屏渲染与运行时开关无关。 */
-    fun disableNetwork() {
-        networkAllowed = false
-        session?.close()
-        session = null
-        snap = null
-        source.value = FeedSource.SIM
-        status.value = FeedStatus.MOCK
-        error.value = ""
+    /** mock-api 探活：GET /api/v3/ping（本地服务毫秒级响应，超时 3s 即视为没起）。 */
+    private fun probeMock(): Boolean = runCatching {
+        val res = http.send(
+            HttpRequest.newBuilder(URI("$MOCK_REST/api/v3/ping"))
+                .timeout(Duration.ofSeconds(3))
+                .GET()
+                .build(),
+            HttpResponse.BodyHandlers.discarding()
+        )
+        res.statusCode() in 200..299
+    }.getOrDefault(false)
+
+    /** 截图入口调用：在 EDT 上拉起当前数据源（LIVE 或 mock-api），等首份快照落地。 */
+    fun prewarm(symbol: String, interval: String, timeoutMs: Long = 10_000L): Boolean {
+        val latch = CountDownLatch(1)
+        SwingUtilities.invokeLater {
+            watchSym = symbol
+            watchIv = interval
+            warmGotData = false
+            warmLatch = latch
+            startSession(symbol, interval)
+            startWatchFeed()
+        }
+        val done = latch.await(timeoutMs, TimeUnit.MILLISECONDS)
+        SwingUtilities.invokeLater { warmLatch = null }
+        return done && warmGotData
     }
 
-    /** 页面心跳里调（幂等）：交易对/周期或数据源变化时重建实时会话。 */
+    /** 页面心跳里调（幂等）：交易对 / 周期变化时重建行情会话。 */
     fun ensureWatch(symbol: String, interval: String) {
         watchSym = symbol
         watchIv = interval
-        if (!networkAllowed || source.value != FeedSource.LIVE) return
+        startWatchFeed()
         val s = session
         if (s != null && !s.closed && s.symbol == symbol && s.interval == interval) return
         startSession(symbol, interval)
     }
 
+    /** 自选会话幂等启动：与主行情互不影响。 */
+    private fun startWatchFeed() {
+        if (watchFeed?.closed == false) return
+        watchFeed = WatchSession(source.value) { list ->
+            SwingUtilities.invokeLater { watchRef.value = list }
+        }.also { it.start() }
+    }
+
     private fun startSession(symbol: String, interval: String) {
         session?.close()
         status.value = FeedStatus.CONNECTING
-        session = LiveSession(symbol, interval, ::onSnapshot, ::onStatus, ::onError).also { it.start() }
+        val token = ++sessionGen
+        session = LiveSession(
+            symbol, interval, source.value,
+            onSnap = { onSnapshot(token, it) },
+            onStatus = { onStatus(token, it) },
+            onErr = { onError(token, it) },
+            onFail = { code -> fallbackIfBanned(code) }
+        ).also { it.start() }
     }
 
-    private fun onSnapshot(s: FeedSnap) {
-        SwingUtilities.invokeLater {
-            if (source.value == FeedSource.LIVE) {
-                snap = s
-                if (error.value.isNotEmpty()) error.value = ""
-                gen.value = gen.value + 1
+    /**
+     * 币安硬失败（418/429/403 或网络不可达）且本机 mock-api 活着时自动接管（对齐 ooc failover）。
+     * 15s 内不重复切换，避免两边都挂时来回抖。
+     */
+    private fun fallbackIfBanned(code: Int?) {
+        val hard = code == null || code == 403 || code == 418 || code == 429
+        if (!hard) return
+        val now = System.currentTimeMillis()
+        if (now - lastFallbackAt < 15_000L) return
+        lastFallbackAt = now
+        feedTimer.execute {
+            if (!probeMock()) return@execute
+            SwingUtilities.invokeLater {
+                if (source.value == FeedSource.LIVE) applySource(FeedSource.MOCK)
             }
         }
     }
 
-    private fun onError(message: String) {
+    private fun onSnapshot(token: Int, s: FeedSnap) {
         SwingUtilities.invokeLater {
-            if (source.value == FeedSource.LIVE && error.value != message) error.value = message
+            if (token != sessionGen) return@invokeLater
+            snap = s
+            if (error.value.isNotEmpty()) error.value = ""
+            gen.value = gen.value + 1
+            // 预热等的是「首屏完整」：K 线 / ticker / 盘口任一先到都不算，
+            // 否则截图会拿到只要到逐笔的半成品（图表与深度仍是空态）。
+            if (!warmGotData && s.complete()) {
+                warmGotData = true
+                warmLatch?.countDown()
+            }
         }
     }
 
-    private fun onStatus(s: FeedStatus) {
+    private fun onError(token: Int, message: String) {
         SwingUtilities.invokeLater {
-            if (source.value == FeedSource.LIVE) status.value = s
+            if (token != sessionGen) return@invokeLater
+            if (error.value != message) error.value = message
         }
     }
 
-    /** 实时快照（仅 LIVE 且已有数据时非空）；同时登记数据依赖。 */
+    private fun onStatus(token: Int, s: FeedStatus) {
+        SwingUtilities.invokeLater {
+            if (token != sessionGen) return@invokeLater
+            status.value = s
+            // 判定离线时也释放预热等待，避免截图任务白等到超时
+            if (s == FeedStatus.OFFLINE) warmLatch?.countDown()
+        }
+    }
+
+    /** 当前快照（尚无数据时为空）；同时登记数据依赖。 */
     private fun active(): FeedSnap? {
         gen.value
-        return if (source.value == FeedSource.LIVE) snap else null
+        return snap
     }
 
-    fun tickerOf(symbol: String): Ticker {
-        val s = active()
-        if (s != null) {
-            s.tickers[symbol]?.let { return it }
-            if (symbol == s.symbol && s.ticker != null) return s.ticker
-        }
-        return MarketData.tickerOf(symbol)
+    fun tickerOf(symbol: String): Ticker? {
+        val s = active() ?: return null
+        return s.tickers[symbol] ?: (if (symbol == s.symbol) s.ticker else null)
     }
 
-    fun watchTickers(): List<Ticker> = MarketData.symbols.map { tickerOf(it) }
-
-    fun klinesOf(symbol: String, interval: String, rev: Int): List<Candle> {
-        val s = active()
-        if (s != null && symbol == s.symbol && interval == s.interval && s.klines.isNotEmpty()) {
-            return s.klines
-        }
-        return MarketData.liveKlines(symbol, interval, rev)
+    fun watchTickers(): List<Ticker> {
+        watchRef.value
+        return watchRef.value
     }
 
-    fun depthOf(symbol: String, rev: Int): Depth {
-        val s = active()
-        if (s != null && symbol == s.symbol && s.depth != null) return s.depth
-        return MarketData.depthOf(symbol, rev)
+    fun klinesOf(symbol: String, interval: String): List<Candle> {
+        val s = active() ?: return emptyList()
+        return if (symbol == s.symbol && interval == s.interval) s.klines else emptyList()
+    }
+
+    fun depthOf(symbol: String): Depth {
+        val s = active() ?: return EMPTY_DEPTH
+        return if (symbol == s.symbol) s.depth ?: EMPTY_DEPTH else EMPTY_DEPTH
     }
 
     fun tradesOf(symbol: String): List<Trade> {
-        val s = active()
-        if (s != null && symbol == s.symbol && s.trades.isNotEmpty()) return s.trades
-        return MarketData.tradesOf(symbol)
+        val s = active() ?: return emptyList()
+        return if (symbol == s.symbol) s.trades else emptyList()
     }
 }
 
@@ -226,9 +310,18 @@ private const val HEALTHY_MS = 20_000L
 private const val PUBLISH_MS = 220L
 /** WS 不可用时的 REST 轮询周期（对齐 ooc pollSnapshot 4000ms）。 */
 private const val POLL_MS = 4000L
+/** mock-api 地址与轮询周期（对齐 ooc feed.ts 的 DEFAULT_MOCK_ORIGIN 与 SSE interval=1000）。 */
+private const val MOCK_REST = "http://localhost:8787"
+private const val MOCK_POLL_MS = 1000L
+private const val MOCK_DOWN = "伪报文服务没响应：http://localhost:8787（先在 mock-api 项目里 npm run dev）"
 
 private val http: HttpClient by lazy {
-    HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build()
+    // 必须显式 HTTP/1.1：默认 HTTP_2 对明文 http:// 会先发 h2c 升级头，
+    // mock-api 的 Next 服务直接断连（EOF: header parser received no bytes）。
+    HttpClient.newBuilder()
+        .version(HttpClient.Version.HTTP_1_1)
+        .connectTimeout(Duration.ofSeconds(8))
+        .build()
 }
 
 /** 网络线程：轮询 / 合并推送 / 重连调度，守护线程不阻止进程退出。 */
@@ -348,10 +441,16 @@ private class LocalBook(private val lock: Any) {
 private class LiveSession(
     val symbol: String,
     val interval: String,
+    source: FeedSource,
     private val onSnap: (FeedSnap) -> Unit,
     private val onStatus: (FeedStatus) -> Unit,
-    private val onErr: (String) -> Unit
+    private val onErr: (String) -> Unit,
+    private val onFail: (Int?) -> Unit
 ) {
+    private val mock = source == FeedSource.MOCK
+    private val restBase = if (mock) MOCK_REST else BINANCE_REST
+    /** mock-api 无 WS：REST 轮询直接拿全簿，不走 LocalBook。 */
+    @Volatile private var mockReady = false
     private val lock = Any()
     private val klines = ArrayList<Candle>(HISTORY + 8)
     private var ticker: Ticker? = null
@@ -359,7 +458,7 @@ private class LiveSession(
     /** 轮询兜底用的浅盘口；WS 正常时由 [book] 的全簿覆盖。 */
     private var depth: Depth? = null
     private val book = LocalBook(lock)
-    /** 最新在前（与 MarketData.tradesOf 同口径）。 */
+    /** 最新在前（与 ooc pushTrade 同口径）。 */
     private val trades = ArrayList<Trade>(TRADE_KEEP)
     private var dirty = false
     /** 是否已推出过首份快照：决定 REST 失败要不要透出（首屏失败要报，稳态抖动静默）。 */
@@ -385,15 +484,23 @@ private class LiveSession(
     private var pollTask: ScheduledFuture<*>? = null
 
     fun start() {
-        requestBook() // 全簿快照（5000 档/侧）：深度图与盘口都吃它
-        pollRest() // 首屏：历史 K 线 / 24h 行情 / 浅盘口 / 成交
-        pollTask = feedTimer.scheduleAtFixedRate(
-            { if (!wsUp) pollRest() }, POLL_MS, POLL_MS, TimeUnit.MILLISECONDS
-        )
+        if (mock) {
+            // mock-api：每秒一次 REST 轮询（对齐 ooc SSE 的 interval=1000），无 WS / 无本地簿
+            pollRest()
+            pollTask = feedTimer.scheduleAtFixedRate(
+                { pollRest() }, MOCK_POLL_MS, MOCK_POLL_MS, TimeUnit.MILLISECONDS
+            )
+        } else {
+            requestBook() // 全簿快照（5000 档/侧）：深度图与盘口都吃它
+            pollRest() // 首屏：历史 K 线 / 24h 行情 / 浅盘口 / 成交
+            pollTask = feedTimer.scheduleAtFixedRate(
+                { if (!wsUp) pollRest() }, POLL_MS, POLL_MS, TimeUnit.MILLISECONDS
+            )
+            connect()
+        }
         publishTask = feedTimer.scheduleAtFixedRate(
             { publish() }, PUBLISH_MS, PUBLISH_MS, TimeUnit.MILLISECONDS
         )
-        connect()
     }
 
     fun close() {
@@ -412,12 +519,8 @@ private class LiveSession(
         if (closed) return
         handlingDown = false
         val s = symbol.lowercase()
-        // 组合流：全部自选币种的 ticker（自选列表实时刷新，对齐 ooc createWatchlistSession）
-        // + 当前交易对的 kline / aggTrade / 全簿增量（@depth@100ms，配合 LocalBook 重建完整盘口）
-        val streams = buildString {
-            MarketData.symbols.forEach { append(it.lowercase()).append("@ticker/") }
-            append("$s@kline_$interval/$s@aggTrade/$s@depth@100ms")
-        }
+        // 只订阅当前交易对（对齐 ooc createMarketSession）；自选列表由独立会话负责。
+        val streams = "$s@kline_$interval/$s@aggTrade/$s@depth@100ms"
         http.newWebSocketBuilder()
             .buildAsync(URI(BINANCE_WS + streams), Listener())
             .whenComplete { w, err ->
@@ -547,8 +650,10 @@ private class LiveSession(
             }
         }
 
-        // 轮询兜底用浅盘口（limit=50，对齐 ooc loadSnapshot）；WS 正常时由全簿覆盖
-        restGet("/api/v3/depth?$q&limit=50") { body ->
+        // LIVE 轮询兜底用浅盘口（limit=50，对齐 ooc loadSnapshot）；
+        // MOCK 没有 WS，直接每次拿全簿（limit=5000），深度图与盘口才有完整曲线。
+        val depthLimit = if (mock) BOOK_LIMIT else 50
+        restGet("/api/v3/depth?$q&limit=$depthLimit") { body ->
             val obj = JsonParser.parseString(body).asJsonObject
             val d = depthFrom(obj, System.currentTimeMillis())
             synchronized(lock) {
@@ -569,12 +674,13 @@ private class LiveSession(
             }
         }
 
-        // 自选列表要所有币种的 24h 行情，一次批量拉回
-        val all = MarketData.symbols.joinToString(",", "[", "]")
-        restGet("/api/v3/ticker/24hr?symbols=" + enc(all)) { body ->
-            val arr = JsonParser.parseString(body).asJsonArray
+        // 当前交易对的 24h 行情（对齐 ooc loadSnapshot 的单币种请求）。
+        // 自选列表的批量 24h 行情由独立会话 WatchSession 负责，避免两边重复拉同一批数据。
+        restGet("/api/v3/ticker/24hr?symbol=" + enc(symbol)) { body ->
+            val t = tickerFromRest(JsonParser.parseString(body).asJsonObject)
             synchronized(lock) {
-                arr.forEach { e -> tickerFromRest(e.asJsonObject).let { tickers[it.symbol] = it } }
+                tickers[t.symbol] = t
+                ticker = t
                 dirty = true
             }
         }
@@ -585,6 +691,7 @@ private class LiveSession(
      * 1.5s 内不重复请求：10Hz 增量流缺帧时不会把 REST 打成热循环。
      */
     private fun requestBook() {
+        if (mock) return
         if (closed) return
         val now = System.currentTimeMillis()
         if (now - lastBookFetchMs < 1500L) return
@@ -603,25 +710,40 @@ private class LiveSession(
     /** 异步 GET：回调在 HttpClient 线程，失败交给下一轮（不覆盖现有数据）。 */
     private fun restGet(path: String, use: (String) -> Unit) {
         http.sendAsync(
-            HttpRequest.newBuilder(URI(BINANCE_REST + path)).timeout(Duration.ofSeconds(10)).GET().build(),
+            HttpRequest.newBuilder(URI(restBase + path)).timeout(Duration.ofSeconds(10)).GET().build(),
             HttpResponse.BodyHandlers.ofString()
         ).whenComplete { res, err ->
             if (closed) return@whenComplete
             if (err != null || res == null || res.statusCode() !in 200..299) {
-                // WS 也不通且 REST 连续失败：判定离线（地域封禁 / 断网）
+                if (mock) mockReady = false
+                val code = res?.statusCode()
+                // 币安硬失败：交给外层决定是否降级到本机 mock-api
+                if (!mock) onFail(code)
+                // WS 也不通且 REST 连续失败：判定离线（地域封禁 / 断网 / mock-api 没起）
                 if (restFails.incrementAndGet() >= 2 && !wsUp) onStatus(FeedStatus.OFFLINE)
                 // 首屏还没拿到行情、或已降级轮询时，把失败原因透出到 footer；
                 // 稳态（WS 正常）的 REST 抖动保持静默，对齐 ooc syncBook/pollSnapshot 的 catch
                 if (!published || !wsUp) {
                     val code = res?.statusCode()
                     onErr(
-                        if (code != null) "Binance $code: " + path.substringBefore('?')
-                        else "行情请求失败，正在重试"
+                        when {
+                            mock -> MOCK_DOWN
+                            code != null -> "Binance $code: " + path.substringBefore('?')
+                            else -> "行情请求失败，正在重试"
+                        }
                     )
                 }
                 return@whenComplete
             }
-            if (restFails.getAndSet(0) >= 2 && !wsUp) onStatus(FeedStatus.POLLING)
+            val wasDown = restFails.getAndSet(0) >= 2
+            if (mock) {
+                if (!mockReady) {
+                    mockReady = true
+                    onStatus(FeedStatus.MOCK)
+                }
+            } else if (wasDown && !wsUp) {
+                onStatus(FeedStatus.POLLING)
+            }
             runCatching { use(res.body()) }
         }
     }
@@ -673,6 +795,172 @@ private class LiveSession(
         published = true
         onSnap(s)
     }
+}
+
+// ════════════════════════════════════════════════════
+// 自选列表会话（对齐 ooc dashboard/market.ts 的 createWatchlistSession）
+//
+// 与主行情会话完全独立：LIVE 只订阅全部自选币种的 @ticker 组合流，mock-api
+// 则按秒轮询批量 24h 行情；WS 抖动 ≥3 次后降级为 8s REST 轮询。
+// 因此切换交易对 / 周期 / 数据源时，自选列表不会跟着主会话一起清空。
+// ════════════════════════════════════════════════════
+
+/** WS 抖动降级后的自选轮询周期（对齐 ooc 的 8000ms）。 */
+private const val WATCH_POLL_MS = 8000L
+
+private class WatchSession(
+    val source: FeedSource,
+    private val onTickers: (List<Ticker>) -> Unit
+) {
+    private val mock = source == FeedSource.MOCK
+    private val restBase = if (mock) MOCK_REST else BINANCE_REST
+    private val lock = Any()
+    private val tickers = HashMap<String, Ticker>()
+
+    @Volatile var closed = false
+        private set
+    private var ws: WebSocket? = null
+    @Volatile private var wsUp = false
+    @Volatile private var openedAt = 0L
+    private var failures = 0
+    private var retryDelay = 800L
+    private var handlingDown = false
+    private var healthyTask: ScheduledFuture<*>? = null
+    private var pollTask: ScheduledFuture<*>? = null
+
+    fun start() {
+        fetch()
+        if (mock) {
+            // mock-api 没有 WS：与主行情同节奏，每秒批量轮询
+            pollTask = feedTimer.scheduleAtFixedRate(
+                { fetch() }, MOCK_POLL_MS, MOCK_POLL_MS, TimeUnit.MILLISECONDS
+            )
+        } else {
+            connect()
+            // WS 不通时的兜底轮询（对齐 ooc 的 8s）
+            pollTask = feedTimer.scheduleAtFixedRate(
+                { if (!wsUp) fetch() }, WATCH_POLL_MS, WATCH_POLL_MS, TimeUnit.MILLISECONDS
+            )
+        }
+    }
+
+    fun close() {
+        closed = true
+        pollTask?.cancel(false)
+        healthyTask?.cancel(false)
+        healthyTask = null
+        ws?.abort()
+        ws = null
+    }
+
+    private fun connect() {
+        if (closed) return
+        handlingDown = false
+        val streams = watchSymbols.joinToString("/") { it.lowercase() + "@ticker" }
+        http.newWebSocketBuilder()
+            .buildAsync(URI(BINANCE_WS + streams), Listener())
+            .whenComplete { w, err ->
+                if (closed) {
+                    w?.abort()
+                } else if (err != null || w == null) {
+                    onDown()
+                } else {
+                    ws = w
+                }
+            }
+    }
+
+    /** 断线重连退避：连续「连上就断」时指数退避，稳定存活过才回到 800ms。 */
+    private fun onDown() {
+        if (closed || handlingDown) return
+        handlingDown = true
+        wsUp = false
+        healthyTask?.cancel(false)
+        healthyTask = null
+        val lifetime = if (openedAt > 0L) System.currentTimeMillis() - openedAt else 0L
+        openedAt = 0L
+        failures = if (lifetime > HEALTHY_MS) 0 else failures + 1
+        retryDelay = if (lifetime > HEALTHY_MS) 800L else minOf(20_000L, (retryDelay * 8L) / 5L)
+        if (failures >= 3) fetch() // 到降级阈值时先补一次 REST，别等下一个 8s
+        feedTimer.schedule({ connect() }, retryDelay, TimeUnit.MILLISECONDS)
+    }
+
+    private inner class Listener : WebSocket.Listener {
+        private val sb = StringBuilder()
+
+        override fun onOpen(webSocket: WebSocket) {
+            if (closed) {
+                webSocket.abort()
+                return
+            }
+            wsUp = true
+            openedAt = System.currentTimeMillis()
+            webSocket.request(1)
+            fetch() // 首屏补齐（WS 只有增量）
+            healthyTask?.cancel(false)
+            healthyTask = feedTimer.schedule({
+                if (!closed && wsUp) {
+                    failures = 0
+                    retryDelay = 800L
+                }
+            }, HEALTHY_MS, TimeUnit.MILLISECONDS)
+        }
+
+        override fun onText(webSocket: WebSocket, data: CharSequence, last: Boolean): CompletionStage<*>? {
+            sb.append(data)
+            if (last) {
+                val text = sb.toString()
+                sb.setLength(0)
+                val root = runCatching { JsonParser.parseString(text).asJsonObject }.getOrNull()
+                val obj = root?.get("data")?.takeIf { it.isJsonObject }?.asJsonObject ?: root
+                if (obj != null && obj.str("e") == "24hrTicker") put(tickerFromWs(obj))
+            }
+            webSocket.request(1)
+            return null
+        }
+
+        override fun onError(webSocket: WebSocket, error: Throwable) {
+            if (!closed) onDown()
+        }
+
+        override fun onClose(webSocket: WebSocket, statusCode: Int, reason: String): CompletionStage<*>? {
+            onDown()
+            return null
+        }
+    }
+
+    private fun put(t: Ticker) {
+        val list = synchronized(lock) {
+            tickers[t.symbol] = t
+            ordered()
+        }
+        onTickers(list)
+    }
+
+    private fun fetch() {
+        if (closed) return
+        // 与 ooc 一致：JSON.stringify(symbols) + encodeURIComponent，即 ["BTCUSDT","ETHUSDT"]
+        val all = watchSymbols.joinToString(",", "[", "]") { "\"$it\"" }
+        http.sendAsync(
+            HttpRequest.newBuilder(URI("$restBase/api/v3/ticker/24hr?symbols=" + enc(all)))
+                .timeout(Duration.ofSeconds(10)).GET().build(),
+            HttpResponse.BodyHandlers.ofString()
+        ).whenComplete { res, err ->
+            if (closed) return@whenComplete
+            if (err != null || res == null || res.statusCode() !in 200..299) return@whenComplete
+            runCatching {
+                val arr = JsonParser.parseString(res.body()).asJsonArray
+                val list = synchronized(lock) {
+                    arr.forEach { e -> tickerFromRest(e.asJsonObject).let { tickers[it.symbol] = it } }
+                    ordered()
+                }
+                onTickers(list)
+            }
+        }
+    }
+
+    /** 固定按 watchSymbols 顺序输出，列表不会因收发顺序跳行。 */
+    private fun ordered(): List<Ticker> = watchSymbols.mapNotNull { tickers[it] }
 }
 
 // ════════════════════════════════════════════════════
@@ -729,7 +1017,7 @@ private fun tickerFromRest(j: JsonObject) = Ticker(
     time = j.lng("closeTime")
 )
 
-/** WS @ticker：单字段名（c=最新价、o=开盘价、P=涨跌幅）。 */
+/** WS @ticker：单字段名（c=最新价、o=开盘价、P=涨跌幅；b/B=买一价/量，a/A=卖一价/量）。 */
 private fun tickerFromWs(j: JsonObject): Ticker {
     val last = j.dbl("c")
     val open = j.dbl("o")
@@ -744,7 +1032,7 @@ private fun tickerFromWs(j: JsonObject): Ticker {
         volume = j.dbl("v"),
         quoteVolume = j.dbl("q"),
         bid = j.dbl("b"),
-        ask = j.dbl("B"),
+        ask = j.dbl("a"),
         time = j.lng("E")
     )
 }
